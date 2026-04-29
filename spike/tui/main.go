@@ -57,9 +57,9 @@ var (
 
 // ── message types ─────────────────────────────────────────────────────────────
 
-type tokenMsg string       // a streamed token arrives
-type toolDoneMsg int       // tool at index i finishes
-type tickMsg time.Time     // drives the streaming simulation
+type tokenMsg string   // a streamed token arrives
+type toolDoneMsg int   // tool at index i finishes
+type tickMsg time.Time // drives the streaming simulation
 
 // ── tool call ─────────────────────────────────────────────────────────────────
 
@@ -108,9 +108,9 @@ const (
 )
 
 type message struct {
-	role     role
-	text     string
-	toolIdx  int // only for roleTool
+	role    role
+	text    string
+	toolIdx int // only for roleTool
 }
 
 // ── key bindings ─────────────────────────────────────────────────────────────
