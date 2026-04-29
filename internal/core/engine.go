@@ -17,6 +17,7 @@ type Engine struct {
 	surfaces   []contracts.Surface
 	identity   *IdentityManager
 	router     *ModelRouter
+	sandbox    *SandboxManager
 	sessionLog []contracts.SessionLogEntry
 }
 
@@ -34,6 +35,7 @@ func New(version string) *Engine {
 		},
 		identity: NewIdentityManager(DefaultIdentityConfig()),
 		router:   NewModelRouter(DefaultEscalationConfig()),
+		sandbox:  NewSandboxManager(DefaultSandboxArchitecture()),
 	}
 }
 
@@ -69,6 +71,11 @@ func (e *Engine) RouteModel(req contracts.ModelRouteRequest) contracts.ModelRout
 // area without mutating workflow first-run tracking.
 func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
 	return e.router.Status()
+}
+
+// SandboxArchitecture returns the engine-owned execution sandbox policy.
+func (e *Engine) SandboxArchitecture() contracts.SandboxArchitecture {
+	return e.sandbox.Architecture()
 }
 
 // SessionLog returns a copy of user-visible engine events.
