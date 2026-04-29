@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/security"
 )
 
 // Engine owns the long-lived runtime state for Conduit.
@@ -17,6 +18,7 @@ type Engine struct {
 	surfaces   []contracts.Surface
 	identity   *IdentityManager
 	router     *ModelRouter
+	sandbox    *SandboxManager
 	sessionLog []contracts.SessionLogEntry
 }
 
@@ -34,6 +36,7 @@ func New(version string) *Engine {
 		},
 		identity: NewIdentityManager(DefaultIdentityConfig()),
 		router:   NewModelRouter(DefaultEscalationConfig()),
+		sandbox:  NewSandboxManager(DefaultSandboxArchitecture()),
 	}
 }
 
@@ -45,6 +48,12 @@ func (e *Engine) Info() contracts.EngineInfo {
 		Surfaces:  append([]contracts.Surface(nil), e.surfaces...),
 		StartedAt: e.startedAt,
 	}
+}
+
+// SanitizeInjectedContent scans untrusted model context and strips injection
+// attempts before the content reaches prompt assembly.
+func (e *Engine) SanitizeInjectedContent(source security.ContentSource, content string) security.ScanResult {
+	return security.ScanInjectedContent(source, content)
 }
 
 // Identity returns the engine-owned three-layer identity manager.
@@ -69,6 +78,11 @@ func (e *Engine) RouteModel(req contracts.ModelRouteRequest) contracts.ModelRout
 // area without mutating workflow first-run tracking.
 func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
 	return e.router.Status()
+}
+
+// SandboxArchitecture returns the engine-owned execution sandbox policy.
+func (e *Engine) SandboxArchitecture() contracts.SandboxArchitecture {
+	return e.sandbox.Architecture()
 }
 
 // SessionLog returns a copy of user-visible engine events.

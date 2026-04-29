@@ -58,22 +58,45 @@ type ModelRouteDecision struct {
 	Reasons         []EscalationReason
 }
 
-// MountMode controls how a host path is exposed inside an isolated sandbox.
-type MountMode string
+// SessionLogEntry is a user-visible event emitted by the engine.
+type SessionLogEntry struct {
+	At      time.Time
+	Message string
+}
+
+// SandboxBackend identifies the host runtime used to create the isolated
+// Linux execution environment.
+type SandboxBackend string
 
 const (
-	MountModeReadOnly  MountMode = "read-only"
-	MountModeReadWrite MountMode = "read-write"
-	MountModeCopyIn    MountMode = "copy-in"
-	MountModeCopyOut   MountMode = "copy-out"
+	SandboxBackendAppleVirtualization SandboxBackend = "apple_virtualization"
+	SandboxBackendOCIContainer        SandboxBackend = "oci_container"
 )
 
-// SandboxMount describes one explicit filesystem grant from the host into a
+// SandboxNetworkPolicy controls outbound network access from agent-run code.
+type SandboxNetworkPolicy string
+
+const (
+	SandboxNetworkPolicyControlledEgress SandboxNetworkPolicy = "controlled_egress"
+	SandboxNetworkPolicyOffline          SandboxNetworkPolicy = "offline"
+)
+
+// SandboxMountMode describes how a user-approved host path appears inside the
 // sandbox.
+type SandboxMountMode string
+
+const (
+	SandboxMountReadOnly  SandboxMountMode = "read_only"
+	SandboxMountReadWrite SandboxMountMode = "read_write"
+	SandboxMountCopyIn    SandboxMountMode = "copy_in"
+	SandboxMountCopyOut   SandboxMountMode = "copy_out"
+)
+
+// SandboxMount is an explicit filesystem grant from the host into the sandbox.
 type SandboxMount struct {
 	HostPath                   string
 	SandboxPath                string
-	Mode                       MountMode
+	Mode                       SandboxMountMode
 	AllowSensitivePathOverride bool
 }
 
@@ -86,8 +109,27 @@ type DynamicMountRequest struct {
 	BlockReason          string
 }
 
-// SessionLogEntry is a user-visible event emitted by the engine.
-type SessionLogEntry struct {
-	At      time.Time
-	Message string
+// SandboxArchitecture describes the security and startup contract every agent
+// execution sandbox must satisfy.
+type SandboxArchitecture struct {
+	Backend                   SandboxBackend
+	BaseImage                 string
+	ImagePrecached            bool
+	WarmStartBudget           time.Duration
+	Shells                    []string
+	PreinstalledRuntimes      []string
+	NetworkPolicy             SandboxNetworkPolicy
+	Mounts                    []SandboxMount
+	DenyHostFilesystem        bool
+	DenyHostNetwork           bool
+	DenyHostProcesses         bool
+	DenyPrivilegeEscalation   bool
+	DenyDockerSocket          bool
+	DiscardUnexportedChanges  bool
+	RequiresExplicitMounts    bool
+	RequiresExplicitEgress    bool
+	RequiresExplicitPortFwd   bool
+	RequiresNonRootUser       bool
+	RequiresProcessNamespace  bool
+	RequiresFilesystemOverlay bool
 }
