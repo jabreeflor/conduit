@@ -11,13 +11,14 @@ import (
 
 // Engine owns the long-lived runtime state for Conduit.
 type Engine struct {
-	name       string
-	version    string
-	startedAt  time.Time
-	surfaces   []contracts.Surface
-	identity   *IdentityManager
-	router     *ModelRouter
-	sessionLog []contracts.SessionLogEntry
+	name        string
+	version     string
+	startedAt   time.Time
+	surfaces    []contracts.Surface
+	identity    *IdentityManager
+	router      *ModelRouter
+	permissions *PermissionManager
+	sessionLog  []contracts.SessionLogEntry
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -32,8 +33,9 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		identity: NewIdentityManager(DefaultIdentityConfig()),
-		router:   NewModelRouter(DefaultEscalationConfig()),
+		identity:    NewIdentityManager(DefaultIdentityConfig()),
+		router:      NewModelRouter(DefaultEscalationConfig()),
+		permissions: NewPermissionManager(DefaultPermissionConfig()),
 	}
 }
 
@@ -50,6 +52,22 @@ func (e *Engine) Info() contracts.EngineInfo {
 // Identity returns the engine-owned three-layer identity manager.
 func (e *Engine) Identity() *IdentityManager {
 	return e.identity
+}
+
+// Permissions returns the engine-owned permission gate.
+func (e *Engine) Permissions() *PermissionManager {
+	return e.permissions
+}
+
+// EvaluatePermission gates a protected resource access and records the decision
+// in both the permission audit trail and the session log.
+func (e *Engine) EvaluatePermission(req contracts.PermissionRequest) contracts.PermissionDecision {
+	decision := e.permissions.Evaluate(req)
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: formatPermissionDecision(decision),
+	})
+	return decision
 }
 
 // RouteModel selects a model for an inference request and logs transparent
