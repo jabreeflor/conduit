@@ -7,6 +7,8 @@ import (
 	"os"
 	"testing"
 	"time"
+
+	toolerrors "github.com/jabreeflor/conduit/internal/errors"
 )
 
 func TestPipelineAppliesAgentOverrideBeforePolicy(t *testing.T) {
@@ -180,5 +182,39 @@ policies:
 	}
 	if cfg.Policies[1].AllowedDomains[0] != "*.github.com" {
 		t.Fatalf("AllowedDomains = %#v, want github wildcard", cfg.Policies[1].AllowedDomains)
+	}
+}
+
+func TestExecuteClassifiesRunnerErrorAndSetsIsError(t *testing.T) {
+	pipeline := NewPipeline([]Tool{
+		{
+			Name: "flaky",
+			Run: func(_ context.Context, _ json.RawMessage) (Result, error) {
+				return Result{}, errors.New("connection refused")
+			},
+		},
+	}, PolicyConfig{})
+
+	result, _, err := pipeline.Execute(context.Background(), Call{ToolName: "flaky"}, AgentOverrides{})
+
+	if err == nil {
+		t.Fatal("expected error from failing runner, got nil")
+	}
+	if !result.IsError {
+		t.Error("Result.IsError should be true when runner fails")
+	}
+	if result.Text == "" {
+		t.Error("Result.Text should carry the error message for agent visibility")
+	}
+
+	var te *toolerrors.ToolError
+	if !errors.As(err, &te) {
+		t.Fatalf("error should be a *toolerrors.ToolError, got %T", err)
+	}
+	if te.Kind() != toolerrors.KindNetwork {
+		t.Errorf("Kind = %s, want network (connection refused heuristic)", te.Kind())
+	}
+	if te.Recovery() != toolerrors.RecoveryExponentialBackoff {
+		t.Errorf("Recovery = %s, want exponential_backoff", te.Recovery())
 	}
 }
