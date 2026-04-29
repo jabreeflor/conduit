@@ -2,6 +2,8 @@
 package core
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
@@ -9,11 +11,13 @@ import (
 
 // Engine owns the long-lived runtime state for Conduit.
 type Engine struct {
-	name      string
-	version   string
-	startedAt time.Time
-	surfaces  []contracts.Surface
-	identity  *IdentityManager
+	name       string
+	version    string
+	startedAt  time.Time
+	surfaces   []contracts.Surface
+	identity   *IdentityManager
+	router     *ModelRouter
+	sessionLog []contracts.SessionLogEntry
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -29,6 +33,7 @@ func New(version string) *Engine {
 			contracts.SurfaceSpotlight,
 		},
 		identity: NewIdentityManager(DefaultIdentityConfig()),
+		router:   NewModelRouter(DefaultEscalationConfig()),
 	}
 }
 
@@ -45,4 +50,36 @@ func (e *Engine) Info() contracts.EngineInfo {
 // Identity returns the engine-owned three-layer identity manager.
 func (e *Engine) Identity() *IdentityManager {
 	return e.identity
+}
+
+// RouteModel selects a model for an inference request and logs transparent
+// escalation events for all surfaces.
+func (e *Engine) RouteModel(req contracts.ModelRouteRequest) contracts.ModelRouteDecision {
+	decision := e.router.Route(req)
+	if decision.Escalated {
+		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+			At:      time.Now().UTC(),
+			Message: fmt.Sprintf("model escalated from %s to %s (%s)", decision.DefaultModel, decision.EscalationModel, joinReasons(decision.Reasons)),
+		})
+	}
+	return decision
+}
+
+// ModelStatus returns the router state that a surface can show in its status
+// area without mutating workflow first-run tracking.
+func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
+	return e.router.Status()
+}
+
+// SessionLog returns a copy of user-visible engine events.
+func (e *Engine) SessionLog() []contracts.SessionLogEntry {
+	return append([]contracts.SessionLogEntry(nil), e.sessionLog...)
+}
+
+func joinReasons(reasons []contracts.EscalationReason) string {
+	parts := make([]string, 0, len(reasons))
+	for _, reason := range reasons {
+		parts = append(parts, string(reason))
+	}
+	return strings.Join(parts, ", ")
 }
