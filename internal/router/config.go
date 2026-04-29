@@ -70,6 +70,8 @@ type RoutingRule struct {
 type ProviderConfig struct {
 	Name               string         `yaml:"name"`
 	Model              string         `yaml:"model"`
+	BaseURL            string         `yaml:"base_url,omitempty"`
+	APIKey             string         `yaml:"api_key,omitempty"`
 	Capabilities       []Capability   `yaml:"capabilities"`
 	Timeout            time.Duration  `yaml:"timeout"`
 	InputCostPer1KUSD  float64        `yaml:"input_cost_per_1k_usd"`
