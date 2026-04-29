@@ -215,9 +215,19 @@ const (
 
 // SandboxMount is an explicit filesystem grant from the host into the sandbox.
 type SandboxMount struct {
-	HostPath    string
-	SandboxPath string
-	Mode        SandboxMountMode
+	HostPath                   string
+	SandboxPath                string
+	Mode                       SandboxMountMode
+	AllowSensitivePathOverride bool
+}
+
+// DynamicMountRequest is the user-visible approval record emitted when an
+// agent asks for filesystem access during a session.
+type DynamicMountRequest struct {
+	Mount                SandboxMount
+	RequiresUserApproval bool
+	Blocked              bool
+	BlockReason          string
 }
 
 // SandboxArchitecture describes the security and startup contract every agent
