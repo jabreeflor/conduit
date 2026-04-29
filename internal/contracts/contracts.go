@@ -58,6 +58,34 @@ type ModelRouteDecision struct {
 	Reasons         []EscalationReason
 }
 
+// MountMode controls how a host path is exposed inside an isolated sandbox.
+type MountMode string
+
+const (
+	MountModeReadOnly  MountMode = "read-only"
+	MountModeReadWrite MountMode = "read-write"
+	MountModeCopyIn    MountMode = "copy-in"
+	MountModeCopyOut   MountMode = "copy-out"
+)
+
+// SandboxMount describes one explicit filesystem grant from the host into a
+// sandbox.
+type SandboxMount struct {
+	HostPath                   string
+	SandboxPath                string
+	Mode                       MountMode
+	AllowSensitivePathOverride bool
+}
+
+// DynamicMountRequest is the user-visible approval record emitted when an
+// agent asks for filesystem access during a session.
+type DynamicMountRequest struct {
+	Mount                SandboxMount
+	RequiresUserApproval bool
+	Blocked              bool
+	BlockReason          string
+}
+
 // SessionLogEntry is a user-visible event emitted by the engine.
 type SessionLogEntry struct {
 	At      time.Time
