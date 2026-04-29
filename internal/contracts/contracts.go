@@ -252,6 +252,18 @@ const (
 	SandboxBackendOCIContainer        SandboxBackend = "oci_container"
 )
 
+// SandboxRuntimeCapabilities reports what a backend can provide on the current
+// host. A RuntimeProbe populates this for the selector (PRD §15.9).
+type SandboxRuntimeCapabilities struct {
+	Backend           SandboxBackend
+	Available         bool
+	UnavailableReason string
+	SupportsRosetta2  bool
+	SupportsVirtioFS  bool
+	ColdStartBudget   time.Duration
+	MemoryOverheadMB  int
+}
+
 // SandboxNetworkPolicy controls outbound network access from agent-run code.
 type SandboxNetworkPolicy string
 
@@ -294,7 +306,9 @@ type SandboxArchitecture struct {
 	Backend                   SandboxBackend
 	BaseImage                 string
 	ImagePrecached            bool
+	ColdStartBudget           time.Duration
 	WarmStartBudget           time.Duration
+	MaxMemoryOverheadMB       int
 	Shells                    []string
 	PreinstalledRuntimes      []string
 	NetworkPolicy             SandboxNetworkPolicy

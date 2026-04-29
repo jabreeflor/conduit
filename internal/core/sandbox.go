@@ -12,7 +12,11 @@ import (
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
-const warmSandboxStartupBudget = 2 * time.Second
+const (
+	warmSandboxStartupBudget   = 2 * time.Second
+	coldSandboxStartupBudget   = 5 * time.Second
+	sandboxMaxMemoryOverheadMB = 256
+)
 
 var (
 	requiredSandboxShells       = []string{"bash", "sh"}
@@ -34,14 +38,16 @@ type SandboxManager struct {
 	sensitivePaths   []string
 }
 
-// DefaultSandboxArchitecture captures the PRD 15.1 baseline for agent tool
+// DefaultSandboxArchitecture captures the PRD §15.9 baseline for agent tool
 // execution: a warm Ubuntu userspace with explicit host access gates.
 func DefaultSandboxArchitecture() contracts.SandboxArchitecture {
 	return contracts.SandboxArchitecture{
 		Backend:                   contracts.SandboxBackendAppleVirtualization,
 		BaseImage:                 "ubuntu-24.04",
 		ImagePrecached:            true,
+		ColdStartBudget:           coldSandboxStartupBudget,
 		WarmStartBudget:           warmSandboxStartupBudget,
+		MaxMemoryOverheadMB:       sandboxMaxMemoryOverheadMB,
 		Shells:                    []string{"bash", "zsh", "sh"},
 		PreinstalledRuntimes:      []string{"go", "node", "python"},
 		NetworkPolicy:             contracts.SandboxNetworkPolicyControlledEgress,
@@ -110,8 +116,14 @@ func (m *SandboxManager) Validate() error {
 	if !m.architecture.ImagePrecached {
 		problems = append(problems, "sandbox image must be pre-cached")
 	}
+	if m.architecture.ColdStartBudget <= 0 || m.architecture.ColdStartBudget > coldSandboxStartupBudget {
+		problems = append(problems, "cold start budget must be at most 5s")
+	}
 	if m.architecture.WarmStartBudget <= 0 || m.architecture.WarmStartBudget > warmSandboxStartupBudget {
 		problems = append(problems, "warm start budget must be at most 2s")
+	}
+	if m.architecture.MaxMemoryOverheadMB <= 0 || m.architecture.MaxMemoryOverheadMB > sandboxMaxMemoryOverheadMB {
+		problems = append(problems, "memory overhead limit must be at most 256MB")
 	}
 	for _, shell := range requiredSandboxShells {
 		if !slices.Contains(m.architecture.Shells, shell) {
