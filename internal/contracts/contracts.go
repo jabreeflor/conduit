@@ -63,3 +63,60 @@ type SessionLogEntry struct {
 	At      time.Time
 	Message string
 }
+
+// NetworkMode controls how sandboxed network access is approved.
+type NetworkMode string
+
+const (
+	NetworkModeRestricted NetworkMode = "restricted"
+	NetworkModePerRequest NetworkMode = "per_request"
+	NetworkModeOpen       NetworkMode = "open"
+	NetworkModeOffline    NetworkMode = "offline"
+)
+
+// NetworkDirection identifies the side of a network policy check.
+type NetworkDirection string
+
+const (
+	NetworkDirectionOutbound NetworkDirection = "outbound"
+	NetworkDirectionInbound  NetworkDirection = "inbound"
+)
+
+// NetworkRequest describes a network action before the sandbox allows it.
+type NetworkRequest struct {
+	Direction NetworkDirection
+	Host      string
+	Port      int
+	Protocol  string
+	URL       string
+}
+
+// NetworkDecision is the policy result for one network request.
+type NetworkDecision struct {
+	Allowed bool
+	Reason  string
+	Mode    NetworkMode
+	Host    string
+	Port    int
+}
+
+// PortForward is an explicit inbound exception into a sandbox.
+type PortForward struct {
+	Name       string
+	ListenPort int
+	TargetHost string
+	TargetPort int
+	Protocol   string
+}
+
+// NetworkEvent records DNS and traffic policy decisions for audit surfaces.
+type NetworkEvent struct {
+	At        time.Time
+	Kind      string
+	Direction NetworkDirection
+	Host      string
+	Port      int
+	Protocol  string
+	Allowed   bool
+	Reason    string
+}
