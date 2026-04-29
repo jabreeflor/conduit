@@ -128,6 +128,25 @@ type SessionLogEntry struct {
 	Message string
 }
 
+// UsageEntry is one model-call record written to ~/.conduit/usage.jsonl.
+type UsageEntry struct {
+	At           time.Time `json:"at"`
+	SessionID    string    `json:"session_id"`
+	Provider     string    `json:"provider"`
+	Model        string    `json:"model"`
+	InputTokens  int       `json:"input_tokens"`
+	OutputTokens int       `json:"output_tokens"`
+	TotalTokens  int       `json:"total_tokens"`
+	CostUSD      float64   `json:"cost_usd"`
+}
+
+// UsageSummary is the running totals for the status bar.
+type UsageSummary struct {
+	Model        string
+	TotalTokens  int
+	TotalCostUSD float64
+}
+
 // NetworkMode controls how sandboxed network access is approved.
 type NetworkMode string
 
