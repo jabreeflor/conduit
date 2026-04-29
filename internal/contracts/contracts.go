@@ -20,3 +20,46 @@ type EngineInfo struct {
 	Surfaces  []Surface
 	StartedAt time.Time
 }
+
+// TaskTag marks inference requests that need special routing treatment.
+type TaskTag string
+
+const (
+	TaskTagDestructive TaskTag = "destructive"
+	TaskTagPublish     TaskTag = "publish"
+	TaskTagFinancial   TaskTag = "financial"
+)
+
+// EscalationReason explains why a request moved to the escalation model.
+type EscalationReason string
+
+const (
+	EscalationReasonLowConfidence    EscalationReason = "low_confidence"
+	EscalationReasonFirstWorkflowRun EscalationReason = "first_workflow_run"
+	EscalationReasonHighStakesTask   EscalationReason = "high_stakes_task"
+	EscalationReasonModelUncertainty EscalationReason = "model_uncertainty"
+)
+
+// ModelRouteRequest is the core engine's model-routing input.
+type ModelRouteRequest struct {
+	WorkflowType           string
+	Confidence             float64
+	Tags                   []TaskTag
+	SelfSignalsUncertainty bool
+}
+
+// ModelRouteDecision records the selected model and transparent escalation
+// details for surfaces and session logs.
+type ModelRouteDecision struct {
+	DefaultModel    string
+	EscalationModel string
+	SelectedModel   string
+	Escalated       bool
+	Reasons         []EscalationReason
+}
+
+// SessionLogEntry is a user-visible event emitted by the engine.
+type SessionLogEntry struct {
+	At      time.Time
+	Message string
+}
