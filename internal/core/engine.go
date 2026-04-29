@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/security"
 )
 
 // Engine owns the long-lived runtime state for Conduit.
@@ -45,6 +46,12 @@ func (e *Engine) Info() contracts.EngineInfo {
 		Surfaces:  append([]contracts.Surface(nil), e.surfaces...),
 		StartedAt: e.startedAt,
 	}
+}
+
+// SanitizeInjectedContent scans untrusted model context and strips injection
+// attempts before the content reaches prompt assembly.
+func (e *Engine) SanitizeInjectedContent(source security.ContentSource, content string) security.ScanResult {
+	return security.ScanInjectedContent(source, content)
 }
 
 // Identity returns the engine-owned three-layer identity manager.
