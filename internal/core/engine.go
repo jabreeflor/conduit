@@ -13,6 +13,7 @@ type Engine struct {
 	version   string
 	startedAt time.Time
 	surfaces  []contracts.Surface
+	identity  *IdentityManager
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -27,6 +28,7 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
+		identity: NewIdentityManager(DefaultIdentityConfig()),
 	}
 }
 
@@ -38,4 +40,9 @@ func (e *Engine) Info() contracts.EngineInfo {
 		Surfaces:  append([]contracts.Surface(nil), e.surfaces...),
 		StartedAt: e.startedAt,
 	}
+}
+
+// Identity returns the engine-owned three-layer identity manager.
+func (e *Engine) Identity() *IdentityManager {
+	return e.identity
 }
