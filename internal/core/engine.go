@@ -18,6 +18,7 @@ type Engine struct {
 	surfaces    []contracts.Surface
 	identity    *IdentityManager
 	router      *ModelRouter
+	network     *NetworkSandbox
 	permissions *PermissionManager
 	sandbox     *SandboxManager
 	sessionLog  []contracts.SessionLogEntry
@@ -37,6 +38,7 @@ func New(version string) *Engine {
 		},
 		identity:    NewIdentityManager(DefaultIdentityConfig()),
 		router:      NewModelRouter(DefaultEscalationConfig()),
+		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions: NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
 	}
