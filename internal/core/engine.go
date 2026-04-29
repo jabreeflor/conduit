@@ -13,17 +13,18 @@ import (
 
 // Engine owns the long-lived runtime state for Conduit.
 type Engine struct {
-	name        string
-	version     string
-	startedAt   time.Time
-	surfaces    []contracts.Surface
-	identity    *IdentityManager
-	router      *ModelRouter
-	network     *NetworkSandbox
-	permissions *PermissionManager
-	sandbox     *SandboxManager
-	sessionLog  []contracts.SessionLogEntry
-	usage       *usage.Tracker
+	name            string
+	version         string
+	startedAt       time.Time
+	surfaces        []contracts.Surface
+	identity        *IdentityManager
+	router          *ModelRouter
+	network         *NetworkSandbox
+	permissions     *PermissionManager
+	sandbox         *SandboxManager
+	machineProfiler *MachineProfiler
+	sessionLog      []contracts.SessionLogEntry
+	usage           *usage.Tracker
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -41,12 +42,13 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		identity:    NewIdentityManager(DefaultIdentityConfig()),
-		router:      NewModelRouter(DefaultEscalationConfig()),
-		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
-		permissions: NewPermissionManager(DefaultPermissionConfig()),
-		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
-		usage:       tracker,
+		identity:        NewIdentityManager(DefaultIdentityConfig()),
+		router:          NewModelRouter(DefaultEscalationConfig()),
+		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions:     NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
+		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
+		usage:           tracker,
 	}
 }
 
@@ -132,6 +134,18 @@ func (e *Engine) UsageSummary() contracts.UsageSummary {
 // SessionLog returns a copy of user-visible engine events.
 func (e *Engine) SessionLog() []contracts.SessionLogEntry {
 	return append([]contracts.SessionLogEntry(nil), e.sessionLog...)
+}
+
+// MachineProfile returns the cached hardware profile, running a fresh scan on
+// first call or when no cache exists.
+func (e *Engine) MachineProfile() (contracts.MachineProfile, error) {
+	return e.machineProfiler.Load()
+}
+
+// RescanMachine runs a fresh hardware probe, overwrites the cache, and returns
+// the new profile. Call this on user-triggered re-scan requests.
+func (e *Engine) RescanMachine() (contracts.MachineProfile, error) {
+	return e.machineProfiler.Scan()
 }
 
 func joinReasons(reasons []contracts.EscalationReason) string {
