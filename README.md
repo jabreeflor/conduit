@@ -163,6 +163,26 @@ Conduit is shipped in phases. See [docs/PRD.md § 19](./docs/PRD.md) for the ful
 | 7 | Coding Agent Engine | Planned |
 | 8 | Collaboration & Channel Access | Planned |
 
+## Working with Claude on GitHub
+
+This repo is wired up to [Claude Code on GitHub Actions](https://github.com/anthropics/claude-code-action). Two workflows live in [`.github/workflows/`](./.github/workflows/):
+
+- **[`claude.yml`](./.github/workflows/claude.yml)** — On-demand. Tag `@claude` in an issue title/body or in any issue/PR comment, _or_ apply the `claude` label to an issue, and Claude will pick up the work.
+- **[`claude-review.yml`](./.github/workflows/claude-review.yml)** — Automatic. Reviews every PR on open/sync/reopen with a Conduit-specific prompt focused on security, sandbox integrity, and architecture fit.
+
+### One-time setup
+
+The workflows require an `ANTHROPIC_API_KEY` repo secret:
+
+```sh
+gh secret set ANTHROPIC_API_KEY --repo jabreeflor/conduit
+# or via the UI: Settings → Secrets and variables → Actions → New repository secret
+```
+
+You also need the [Claude GitHub App](https://github.com/apps/claude) installed on the repo so Claude can comment and push. If you haven't installed it yet, the easiest way is to run `claude /install-github-app` locally.
+
+To enable the `claude` label trigger, create the label once: `gh label create claude --color 8A63D2 --description "Hand off to Claude Code"`.
+
 ## Links
 
 - 📋 [Product Requirements Document](./docs/PRD.md)
