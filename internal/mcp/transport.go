@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 )
 
 // Transport is the I/O contract every MCP transport must satisfy.
@@ -187,17 +188,17 @@ func (h *HTTPHandler) handleSSE(w http.ResponseWriter, r *http.Request) {
 
 	// Send a keep-alive ping every 15 seconds so proxies don't close the
 	// connection, then wait for the request context to cancel.
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-ticker.C:
+			_ = writeSSEEvent(w, "ping", "")
+			flusher.Flush()
 		}
 	}
-
-	// Drain any buffered outbound events.  Real notifications (tool-list
-	// changed, log messages) would be pushed here via a channel that the
-	// Server writes to when its state changes.
-	_ = flusher
 }
 
 // writeSSEEvent formats and writes one Server-Sent Events frame.
