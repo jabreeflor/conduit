@@ -141,11 +141,32 @@ conduit eval run     # evaluate models against test suites
 
 ```
 conduit/
+├── cmd/
+│   └── conduit/        # CLI entrypoint for the Conduit binary
+├── internal/
+│   ├── contracts/      # Shared core/surface data contracts
+│   ├── core/           # Surface-agnostic engine package
+│   ├── tui/            # Terminal surface package
+│   └── gui/            # macOS GUI package boundary
+├── .github/
+│   └── workflows/      # CI and Claude GitHub automation
 ├── docs/
-│   └── PRD.md          # Full product requirements document
+│   ├── PRD.md          # Full product requirements document
+│   └── adr/            # Architecture decision records
 ├── assets/
 │   └── banner.svg      # Hero banner (this README)
+├── go.mod              # Go module definition
+├── Makefile            # Local build, lint, test, and release tasks
 └── README.md
+```
+
+## Development
+
+```sh
+make lint       # gofmt check + go vet
+make typecheck  # compile all packages without running tests
+make test       # unit tests
+make release    # darwin arm64/amd64 release binaries in dist/
 ```
 
 ## Roadmap
