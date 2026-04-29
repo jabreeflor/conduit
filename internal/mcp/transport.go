@@ -195,7 +195,7 @@ func (h *HTTPHandler) handleSSE(w http.ResponseWriter, r *http.Request) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			_ = writeSSEEvent(w, "ping", nil)
+			_ = writeSSEEvent(w, "ping", "")
 			flusher.Flush()
 		}
 	}
