@@ -20,6 +20,15 @@ func Run(out io.Writer) error {
 		surfaces = append(surfaces, string(surface))
 	}
 
-	_, err := fmt.Fprintf(out, "%s core online (%s)\n", info.Name, strings.Join(surfaces, ", "))
+	modelStatus := engine.ModelStatus()
+
+	_, err := fmt.Fprintf(
+		out,
+		"%s core online (%s)\nstatus: model %s; escalates to %s\n",
+		info.Name,
+		strings.Join(surfaces, ", "),
+		modelStatus.SelectedModel,
+		modelStatus.EscalationModel,
+	)
 	return err
 }
