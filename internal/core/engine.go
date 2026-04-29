@@ -15,6 +15,7 @@ type Engine struct {
 	version    string
 	startedAt  time.Time
 	surfaces   []contracts.Surface
+	identity   *IdentityManager
 	router     *ModelRouter
 	sessionLog []contracts.SessionLogEntry
 }
@@ -31,7 +32,8 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		router: NewModelRouter(DefaultEscalationConfig()),
+		identity: NewIdentityManager(DefaultIdentityConfig()),
+		router:   NewModelRouter(DefaultEscalationConfig()),
 	}
 }
 
@@ -43,6 +45,11 @@ func (e *Engine) Info() contracts.EngineInfo {
 		Surfaces:  append([]contracts.Surface(nil), e.surfaces...),
 		StartedAt: e.startedAt,
 	}
+}
+
+// Identity returns the engine-owned three-layer identity manager.
+func (e *Engine) Identity() *IdentityManager {
+	return e.identity
 }
 
 // RouteModel selects a model for an inference request and logs transparent
