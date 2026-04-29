@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	toolerrors "github.com/jabreeflor/conduit/internal/errors"
 	"gopkg.in/yaml.v3"
 )
 
@@ -36,9 +37,12 @@ type Tool struct {
 type Runner func(context.Context, json.RawMessage) (Result, error)
 
 // Result is the normalized output from a tool execution.
+// IsError is set when the run failed; Text carries the error message so the
+// agent can read what went wrong and adapt without losing the call from context.
 type Result struct {
-	Text string
-	Data map[string]any
+	Text    string
+	Data    map[string]any
+	IsError bool
 }
 
 // Call is the policy input for a pending tool invocation.
@@ -203,7 +207,12 @@ func (p *Pipeline) Execute(ctx context.Context, call Call, overrides AgentOverri
 		return Result{}, decision, err
 	}
 	result, err := p.WrapRunner(decision.Tool.Run)(ctx, input)
-	return result, decision, err
+	if err != nil {
+		classified := toolerrors.Classify(err)
+		typed := toolerrors.Wrap(classified, err)
+		return Result{Text: err.Error(), IsError: true}, decision, typed
+	}
+	return result, decision, nil
 }
 
 // PolicyConfig mirrors ~/.conduit/policies.yaml.
