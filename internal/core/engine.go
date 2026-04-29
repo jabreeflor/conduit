@@ -8,6 +8,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/security"
+	"github.com/jabreeflor/conduit/internal/usage"
 )
 
 // Engine owns the long-lived runtime state for Conduit.
@@ -22,11 +23,15 @@ type Engine struct {
 	permissions *PermissionManager
 	sandbox     *SandboxManager
 	sessionLog  []contracts.SessionLogEntry
+	usage       *usage.Tracker
 }
 
 // New creates a core engine instance with the surfaces planned for the
 // monorepo scaffold.
 func New(version string) *Engine {
+	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
+	tracker, _ := usage.New(sessionID) // best-effort; nil tracker is handled in RecordUsage
+
 	return &Engine{
 		name:      "Conduit",
 		version:   version,
@@ -41,6 +46,7 @@ func New(version string) *Engine {
 		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions: NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
+		usage:       tracker,
 	}
 }
 
@@ -103,6 +109,24 @@ func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
 // SandboxArchitecture returns the engine-owned execution sandbox policy.
 func (e *Engine) SandboxArchitecture() contracts.SandboxArchitecture {
 	return e.sandbox.Architecture()
+}
+
+// RecordUsage appends one model-call record to ~/.conduit/usage.jsonl and
+// updates the in-memory session totals shown in the status bar.
+// A nil tracker (e.g. disk unavailable at startup) is a no-op.
+func (e *Engine) RecordUsage(provider, model string, inputTokens, outputTokens int) (contracts.UsageEntry, error) {
+	if e.usage == nil {
+		return contracts.UsageEntry{}, nil
+	}
+	return e.usage.Record(provider, model, inputTokens, outputTokens)
+}
+
+// UsageSummary returns the running session totals for the status bar.
+func (e *Engine) UsageSummary() contracts.UsageSummary {
+	if e.usage == nil {
+		return contracts.UsageSummary{}
+	}
+	return e.usage.Summary()
 }
 
 // SessionLog returns a copy of user-visible engine events.
