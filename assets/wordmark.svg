@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 240" role="img" aria-label="Conduit — Channel Bracket lockup">
+  <title>Conduit — Channel Bracket lockup</title>
+  <defs>
+    <linearGradient id="bgM2" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b0d12"/>
+      <stop offset="100%" stop-color="#0e1320"/>
+    </linearGradient>
+    <linearGradient id="gradM2" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+    <linearGradient id="textM2" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#f5f5f4"/>
+      <stop offset="100%" stop-color="#a8a29e"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="880" height="240" rx="36" fill="url(#bgM2)"/>
+
+  <g transform="translate(40 40) scale(0.3125)">
+    <path d="M 184 128 L 128 128 L 128 384 L 184 384"
+          fill="none" stroke="#f5f5f4" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 328 128 L 384 128 L 384 384 L 328 384"
+          fill="none" stroke="#f5f5f4" stroke-width="36" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M 220 192 L 296 256 L 220 320"
+          fill="none" stroke="url(#gradM2)" stroke-width="40" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="178" cy="256" r="10" fill="#fbbf24" opacity="0.6"/>
+    <circle cx="156" cy="256" r="6" fill="#fbbf24" opacity="0.3"/>
+  </g>
+
+  <text x="232" y="158"
+        font-family="ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, monospace"
+        font-size="108" font-weight="600" letter-spacing="-2"
+        fill="url(#textM2)">conduit</text>
+</svg>
