@@ -20,4 +20,7 @@ func TestRunBootsAgainstCore(t *testing.T) {
 	if !strings.Contains(got, "tui") || !strings.Contains(got, "gui") {
 		t.Fatalf("output %q does not include expected surfaces", got)
 	}
+	if !strings.Contains(got, "status: model claude-haiku-4-5; escalates to claude-opus-4-6") {
+		t.Fatalf("output %q does not include model escalation status", got)
+	}
 }
