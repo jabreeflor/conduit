@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
@@ -43,6 +44,41 @@ func New(version string) *Engine {
 		},
 		identity:    NewIdentityManager(DefaultIdentityConfig()),
 		router:      NewModelRouter(DefaultEscalationConfig()),
+		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions: NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
+		usage:       tracker,
+	}
+}
+
+// NewFromConfig creates a core engine initialised from a root config.
+// Fields left at zero values in cfg fall back to their built-in defaults.
+func NewFromConfig(version string, cfg config.Config) *Engine {
+	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
+	tracker, _ := usage.New(sessionID)
+
+	escalation := DefaultEscalationConfig()
+	if cfg.Escalation.DefaultModel != "" {
+		escalation.DefaultModel = cfg.Escalation.DefaultModel
+	}
+	if cfg.Escalation.EscalationModel != "" {
+		escalation.EscalationModel = cfg.Escalation.EscalationModel
+	}
+	if cfg.Escalation.ConfidenceThreshold > 0 {
+		escalation.ConfidenceThreshold = cfg.Escalation.ConfidenceThreshold
+	}
+
+	return &Engine{
+		name:      "Conduit",
+		version:   version,
+		startedAt: time.Now().UTC(),
+		surfaces: []contracts.Surface{
+			contracts.SurfaceTUI,
+			contracts.SurfaceGUI,
+			contracts.SurfaceSpotlight,
+		},
+		identity:    NewIdentityManager(DefaultIdentityConfig()),
+		router:      NewModelRouter(escalation),
 		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions: NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
