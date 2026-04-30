@@ -42,6 +42,30 @@ func TestEngineInfoReturnsSurfaceCopy(t *testing.T) {
 	}
 }
 
+func TestEngineUsageSummaryHasSessionID(t *testing.T) {
+	engine := New("test")
+
+	s := engine.UsageSummary()
+
+	if s.SessionID == "" {
+		t.Fatal("UsageSummary.SessionID is empty; expected a non-empty session ID")
+	}
+}
+
+func TestEngineUsageSummaryTracksActiveWorkflow(t *testing.T) {
+	engine := New("test")
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "" {
+		t.Fatalf("ActiveWorkflow = %q before any RouteModel call, want empty", w)
+	}
+
+	engine.RouteModel(contracts.ModelRouteRequest{WorkflowType: "code-review", Confidence: 1.0})
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "code-review" {
+		t.Fatalf("ActiveWorkflow = %q, want code-review", w)
+	}
+}
+
 func TestEngineSanitizesInjectedContent(t *testing.T) {
 	engine := New("test")
 
