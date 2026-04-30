@@ -43,14 +43,19 @@ func Run(out io.Writer) error {
 	usageSummary.Model = modelStatus.SelectedModel
 	statusBar := formatStatusBar(usageSummary)
 
+	panel := NewContextPanel()
+	panel.Toggle() // show by default at boot for context
+	panel.SetSessionLog(engine.SessionLog())
+
 	_, err := fmt.Fprintf(
 		out,
-		"%s core online (%s)\nstatus: model %s; escalates to %s\n%s\n",
+		"%s core online (%s)\nstatus: model %s; escalates to %s\n%s\ncontext panel: %s\n",
 		info.Name,
 		strings.Join(surfaces, ", "),
 		modelStatus.SelectedModel,
 		modelStatus.EscalationModel,
 		statusBar,
+		panel.TabBar(),
 	)
 	return err
 }
