@@ -1,0 +1,333 @@
+# Conduit Design Tokens — single source of truth.
+# Compiled by `cmd/design-tokens` to:
+#   design/dist/web/tokens.css         (CSS custom properties)
+#   design/dist/apple/Tokens.swift     (SwiftUI Color/Font extensions)
+#   design/dist/tui/theme.json         (Textual/Rich theme)
+#
+# Two-layer model:
+#   reference.*  raw scale values (never used directly by consumers)
+#   semantic.*   purpose-bound names that reference the scale; vary per mode
+#
+# Modes: dark (default), light, hc (high-contrast, WCAG AAA 7:1)
+
+reference:
+  color:
+    indigo:
+      "50":  "#F5F6FA"
+      "100": "#E2E5EE"
+      "200": "#C0C5D6"
+      "300": "#8C93AB"
+      "400": "#5D637A"
+      "500": "#3E4358"
+      "600": "#2A2E40"
+      "700": "#1A1D2C"
+      "800": "#10131E"
+      "900": "#0A0C14"
+    saffron:
+      "50":  "#FFF3DF"
+      "100": "#FFDB9C"
+      "200": "#FFBE54"
+      "300": "#F59E1F"
+      "400": "#DC7E08"
+      "500": "#B56403"
+      "600": "#8D4D02"
+      "700": "#673802"
+      "800": "#412401"
+      "900": "#211100"
+    cyan:
+      "50":  "#E7F6FB"
+      "100": "#BCE6F3"
+      "200": "#74CFE5"
+      "300": "#36B3CF"
+      "400": "#1494B0"
+      "500": "#0D758E"
+      "600": "#0A5B6E"
+      "700": "#06414F"
+      "800": "#042932"
+      "900": "#02161B"
+    violet:
+      "50":  "#F3EEFB"
+      "100": "#DCCDF2"
+      "200": "#B69BE4"
+      "300": "#8E6DD1"
+      "400": "#6C4DBA"
+      "500": "#523898"
+      "600": "#3E2A76"
+      "700": "#2C1D54"
+      "800": "#1C1135"
+      "900": "#0D081C"
+    red:
+      "100": "#FBD5D5"
+      "300": "#F38282"
+      "500": "#DC2F2F"
+      "700": "#8C1414"
+      "900": "#3F0808"
+    green:
+      "100": "#CDEFD5"
+      "300": "#6FCB85"
+      "500": "#2A9D49"
+      "700": "#155F2C"
+      "900": "#062714"
+    pure:
+      white: "#FFFFFF"
+      black: "#000000"
+
+  type:
+    family:
+      sans: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Inter', system-ui, sans-serif"
+      mono: "ui-monospace, 'SF Mono', 'JetBrains Mono', 'Menlo', monospace"
+      display: "ui-sans-serif, -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+    size:
+      caption:    "11px"
+      small:      "12px"
+      body:       "14px"
+      body-large: "16px"
+      heading-3:  "18px"
+      heading-2:  "22px"
+      heading-1:  "28px"
+      display:    "36px"
+    weight:
+      regular:  "400"
+      medium:   "500"
+      semibold: "600"
+      bold:     "700"
+    line-height:
+      tight:    "1.2"
+      normal:   "1.5"
+      relaxed:  "1.7"
+
+  space:
+    xs:   "4px"
+    sm:   "8px"
+    md:   "16px"
+    lg:   "24px"
+    xl:   "32px"
+    "2xl": "48px"
+    "3xl": "64px"
+
+  radius:
+    sm:    "4px"
+    md:    "8px"
+    lg:    "12px"
+    xl:    "16px"
+    full:  "9999px"
+
+  shadow:
+    sm:           "0 1px 2px rgba(0,0,0,0.30)"
+    md:           "0 4px 8px rgba(0,0,0,0.35)"
+    lg:           "0 12px 24px rgba(0,0,0,0.40)"
+    focus-ring:   "0 0 0 3px rgba(245,158,31,0.45)"
+
+  motion:
+    duration:
+      instant: "0ms"
+      fast:    "100ms"
+      normal:  "200ms"
+      slow:    "400ms"
+    easing:
+      default: "cubic-bezier(0.2, 0.8, 0.2, 1)"
+      spring:  "cubic-bezier(0.34, 1.56, 0.64, 1)"
+      linear:  "linear"
+
+  z:
+    base:      "0"
+    dropdown:  "1000"
+    sticky:    "1100"
+    modal:     "1200"
+    toast:     "1300"
+    spotlight: "1400"
+
+# Semantic tokens reference scale entries via {dotted.path}.
+# Each mode (dark, light, hc) provides its own mapping.
+semantic:
+  dark:
+    color:
+      surface:
+        canvas:    "{color.indigo.900}"   # app background
+        primary:   "{color.indigo.800}"   # cards, panels
+        elevated:  "{color.indigo.700}"   # popovers, modals
+        sunken:    "{color.pure.black}"   # input fields, code blocks
+      border:
+        subtle:    "{color.indigo.700}"
+        default:   "{color.indigo.600}"
+        strong:    "{color.indigo.500}"
+        focus:     "{color.saffron.300}"
+      text:
+        body:      "{color.indigo.100}"
+        muted:     "{color.indigo.300}"
+        subtle:    "{color.indigo.400}"
+        inverted:  "{color.indigo.900}"
+        link:      "{color.cyan.300}"
+      brand:
+        primary:        "{color.saffron.300}"
+        primary-hover:  "{color.saffron.200}"
+        primary-active: "{color.saffron.400}"
+        on-primary:     "{color.indigo.900}"
+      accent:
+        cool:      "{color.cyan.300}"
+        warm-alt:  "{color.violet.300}"
+      status:
+        success:   "{color.green.300}"
+        warning:   "{color.saffron.300}"
+        error:     "{color.red.300}"
+        info:      "{color.cyan.300}"
+      agent:
+        idle:      "{color.indigo.400}"
+        active:    "{color.saffron.300}"
+        thinking:  "{color.cyan.300}"
+        error:     "{color.red.300}"
+      model-badge:
+        claude:
+          bg:     "{color.saffron.700}"
+          fg:     "{color.saffron.100}"
+          border: "{color.saffron.600}"
+        openai:
+          bg:     "{color.cyan.700}"
+          fg:     "{color.cyan.100}"
+          border: "{color.cyan.600}"
+        local:
+          bg:     "{color.indigo.700}"
+          fg:     "{color.indigo.100}"
+          border: "{color.indigo.500}"
+        openrouter:
+          bg:     "{color.violet.700}"
+          fg:     "{color.violet.100}"
+          border: "{color.violet.600}"
+        litellm:
+          bg:     "{color.saffron.800}"
+          fg:     "{color.saffron.100}"
+          border: "{color.saffron.700}"
+
+  light:
+    color:
+      surface:
+        canvas:    "{color.indigo.50}"
+        primary:   "{color.pure.white}"
+        elevated:  "{color.pure.white}"
+        sunken:    "{color.indigo.100}"
+      border:
+        subtle:    "{color.indigo.100}"
+        default:   "{color.indigo.200}"
+        strong:    "{color.indigo.300}"
+        focus:     "{color.saffron.500}"
+      text:
+        body:      "{color.indigo.900}"
+        muted:     "{color.indigo.500}"
+        subtle:    "{color.indigo.400}"
+        inverted:  "{color.indigo.50}"
+        link:      "{color.cyan.600}"
+      brand:
+        primary:        "{color.saffron.500}"
+        primary-hover:  "{color.saffron.600}"
+        primary-active: "{color.saffron.700}"
+        on-primary:     "{color.pure.white}"
+      accent:
+        cool:      "{color.cyan.600}"
+        warm-alt:  "{color.violet.500}"
+      status:
+        success:   "{color.green.500}"
+        warning:   "{color.saffron.500}"
+        error:     "{color.red.500}"
+        info:      "{color.cyan.600}"
+      agent:
+        idle:      "{color.indigo.400}"
+        active:    "{color.saffron.500}"
+        thinking:  "{color.cyan.600}"
+        error:     "{color.red.500}"
+      model-badge:
+        claude:
+          bg:     "{color.saffron.100}"
+          fg:     "{color.saffron.700}"
+          border: "{color.saffron.300}"
+        openai:
+          bg:     "{color.cyan.100}"
+          fg:     "{color.cyan.700}"
+          border: "{color.cyan.300}"
+        local:
+          bg:     "{color.indigo.100}"
+          fg:     "{color.indigo.700}"
+          border: "{color.indigo.300}"
+        openrouter:
+          bg:     "{color.violet.100}"
+          fg:     "{color.violet.700}"
+          border: "{color.violet.300}"
+        litellm:
+          bg:     "{color.saffron.50}"
+          fg:     "{color.saffron.700}"
+          border: "{color.saffron.200}"
+
+  # High-contrast: WCAG AAA (7:1 for normal text). Pure black/white anchors,
+  # only the most saturated scale stops for accents.
+  hc:
+    color:
+      surface:
+        canvas:    "{color.pure.black}"
+        primary:   "{color.pure.black}"
+        elevated:  "{color.indigo.900}"
+        sunken:    "{color.pure.black}"
+      border:
+        subtle:    "{color.indigo.300}"
+        default:   "{color.indigo.100}"
+        strong:    "{color.pure.white}"
+        focus:     "{color.saffron.200}"
+      text:
+        body:      "{color.pure.white}"
+        muted:     "{color.indigo.100}"
+        subtle:    "{color.indigo.200}"
+        inverted:  "{color.pure.black}"
+        link:      "{color.cyan.200}"
+      brand:
+        primary:        "{color.saffron.200}"
+        primary-hover:  "{color.saffron.100}"
+        primary-active: "{color.saffron.300}"
+        on-primary:     "{color.pure.black}"
+      accent:
+        cool:      "{color.cyan.200}"
+        warm-alt:  "{color.violet.200}"
+      status:
+        success:   "{color.green.300}"
+        warning:   "{color.saffron.200}"
+        error:     "{color.red.300}"
+        info:      "{color.cyan.200}"
+      agent:
+        idle:      "{color.indigo.200}"
+        active:    "{color.saffron.200}"
+        thinking:  "{color.cyan.200}"
+        error:     "{color.red.300}"
+      model-badge:
+        claude:
+          bg:     "{color.pure.black}"
+          fg:     "{color.saffron.200}"
+          border: "{color.saffron.200}"
+        openai:
+          bg:     "{color.pure.black}"
+          fg:     "{color.cyan.200}"
+          border: "{color.cyan.200}"
+        local:
+          bg:     "{color.pure.black}"
+          fg:     "{color.pure.white}"
+          border: "{color.pure.white}"
+        openrouter:
+          bg:     "{color.pure.black}"
+          fg:     "{color.violet.200}"
+          border: "{color.violet.200}"
+        litellm:
+          bg:     "{color.pure.black}"
+          fg:     "{color.saffron.100}"
+          border: "{color.saffron.100}"
+
+# Pairs that the WCAG AAA test enforces in the `hc` mode (text/background).
+# Each entry: foreground semantic path, background semantic path.
+contrast_pairs_aaa:
+  - [text.body, surface.canvas]
+  - [text.body, surface.primary]
+  - [text.body, surface.elevated]
+  - [text.muted, surface.canvas]
+  - [text.muted, surface.primary]
+  - [text.link, surface.canvas]
+  - [brand.primary, surface.canvas]
+  - [brand.on-primary, brand.primary]
+  - [status.success, surface.canvas]
+  - [status.warning, surface.canvas]
+  - [status.error, surface.canvas]
+  - [status.info, surface.canvas]
