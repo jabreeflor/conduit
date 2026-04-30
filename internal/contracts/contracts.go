@@ -214,6 +214,15 @@ type UsageEntry struct {
 	Feature         string    `json:"feature,omitempty"`
 	Plugin          string    `json:"plugin,omitempty"`
 	CostUSD         float64   `json:"cost_usd"`
+	CostCurrency    string    `json:"cost_currency,omitempty"`
+	CostEstimated   bool      `json:"cost_estimated,omitempty"`
+	CostSource      string    `json:"cost_source,omitempty"`
+
+	InferenceSeconds         float64 `json:"inference_seconds,omitempty"`
+	EstimatedPowerDrawWatts  float64 `json:"estimated_power_draw_watts,omitempty"`
+	ElectricityRateUSDPerKWh float64 `json:"electricity_rate_usd_per_kwh,omitempty"`
+	EstimatedLocalCostUSD    float64 `json:"estimated_local_cost_usd,omitempty"`
+	LocalComparisonEstimated bool    `json:"local_comparison_estimated,omitempty"`
 
 	// Legacy fields are retained so budget readers can still scan older
 	// ~/.conduit/usage.jsonl records written before daily session logs.

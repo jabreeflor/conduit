@@ -27,6 +27,12 @@ func run(ctx context.Context, command string, timeout time.Duration, input Input
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", expandHome(command))
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 	cmd.Stdin = bytes.NewReader(payload)
 	var stdout bytes.Buffer
 	cmd.Stdout = &stdout

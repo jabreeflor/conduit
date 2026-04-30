@@ -22,6 +22,7 @@ type Config struct {
 	Policies    []PolicyConfig                 `yaml:"policies"`
 	Sandbox     SandboxConfig                  `yaml:"sandbox"`
 	Budgets     BudgetsConfig                  `yaml:"budgets"`
+	Costs       CostConfig                     `yaml:"costs"`
 	Credentials map[string]ProviderCredentials `yaml:"credentials"`
 }
 
@@ -116,6 +117,13 @@ type ModelBudget struct {
 	MonthlyLimit float64 `yaml:"monthly_limit"`
 	WarningPct   int     `yaml:"warning_pct"`
 	HardStop     bool    `yaml:"hard_stop"`
+}
+
+// CostConfig controls local pricing and energy assumptions.
+type CostConfig struct {
+	PricingPath              string  `yaml:"pricing_path"`
+	ElectricityRateUSDPerKWh float64 `yaml:"electricity_rate_usd_per_kwh"`
+	Currency                 string  `yaml:"currency"`
 }
 
 // ProviderCredentials holds env-var references for a single API provider.

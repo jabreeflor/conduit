@@ -17,7 +17,7 @@ func newGate(t *testing.T, config ConsentConfig, confirm ConfirmFunc) *ConsentGa
 	}
 	g, err := NewConsentGate(config, confirm)
 	if err != nil {
-		t.Fatalf("New: %v", err)
+		t.Fatalf("NewConsentGate: %v", err)
 	}
 	return g
 }
