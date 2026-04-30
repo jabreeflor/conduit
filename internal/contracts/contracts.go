@@ -63,6 +63,54 @@ type DiskInfo struct {
 	AvailableGB    float64 `json:"available_gb"`
 }
 
+// MachineClass is the local-inference capability tier inferred from a machine
+// profile.
+type MachineClass string
+
+const (
+	MachineClassHighEnd     MachineClass = "high_end"
+	MachineClassMidRange    MachineClass = "mid_range"
+	MachineClassEntryLevel  MachineClass = "entry_level"
+	MachineClassConstrained MachineClass = "constrained"
+)
+
+// LocalModelUse identifies why a model is recommended.
+type LocalModelUse string
+
+const (
+	LocalModelUseGeneral LocalModelUse = "general"
+	LocalModelUseCode    LocalModelUse = "code"
+)
+
+// LocalModelRecommendation describes a locally bundled heuristic candidate.
+type LocalModelRecommendation struct {
+	Rank                  int           `json:"rank"`
+	ID                    string        `json:"id"`
+	Name                  string        `json:"name"`
+	Use                   LocalModelUse `json:"use"`
+	MachineClass          MachineClass  `json:"machine_class"`
+	Quantization          string        `json:"quantization"`
+	DownloadSizeGB        float64       `json:"download_size_gb"`
+	DiskFootprintGB       float64       `json:"disk_footprint_gb"`
+	EstimatedTokensPerSec float64       `json:"estimated_tokens_per_sec"`
+	Recommended           bool          `json:"recommended"`
+	FitsAvailableDisk     bool          `json:"fits_available_disk"`
+	Notes                 []string      `json:"notes,omitempty"`
+}
+
+// LocalModelRecommendationOptions controls optional recommendation lanes.
+type LocalModelRecommendationOptions struct {
+	IncludeCodeModel bool
+}
+
+// LocalModelRecommendationSet is the ranked local-model recommendation result.
+type LocalModelRecommendationSet struct {
+	MachineClass    MachineClass               `json:"machine_class"`
+	Recommendations []LocalModelRecommendation `json:"recommendations"`
+	FallbackReason  string                     `json:"fallback_reason,omitempty"`
+	GeneratedAt     time.Time                  `json:"generated_at"`
+}
+
 // MemoryProviderKind names a bundled memory provider implementation.
 type MemoryProviderKind string
 
