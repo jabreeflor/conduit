@@ -28,6 +28,8 @@ type Engine struct {
 	budgetEnforcer  *budget.Enforcer
 	sessionLog      []contracts.SessionLogEntry
 	usage           *usage.Tracker
+	sessionID       string
+	activeWorkflow  string
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -53,6 +55,7 @@ func New(version string) *Engine {
 		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
 		budgetEnforcer:  newBudgetEnforcer(config.BudgetsConfig{}),
 		usage:           tracker,
+		sessionID:       sessionID,
 	}
 }
 
@@ -90,6 +93,7 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
 		budgetEnforcer:  newBudgetEnforcer(cfg.Budgets),
 		usage:           tracker,
+		sessionID:       sessionID,
 	}
 }
 
@@ -133,6 +137,9 @@ func (e *Engine) EvaluatePermission(req contracts.PermissionRequest) contracts.P
 // RouteModel selects a model for an inference request and logs transparent
 // escalation events for all surfaces.
 func (e *Engine) RouteModel(req contracts.ModelRouteRequest) contracts.ModelRouteDecision {
+	if req.WorkflowType != "" {
+		e.activeWorkflow = req.WorkflowType
+	}
 	decision := e.router.Route(req)
 	if decision.Escalated {
 		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
@@ -166,10 +173,13 @@ func (e *Engine) RecordUsage(provider, model string, inputTokens, outputTokens i
 
 // UsageSummary returns the running session totals for the status bar.
 func (e *Engine) UsageSummary() contracts.UsageSummary {
-	if e.usage == nil {
-		return contracts.UsageSummary{}
+	var s contracts.UsageSummary
+	if e.usage != nil {
+		s = e.usage.Summary()
 	}
-	return e.usage.Summary()
+	s.SessionID = e.sessionID
+	s.ActiveWorkflow = e.activeWorkflow
+	return s
 }
 
 // SessionLog returns a copy of user-visible engine events.

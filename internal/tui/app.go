@@ -7,12 +7,24 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/core"
 )
 
-// formatStatusBar returns the "[Model] [Tokens] [$X.XX]" string for the status line.
-func formatStatusBar(model string, totalTokens int, totalCostUSD float64) string {
-	return fmt.Sprintf("[%s] [%d tokens] [$%.4f]", model, totalTokens, totalCostUSD)
+// formatStatusBar returns the status line from a UsageSummary.
+// It always shows model, session cost, and session ID; it appends workflow
+// only when one is active.
+func formatStatusBar(s contracts.UsageSummary) string {
+	parts := []string{
+		fmt.Sprintf("[%s]", s.Model),
+		fmt.Sprintf("[$%.4f]", s.TotalCostUSD),
+		fmt.Sprintf("[session:%s]", s.SessionID),
+	}
+	if s.ActiveWorkflow != "" {
+		parts = append(parts, fmt.Sprintf("[workflow:%s]", s.ActiveWorkflow))
+	}
+	return strings.Join(parts, " ")
 }
 
 // Run is the non-interactive boot path that proves the core/surface contract.
@@ -28,7 +40,8 @@ func Run(out io.Writer) error {
 
 	modelStatus := engine.ModelStatus()
 	usageSummary := engine.UsageSummary()
-	statusBar := formatStatusBar(modelStatus.SelectedModel, usageSummary.TotalTokens, usageSummary.TotalCostUSD)
+	usageSummary.Model = modelStatus.SelectedModel
+	statusBar := formatStatusBar(usageSummary)
 
 	_, err := fmt.Fprintf(
 		out,
