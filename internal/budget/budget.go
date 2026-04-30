@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -313,8 +314,12 @@ func projectOvershoot(now time.Time, dailySpend map[int]float64, totalSpentUSD, 
 		return nil
 	}
 
-	daysUntilOvershoot := remaining / dailyRate
-	overshootTime := now.Add(time.Duration(daysUntilOvershoot * float64(24*time.Hour)))
+	daysUntilOvershoot := int(math.Ceil(remaining / dailyRate))
+	if daysUntilOvershoot <= 1 {
+		t := now
+		return &t
+	}
+	overshootTime := now.AddDate(0, 0, daysUntilOvershoot-1)
 	if overshootTime.Month() != now.Month() || overshootTime.Year() != now.Year() {
 		return nil // overshoot falls outside the current calendar month
 	}

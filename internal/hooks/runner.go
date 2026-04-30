@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -25,6 +26,13 @@ func run(ctx context.Context, command string, timeout time.Duration, input Input
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", expandHome(command))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error {
+		if cmd.Process == nil {
+			return nil
+		}
+		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+	}
 	cmd.Stdin = bytes.NewReader(payload)
 
 	out, err := cmd.Output()
