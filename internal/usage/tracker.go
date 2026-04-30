@@ -95,7 +95,9 @@ func (t *Tracker) Record(provider, model string, inputTokens, outputTokens int) 
 func (t *Tracker) Summary() contracts.UsageSummary {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return t.summary
+	s := t.summary
+	s.SessionID = t.sessionID
+	return s
 }
 
 func (t *Tracker) appendLine(entry contracts.UsageEntry) error {

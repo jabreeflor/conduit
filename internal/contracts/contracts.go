@@ -181,9 +181,11 @@ type UsageEntry struct {
 
 // UsageSummary is the running totals for the status bar.
 type UsageSummary struct {
-	Model        string
-	TotalTokens  int
-	TotalCostUSD float64
+	Model          string
+	SessionID      string
+	TotalTokens    int
+	TotalCostUSD   float64
+	ActiveWorkflow string // empty when no workflow is running
 }
 
 // NetworkMode controls how sandboxed network access is approved.
