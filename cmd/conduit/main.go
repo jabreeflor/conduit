@@ -1,9 +1,11 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
+	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/tui"
 )
 
@@ -14,6 +16,12 @@ func main() {
 		switch os.Args[1] {
 		case "--version", "version":
 			fmt.Printf("conduit %s\n", version)
+			return
+		case "mcp":
+			if err := mcp.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit mcp: %v\n", err)
+				os.Exit(1)
+			}
 			return
 		}
 	}

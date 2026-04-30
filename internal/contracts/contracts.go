@@ -4,6 +4,45 @@ package contracts
 
 import "time"
 
+// MachineProfile is the hardware snapshot cached in ~/.conduit/machine-profile.json.
+type MachineProfile struct {
+	ProfiledAt   time.Time `json:"profiled_at"`
+	MacOSVersion string    `json:"macos_version"`
+	CPU          CPUInfo   `json:"cpu"`
+	Memory       MemInfo   `json:"memory"`
+	GPU          []GPUInfo `json:"gpu"`
+	Disk         DiskInfo  `json:"disk"`
+}
+
+// CPUInfo holds processor identification and core counts.
+type CPUInfo struct {
+	Brand         string `json:"brand"`
+	PhysicalCores int    `json:"physical_cores"`
+	LogicalCores  int    `json:"logical_cores"`
+}
+
+// MemInfo holds total installed RAM.
+type MemInfo struct {
+	TotalBytes int64   `json:"total_bytes"`
+	TotalGB    float64 `json:"total_gb"`
+}
+
+// GPUInfo holds one GPU adapter's name, VRAM, and whether it is shared (Apple
+// Unified Memory) or dedicated (discrete AMD/NVIDIA).
+type GPUInfo struct {
+	Name     string  `json:"name"`
+	VRAMGB   float64 `json:"vram_gb"`
+	VRAMType string  `json:"vram_type"` // "shared" | "dedicated"
+}
+
+// DiskInfo holds capacity and free space for the root filesystem.
+type DiskInfo struct {
+	TotalBytes     int64   `json:"total_bytes"`
+	AvailableBytes int64   `json:"available_bytes"`
+	TotalGB        float64 `json:"total_gb"`
+	AvailableGB    float64 `json:"available_gb"`
+}
+
 // Surface identifies a frontend attached to the Conduit core.
 type Surface string
 
@@ -213,6 +252,18 @@ const (
 	SandboxBackendOCIContainer        SandboxBackend = "oci_container"
 )
 
+// SandboxRuntimeCapabilities reports what a backend can provide on the current
+// host. A RuntimeProbe populates this for the selector (PRD §15.9).
+type SandboxRuntimeCapabilities struct {
+	Backend           SandboxBackend
+	Available         bool
+	UnavailableReason string
+	SupportsRosetta2  bool
+	SupportsVirtioFS  bool
+	ColdStartBudget   time.Duration
+	MemoryOverheadMB  int
+}
+
 // SandboxNetworkPolicy controls outbound network access from agent-run code.
 type SandboxNetworkPolicy string
 
@@ -249,13 +300,33 @@ type DynamicMountRequest struct {
 	BlockReason          string
 }
 
+// ToolStatus identifies the execution state of a tool call.
+type ToolStatus int
+
+const (
+	ToolStatusRunning ToolStatus = iota
+	ToolStatusDone
+	ToolStatusFailed
+)
+
+// ToolCall holds the data for one tool invocation visible to the user.
+type ToolCall struct {
+	Name     string
+	Input    string
+	Output   string
+	Status   ToolStatus
+	Expanded bool
+}
+
 // SandboxArchitecture describes the security and startup contract every agent
 // execution sandbox must satisfy.
 type SandboxArchitecture struct {
 	Backend                   SandboxBackend
 	BaseImage                 string
 	ImagePrecached            bool
+	ColdStartBudget           time.Duration
 	WarmStartBudget           time.Duration
+	MaxMemoryOverheadMB       int
 	Shells                    []string
 	PreinstalledRuntimes      []string
 	NetworkPolicy             SandboxNetworkPolicy
