@@ -2,6 +2,7 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -9,6 +10,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/budget"
 	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -30,6 +32,7 @@ type Engine struct {
 	usage           *usage.Tracker
 	sessionID       string
 	activeWorkflow  string
+	memRegistry     *memory.Registry
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -37,6 +40,12 @@ type Engine struct {
 func New(version string) *Engine {
 	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
 	tracker, _ := usage.New(sessionID) // best-effort; nil tracker is handled in RecordUsage
+
+	reg := &memory.Registry{}
+	if provider, err := memory.NewFlatFileProvider(); err == nil {
+		_ = provider.Initialize(context.Background())
+		_ = reg.Register(contracts.MemoryProviderKindFlatFile, provider)
+	}
 
 	return &Engine{
 		name:      "Conduit",
@@ -56,6 +65,7 @@ func New(version string) *Engine {
 		budgetEnforcer:  newBudgetEnforcer(config.BudgetsConfig{}),
 		usage:           tracker,
 		sessionID:       sessionID,
+		memRegistry:     reg,
 	}
 }
 
@@ -76,6 +86,12 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 		escalation.ConfidenceThreshold = cfg.Escalation.ConfidenceThreshold
 	}
 
+	reg := &memory.Registry{}
+	if provider, err := memory.NewFlatFileProvider(); err == nil {
+		_ = provider.Initialize(context.Background())
+		_ = reg.Register(contracts.MemoryProviderKindFlatFile, provider)
+	}
+
 	return &Engine{
 		name:      "Conduit",
 		version:   version,
@@ -94,6 +110,7 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 		budgetEnforcer:  newBudgetEnforcer(cfg.Budgets),
 		usage:           tracker,
 		sessionID:       sessionID,
+		memRegistry:     reg,
 	}
 }
 
@@ -180,6 +197,48 @@ func (e *Engine) UsageSummary() contracts.UsageSummary {
 	s.SessionID = e.sessionID
 	s.ActiveWorkflow = e.activeWorkflow
 	return s
+}
+
+// MemoryProvider returns the active memory.Provider, or nil if none is registered.
+func (e *Engine) MemoryProvider() memory.Provider {
+	p, _ := e.memRegistry.Active()
+	return p
+}
+
+// WriteMemory persists entry via the active Provider, fires OnMemoryWrite on
+// any registered HookProvider, and emits a session log entry.
+func (e *Engine) WriteMemory(ctx context.Context, entry memory.Entry) error {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil
+	}
+	if err := p.Write(ctx, entry); err != nil {
+		return err
+	}
+	if hp, ok := p.(memory.HookProvider); ok {
+		if fn := hp.Hooks().OnMemoryWrite; fn != nil {
+			if err := fn(ctx, entry); err != nil {
+				e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+					At:      time.Now().UTC(),
+					Message: fmt.Sprintf("memory hook OnMemoryWrite error: %v", err),
+				})
+			}
+		}
+	}
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: fmt.Sprintf("memory write: %s (%s)", entry.Title, entry.Kind),
+	})
+	return nil
+}
+
+// SearchMemory queries the active Provider and returns matching entries.
+func (e *Engine) SearchMemory(ctx context.Context, query string) ([]memory.Entry, error) {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil, nil
+	}
+	return p.Search(ctx, query)
 }
 
 // SessionLog returns a copy of user-visible engine events.
