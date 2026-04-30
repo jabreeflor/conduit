@@ -9,6 +9,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/endpoint"
 	evalpkg "github.com/jabreeflor/conduit/internal/eval"
+	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/tui"
@@ -25,6 +26,12 @@ func main() {
 		case "mcp":
 			if err := mcp.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit mcp: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "models":
+			if err := localmodel.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit models: %v\n", err)
 				os.Exit(1)
 			}
 			return
