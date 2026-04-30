@@ -358,6 +358,17 @@ func (e *Engine) RescanMachine() (contracts.MachineProfile, error) {
 	return e.machineProfiler.Scan()
 }
 
+// LocalModelRecommendations returns ranked local-model install choices derived
+// from the cached machine profile. The heuristic is fully local and never phones
+// home.
+func (e *Engine) LocalModelRecommendations(opts contracts.LocalModelRecommendationOptions) (contracts.LocalModelRecommendationSet, error) {
+	profile, err := e.machineProfiler.Load()
+	if err != nil {
+		return contracts.LocalModelRecommendationSet{}, err
+	}
+	return RecommendLocalModels(profile, opts), nil
+}
+
 // CheckBudget evaluates whether a model call with the given estimated cost is
 // allowed under the configured monthly budgets. Returns ErrHardStop when the
 // call would breach a hard-stop limit.
