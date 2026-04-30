@@ -49,6 +49,8 @@ func runEvalCLI(ctx context.Context, args []string, stdout, stderr *os.File) err
 		return flag.ErrHelp
 	}
 	switch args[0] {
+	case "run", "compare", "report":
+		return evalpkg.RunCLI(ctx, args, stdout, stderr)
 	case "replay":
 		return runEvalReplay(ctx, args[1:], stdout, stderr)
 	default:

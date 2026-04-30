@@ -78,6 +78,13 @@ func TestEngineMemoryProviderIsRegisteredOnStartup(t *testing.T) {
 
 func TestEngineWriteAndSearchMemory(t *testing.T) {
 	engine := New("test")
+	provider := memory.NewFlatFileProviderAt(t.TempDir())
+	if err := provider.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize memory provider: %v", err)
+	}
+	if err := engine.memRegistry.Replace(context.Background(), contracts.MemoryProviderKindFlatFile, provider); err != nil {
+		t.Fatalf("Replace memory provider: %v", err)
+	}
 
 	entry := memory.Entry{
 		Kind:  memory.KindDecision,
