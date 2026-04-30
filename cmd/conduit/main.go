@@ -69,7 +69,7 @@ func main() {
 			}
 			return
 		case "usage":
-			if err := usage.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+			if err := runUsageCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit usage: %v\n", err)
 				os.Exit(1)
 			}
