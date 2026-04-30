@@ -26,7 +26,7 @@ func main() {
 		}
 	}
 
-	if err := tui.Run(os.Stdout); err != nil {
+	if err := tui.RunInteractive(); err != nil {
 		fmt.Fprintf(os.Stderr, "conduit: %v\n", err)
 		os.Exit(1)
 	}
