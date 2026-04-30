@@ -43,6 +43,16 @@ type DiskInfo struct {
 	AvailableGB    float64 `json:"available_gb"`
 }
 
+// MemoryProviderKind names a bundled memory provider implementation.
+type MemoryProviderKind string
+
+const (
+	MemoryProviderKindFlatFile MemoryProviderKind = "flatfile"
+	MemoryProviderKindLanceDB  MemoryProviderKind = "lancedb"
+	MemoryProviderKindSQLite   MemoryProviderKind = "sqlite"
+	MemoryProviderKindNoOp     MemoryProviderKind = "noop"
+)
+
 // Surface identifies a frontend attached to the Conduit core.
 type Surface string
 

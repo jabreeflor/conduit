@@ -11,8 +11,6 @@ import (
 	"time"
 )
 
-const defaultResultsDir = ".conduit/evals/results"
-
 // DefaultResultsDir returns ~/.conduit/evals/results.
 func DefaultResultsDir() (string, error) {
 	home, err := os.UserHomeDir()
