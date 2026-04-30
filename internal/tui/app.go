@@ -67,10 +67,10 @@ func Run(out io.Writer) error {
 	_, err = fmt.Fprintf(
 		out,
 		"welcome: %s on %.0fGB RAM\nlocal setup: %s via %s\nexternal API: %s\n",
-		setup.Recommendation.Tier,
+		setup.Recommendation.MachineClass,
 		setup.MachineProfile.Memory.TotalGB,
-		setup.Recommendation.Model,
-		setup.Recommendation.Runtime,
+		setup.Recommendation.Name,
+		setup.Runtime,
 		formatExternalAPIOptions(setup.ExternalAPI),
 	)
 	return err

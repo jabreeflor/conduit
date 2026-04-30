@@ -16,17 +16,18 @@ func testSetupSnapshot() contracts.FirstRunSetupSnapshot {
 			Disk:   contracts.DiskInfo{AvailableGB: 200},
 		},
 		Recommendation: contracts.LocalModelRecommendation{
-			Tier:                "mid-range",
-			Runtime:             "ollama",
-			Model:               "llama3:8b-instruct-q6_K",
-			DownloadSizeGB:      6,
-			EstimatedTokensPerS: 35,
-			LocalRecommended:    true,
+			ID:                    "llama3:8b-q8",
+			Name:                  "Llama 3 8B",
+			MachineClass:          contracts.MachineClassMidRange,
+			DownloadSizeGB:        6,
+			EstimatedTokensPerSec: 35,
+			Recommended:           true,
 		},
+		Runtime: "ollama",
 		Steps: []contracts.FirstRunSetupStep{
 			{Name: "Profile machine", Status: contracts.FirstRunSetupStepDone, Detail: "Apple M3, 16GB RAM"},
 			{Name: "Choose local runtime", Status: contracts.FirstRunSetupStepPending, Detail: "ollama"},
-			{Name: "Install recommended model", Status: contracts.FirstRunSetupStepPending, Detail: "llama3:8b-instruct-q6_K"},
+			{Name: "Install recommended model", Status: contracts.FirstRunSetupStepPending, Detail: "Llama 3 8B"},
 		},
 		ExternalAPI: []contracts.ExternalAPIOption{
 			{Provider: "openai", Label: "Connect OpenAI", EnvVar: "OPENAI_API_KEY"},
@@ -40,7 +41,7 @@ func TestConversationContentShowsWelcomeSetupChoices(t *testing.T) {
 
 	got := m.conversationContent()
 
-	for _, want := range []string{"Welcome to Conduit", "Set up local AI", "llama3:8b", "External API", "Connect OpenAI"} {
+	for _, want := range []string{"Welcome to Conduit", "Set up local AI", "Llama 3 8B", "External API", "Connect OpenAI"} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("conversation content missing %q in:\n%s", want, got)
 		}

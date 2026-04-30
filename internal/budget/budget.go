@@ -4,12 +4,15 @@ package budget
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/config"
@@ -77,14 +80,14 @@ type Enforcer struct {
 	logPath string
 }
 
-// New creates an Enforcer that reads spend from the default usage log
-// (~/.conduit/usage.jsonl).
+// New creates an Enforcer that reads spend from the default daily usage logs
+// (~/.conduit/logs/usage).
 func New(cfg config.BudgetsConfig) (*Enforcer, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("budget: resolve home dir: %w", err)
 	}
-	return NewWithLogPath(cfg, filepath.Join(home, ".conduit", "usage.jsonl")), nil
+	return NewWithLogPath(cfg, filepath.Join(home, ".conduit", "logs", "usage")), nil
 }
 
 // NewWithLogPath creates an Enforcer with an explicit log path (useful in tests).
@@ -177,72 +180,112 @@ func (e *Enforcer) Report() Report {
 	return Report{Overall: overall, ByModel: byModel, AsOf: now}
 }
 
-// ReadMonthlySpend scans the JSONL log at logPath and totals spend for the
-// calendar month containing month. Missing files return an empty spend (no error).
+// ReadMonthlySpend scans usage JSONL logs and totals spend for the calendar
+// month containing month. logPath may be either a legacy flat file or a daily
+// log directory. Missing paths return an empty spend (no error).
 func ReadMonthlySpend(logPath string, month time.Time) (MonthlySpend, error) {
 	result := MonthlySpend{ByModel: make(map[string]float64)}
 
-	f, err := os.Open(logPath)
-	if errors.Is(err, os.ErrNotExist) {
-		return result, nil
-	}
-	if err != nil {
-		return result, fmt.Errorf("budget: open log: %w", err)
-	}
-	defer f.Close()
-
 	y, m, _ := month.Date()
-	scanner := bufio.NewScanner(f)
-	for scanner.Scan() {
-		var entry contracts.UsageEntry
-		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
-			continue // skip malformed lines
+	err := scanUsageEntries(logPath, func(entry contracts.UsageEntry) {
+		ey, em, _ := usageTimestamp(entry).Date()
+		if ey == y && em == m {
+			result.Overall += entry.CostUSD
+			result.ByModel[entry.Model] += entry.CostUSD
 		}
-		ey, em, _ := entry.At.Date()
-		if ey != y || em != m {
-			continue
-		}
-		result.Overall += entry.CostUSD
-		result.ByModel[entry.Model] += entry.CostUSD
-	}
-	return result, scanner.Err()
+	})
+	return result, err
 }
 
-// ReadDailySpend scans the JSONL log and returns per-day-of-month spend for
-// the calendar month containing month. Missing files return empty maps (no error).
+// ReadDailySpend scans usage JSONL logs and returns per-day-of-month spend for
+// the calendar month containing month. Missing paths return empty maps.
 func ReadDailySpend(logPath string, month time.Time) (DailySpend, error) {
 	result := DailySpend{
 		Overall: make(map[int]float64),
 		ByModel: make(map[string]map[int]float64),
 	}
 
-	f, err := os.Open(logPath)
+	y, m, _ := month.Date()
+	err := scanUsageEntries(logPath, func(entry contracts.UsageEntry) {
+		ey, em, ed := usageTimestamp(entry).Date()
+		if ey == y && em == m {
+			result.Overall[ed] += entry.CostUSD
+			if result.ByModel[entry.Model] == nil {
+				result.ByModel[entry.Model] = make(map[int]float64)
+			}
+			result.ByModel[entry.Model][ed] += entry.CostUSD
+		}
+	})
+	return result, err
+}
+
+func scanUsageEntries(path string, visit func(contracts.UsageEntry)) error {
+	info, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
-		return result, nil
+		return nil
 	}
 	if err != nil {
-		return result, fmt.Errorf("budget: open log: %w", err)
+		return fmt.Errorf("budget: stat log path: %w", err)
+	}
+	if !info.IsDir() {
+		return scanUsageFile(path, visit)
+	}
+
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return fmt.Errorf("budget: read log dir: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".jsonl") && !strings.HasSuffix(name, ".jsonl.gz") {
+			continue
+		}
+		if err := scanUsageFile(filepath.Join(path, name), visit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func scanUsageFile(path string, visit func(contracts.UsageEntry)) error {
+	f, err := os.Open(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("budget: open log: %w", err)
 	}
 	defer f.Close()
 
-	y, m, _ := month.Date()
-	scanner := bufio.NewScanner(f)
+	var r io.Reader = f
+	if strings.HasSuffix(path, ".gz") {
+		gz, err := gzip.NewReader(f)
+		if err != nil {
+			return fmt.Errorf("budget: open compressed log: %w", err)
+		}
+		defer gz.Close()
+		r = gz
+	}
+
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		var entry contracts.UsageEntry
 		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
 			continue
 		}
-		ey, em, ed := entry.At.Date()
-		if ey != y || em != m {
-			continue
-		}
-		result.Overall[ed] += entry.CostUSD
-		if result.ByModel[entry.Model] == nil {
-			result.ByModel[entry.Model] = make(map[int]float64)
-		}
-		result.ByModel[entry.Model][ed] += entry.CostUSD
+		visit(entry)
 	}
-	return result, scanner.Err()
+	return scanner.Err()
+}
+
+func usageTimestamp(entry contracts.UsageEntry) time.Time {
+	if !entry.Timestamp.IsZero() {
+		return entry.Timestamp
+	}
+	return entry.At
 }
 
 // evaluate classifies projected spend against a limit and returns a Decision.

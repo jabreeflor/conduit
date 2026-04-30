@@ -1,10 +1,13 @@
-// Package usage logs per-call token and cost data to ~/.conduit/usage.jsonl
+// Package usage logs per-call token and latency data to ~/.conduit/logs/usage
 // and exposes running session totals for the TUI status bar.
 package usage
 
 import (
+	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -12,10 +15,10 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/router"
 )
 
 const (
-	defaultLogPath        = ".conduit/usage.jsonl"
 	defaultPricingPath    = ".conduit/pricing.json"
 	defaultCurrency       = "USD"
 	defaultElectricityUSD = 0.16
@@ -35,6 +38,12 @@ type PricingTable struct {
 	Entries []Pricing `json:"entries"`
 	index   map[string]Pricing
 }
+
+const (
+	defaultLogDir        = ".conduit/logs/usage"
+	defaultCompressAfter = 7 * 24 * time.Hour
+	defaultRetention     = 90 * 24 * time.Hour
+)
 
 // Options customizes usage accounting.
 type Options struct {
@@ -58,20 +67,23 @@ type Tracker struct {
 	mu                 sync.Mutex
 	sessionID          string
 	logPath            string
+	logDir             string
+	compressAfter      time.Duration
+	retention          time.Duration
+	now                func() time.Time
 	pricing            PricingTable
 	electricityRateUSD float64
 	machineProfile     contracts.MachineProfile
 	summary            contracts.UsageSummary
 }
 
-// New creates a Tracker that writes to ~/.conduit/usage.jsonl.
+// New creates a Tracker that writes daily logs under ~/.conduit/logs/usage.
 func New(sessionID string) (*Tracker, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("usage: resolve home dir: %w", err)
 	}
-	logPath := filepath.Join(home, defaultLogPath)
-	return NewWithPathAndOptions(sessionID, logPath, Options{
+	return NewWithDirAndOptions(sessionID, filepath.Join(home, defaultLogDir), Options{
 		PricingPath: filepath.Join(home, defaultPricingPath),
 	})
 }
@@ -87,7 +99,24 @@ func NewWithPathAndOptions(sessionID, logPath string, opts Options) (*Tracker, e
 	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
 		return nil, fmt.Errorf("usage: create log dir: %w", err)
 	}
+	return newTracker(sessionID, logPath, "", opts)
+}
 
+// NewWithDir creates a Tracker writing YYYY-MM-DD.jsonl files under logDir.
+func NewWithDir(sessionID, logDir string) (*Tracker, error) {
+	return NewWithDirAndOptions(sessionID, logDir, Options{})
+}
+
+// NewWithDirAndOptions creates a Tracker writing YYYY-MM-DD.jsonl files under
+// logDir with configurable pricing and local energy assumptions.
+func NewWithDirAndOptions(sessionID, logDir string, opts Options) (*Tracker, error) {
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return nil, fmt.Errorf("usage: create log dir: %w", err)
+	}
+	return newTracker(sessionID, "", logDir, opts)
+}
+
+func newTracker(sessionID, logPath, logDir string, opts Options) (*Tracker, error) {
 	pricing := opts.Pricing
 	if len(pricing.Entries) == 0 {
 		pricing = DefaultPricingTable()
@@ -107,6 +136,10 @@ func NewWithPathAndOptions(sessionID, logPath string, opts Options) (*Tracker, e
 	return &Tracker{
 		sessionID:          sessionID,
 		logPath:            logPath,
+		logDir:             logDir,
+		compressAfter:      defaultCompressAfter,
+		retention:          defaultRetention,
+		now:                func() time.Time { return time.Now().UTC() },
 		pricing:            pricing,
 		electricityRateUSD: rate,
 		machineProfile:     opts.MachineProfile,
@@ -121,23 +154,76 @@ func (t *Tracker) Record(provider, model string, inputTokens, outputTokens int) 
 // RecordWithOptions appends one model-call entry with optional local estimate
 // fields used for API-vs-local cost comparisons.
 func (t *Tracker) RecordWithOptions(provider, model string, inputTokens, outputTokens int, opts RecordOptions) (contracts.UsageEntry, error) {
-	entryCost := t.apiCost(provider, model, inputTokens, outputTokens)
+	return t.RecordEvent(Record{
+		Provider:  provider,
+		Model:     model,
+		TokensIn:  inputTokens,
+		TokensOut: outputTokens,
+		Status:    "success",
+		Options:   opts,
+	})
+}
+
+// Record captures all per-request usage fields written to JSONL.
+type Record struct {
+	Provider     string
+	Model        string
+	TokensIn     int
+	TokensOut    int
+	TTFT         time.Duration
+	TotalLatency time.Duration
+	Status       string
+	ErrorType    string
+	Feature      string
+	Plugin       string
+	Timestamp    time.Time
+	TokensPerSec float64
+	CostUSD      float64
+	Options      RecordOptions
+}
+
+// RecordEvent appends one request usage event to the JSONL log and updates
+// session totals for successful token-bearing calls.
+func (t *Tracker) RecordEvent(record Record) (contracts.UsageEntry, error) {
+	if record.Timestamp.IsZero() {
+		record.Timestamp = t.now()
+	}
+	if record.Status == "" {
+		record.Status = "success"
+	}
+	entryCost := record.CostUSD
+	if entryCost == 0 {
+		entryCost = t.apiCost(record.Provider, record.Model, record.TokensIn, record.TokensOut)
+	}
+	tokensPerSec := record.TokensPerSec
+	if tokensPerSec == 0 && record.TotalLatency > 0 && record.TokensOut > 0 {
+		tokensPerSec = float64(record.TokensOut) / record.TotalLatency.Seconds()
+	}
+
 	entry := contracts.UsageEntry{
-		At:           time.Now().UTC(),
-		SessionID:    t.sessionID,
-		Provider:     provider,
-		Model:        model,
-		InputTokens:  inputTokens,
-		OutputTokens: outputTokens,
-		TotalTokens:  inputTokens + outputTokens,
-		CostUSD:      entryCost,
-		CostCurrency: defaultCurrency,
-		CostSource:   "pricing_table",
+		Timestamp:       record.Timestamp.UTC(),
+		SessionID:       t.sessionID,
+		Provider:        record.Provider,
+		Model:           record.Model,
+		TokensIn:        record.TokensIn,
+		TokensOut:       record.TokensOut,
+		TotalTokens:     record.TokensIn + record.TokensOut,
+		TTFMS:           record.TTFT.Milliseconds(),
+		TotalMS:         record.TotalLatency.Milliseconds(),
+		TokensPerSecond: tokensPerSec,
+		Status:          record.Status,
+		ErrorType:       record.ErrorType,
+		Feature:         record.Feature,
+		Plugin:          record.Plugin,
+		CostUSD:         entryCost,
+		CostCurrency:    defaultCurrency,
+		CostSource:      "pricing_table",
 	}
 	if entryCost == 0 {
 		entry.CostSource = "unknown"
 	}
 
+	opts := record.Options
 	localCost, watts, rate := t.localEstimate(opts)
 	if opts.InferenceDuration > 0 {
 		entry.InferenceSeconds = opts.InferenceDuration.Seconds()
@@ -159,12 +245,32 @@ func (t *Tracker) RecordWithOptions(provider, model string, inputTokens, outputT
 	}
 
 	t.mu.Lock()
-	t.summary.Model = model
+	t.summary.Model = entry.Model
 	t.summary.TotalTokens += entry.TotalTokens
 	t.summary.TotalCostUSD += entry.CostUSD
 	t.mu.Unlock()
 
 	return entry, nil
+}
+
+// RecordUsage lets Tracker satisfy router.UsageSink for direct per-request
+// accounting from the model router.
+func (t *Tracker) RecordUsage(_ context.Context, record router.UsageRecord) error {
+	_, err := t.RecordEvent(Record{
+		Provider:     record.Provider,
+		Model:        record.Model,
+		TokensIn:     record.InputTokens,
+		TokensOut:    record.OutputTokens,
+		TTFT:         record.TTFT,
+		TotalLatency: record.TotalLatency,
+		Status:       record.Status,
+		ErrorType:    record.ErrorType,
+		Feature:      record.Feature,
+		Plugin:       record.Plugin,
+		Timestamp:    record.RecordedAt,
+		CostUSD:      record.CostUSD,
+	})
+	return err
 }
 
 // Summary returns the running session totals without blocking on disk I/O.
@@ -177,6 +283,12 @@ func (t *Tracker) Summary() contracts.UsageSummary {
 }
 
 func (t *Tracker) appendLine(entry contracts.UsageEntry) error {
+	if t.logDir != "" {
+		if err := t.maintainLogs(entry.Timestamp); err != nil {
+			return err
+		}
+		t.logPath = filepath.Join(t.logDir, entry.Timestamp.Format("2006-01-02")+".jsonl")
+	}
 	line, err := json.Marshal(entry)
 	if err != nil {
 		return fmt.Errorf("usage: marshal entry: %w", err)
@@ -191,6 +303,79 @@ func (t *Tracker) appendLine(entry contracts.UsageEntry) error {
 
 	_, err = f.Write(line)
 	return err
+}
+
+func (t *Tracker) maintainLogs(now time.Time) error {
+	entries, err := os.ReadDir(t.logDir)
+	if err != nil {
+		return fmt.Errorf("usage: read log dir: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
+		if !strings.HasSuffix(name, ".jsonl") && !strings.HasSuffix(name, ".jsonl.gz") {
+			continue
+		}
+		dateText := strings.TrimSuffix(strings.TrimSuffix(name, ".gz"), ".jsonl")
+		logDate, err := time.Parse("2006-01-02", dateText)
+		if err != nil {
+			continue
+		}
+		age := now.Sub(logDate)
+		path := filepath.Join(t.logDir, name)
+		if age > t.retention {
+			if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("usage: remove expired log: %w", err)
+			}
+			continue
+		}
+		if age > t.compressAfter && strings.HasSuffix(name, ".jsonl") {
+			if err := gzipFile(path); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func gzipFile(path string) error {
+	in, err := os.Open(path)
+	if err != nil {
+		return fmt.Errorf("usage: open log for compression: %w", err)
+	}
+	defer in.Close()
+
+	gzPath := path + ".gz"
+	out, err := os.OpenFile(gzPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o644)
+	if os.IsExist(err) {
+		return os.Remove(path)
+	}
+	if err != nil {
+		return fmt.Errorf("usage: create compressed log: %w", err)
+	}
+	removeGZ := true
+	defer func() {
+		out.Close()
+		if removeGZ {
+			_ = os.Remove(gzPath)
+		}
+	}()
+
+	gz := gzip.NewWriter(out)
+	if _, err := io.Copy(gz, in); err != nil {
+		gz.Close()
+		return fmt.Errorf("usage: compress log: %w", err)
+	}
+	if err := gz.Close(); err != nil {
+		return fmt.Errorf("usage: finish compressed log: %w", err)
+	}
+	removeGZ = false
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("usage: remove uncompressed log: %w", err)
+	}
+	return nil
 }
 
 // computeCost returns the USD cost using the known pricing table.

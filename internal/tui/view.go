@@ -175,8 +175,8 @@ func (m Model) setupWelcomeContent() string {
 	var sb strings.Builder
 	sb.WriteString(styleAgent.Render("Welcome to Conduit") + "\n")
 	sb.WriteString(fmt.Sprintf("Machine: %.0fGB RAM, %.0fGB free disk\n", m.setup.MachineProfile.Memory.TotalGB, m.setup.MachineProfile.Disk.AvailableGB))
-	if rec.LocalRecommended {
-		sb.WriteString(fmt.Sprintf("Set up local AI: %s via %s (%.1fGB download, ~%.0f tok/s)\n", rec.Model, rec.Runtime, rec.DownloadSizeGB, rec.EstimatedTokensPerS))
+	if rec.ID != "" {
+		sb.WriteString(fmt.Sprintf("Set up local AI: %s via %s (%.1fGB download, ~%.0f tok/s)\n", rec.Name, m.setup.Runtime, rec.DownloadSizeGB, rec.EstimatedTokensPerSec))
 	} else {
 		sb.WriteString("Local AI is not recommended for this machine.\n")
 	}

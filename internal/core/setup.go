@@ -7,6 +7,8 @@ import (
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
+const defaultFirstRunRuntime = "ollama"
+
 // LocalRuntimeInstaller performs the host-specific local AI installation.
 // Production implementations may download runtimes and model weights; tests can
 // provide a deterministic installer without network access.
@@ -22,10 +24,10 @@ type firstRunSetup struct {
 type commandRuntimeInstaller struct{}
 
 func (commandRuntimeInstaller) Install(recommendation contracts.LocalModelRecommendation) error {
-	if _, err := exec.LookPath(recommendation.Runtime); err == nil {
+	if _, err := exec.LookPath(defaultFirstRunRuntime); err == nil {
 		return nil
 	}
-	return fmt.Errorf("%s is not installed yet", recommendation.Runtime)
+	return fmt.Errorf("%s is not installed yet", defaultFirstRunRuntime)
 }
 
 func newFirstRunSetup(profiler *MachineProfiler, installer LocalRuntimeInstaller) *firstRunSetup {
@@ -40,15 +42,20 @@ func (s *firstRunSetup) Welcome() (contracts.FirstRunSetupSnapshot, error) {
 	if err != nil {
 		return contracts.FirstRunSetupSnapshot{}, err
 	}
-	recommendation := RecommendLocalModel(profile)
+	recommendation := firstRecommendedModel(profile)
+	runtime := defaultFirstRunRuntime
+	if recommendation.ID == "" {
+		runtime = "external-api"
+	}
 	return contracts.FirstRunSetupSnapshot{
 		Phase:          contracts.FirstRunSetupPhaseWelcome,
 		MachineProfile: profile,
 		Recommendation: recommendation,
+		Runtime:        runtime,
 		Steps: []contracts.FirstRunSetupStep{
 			{Name: "Profile machine", Status: contracts.FirstRunSetupStepDone, Detail: machineProfileSummary(profile)},
-			{Name: "Choose local runtime", Status: contracts.FirstRunSetupStepPending, Detail: recommendation.Runtime},
-			{Name: "Install recommended model", Status: contracts.FirstRunSetupStepPending, Detail: recommendation.Model},
+			{Name: "Choose local runtime", Status: contracts.FirstRunSetupStepPending, Detail: runtime},
+			{Name: "Install recommended model", Status: contracts.FirstRunSetupStepPending, Detail: modelDisplayName(recommendation)},
 			{Name: "Verify local chat", Status: contracts.FirstRunSetupStepPending},
 		},
 		ExternalAPI: DefaultExternalAPIOptions(),
@@ -60,7 +67,7 @@ func (s *firstRunSetup) SetupLocalAI() (contracts.FirstRunSetupSnapshot, error) 
 	if err != nil {
 		return contracts.FirstRunSetupSnapshot{}, err
 	}
-	if !snapshot.Recommendation.LocalRecommended {
+	if !localSetupRecommended(snapshot) {
 		snapshot.Phase = contracts.FirstRunSetupPhaseExternal
 		snapshot.Steps[1].Status = contracts.FirstRunSetupStepDone
 		snapshot.Steps[1].Detail = "external API recommended"
@@ -77,59 +84,10 @@ func (s *firstRunSetup) SetupLocalAI() (contracts.FirstRunSetupSnapshot, error) 
 	for i := range snapshot.Steps {
 		snapshot.Steps[i].Status = contracts.FirstRunSetupStepDone
 	}
-	snapshot.Steps[1].Detail = snapshot.Recommendation.Runtime + " ready"
-	snapshot.Steps[2].Detail = snapshot.Recommendation.Model + " ready"
+	snapshot.Steps[1].Detail = snapshot.Runtime + " ready"
+	snapshot.Steps[2].Detail = modelDisplayName(snapshot.Recommendation) + " ready"
 	snapshot.Steps[3].Detail = "local provider verified"
 	return snapshot, nil
-}
-
-// RecommendLocalModel maps a cached machine profile to the opinionated local
-// runtime and model shown on the welcome screen.
-func RecommendLocalModel(profile contracts.MachineProfile) contracts.LocalModelRecommendation {
-	mem := profile.Memory.TotalGB
-	switch {
-	case mem >= 64:
-		return contracts.LocalModelRecommendation{
-			Tier:                "high-end",
-			Runtime:             "ollama",
-			Model:               "llama3:70b-instruct-q5_K_M",
-			DownloadSizeGB:      40,
-			DiskFootprintGB:     45,
-			EstimatedTokensPerS: 15,
-			Note:                "large general-purpose model for Apple Silicon and high-memory Macs",
-			LocalRecommended:    true,
-		}
-	case mem >= 16:
-		return contracts.LocalModelRecommendation{
-			Tier:                "mid-range",
-			Runtime:             "ollama",
-			Model:               "llama3:8b-instruct-q6_K",
-			DownloadSizeGB:      6,
-			DiskFootprintGB:     8,
-			EstimatedTokensPerS: 35,
-			Note:                "balanced default for everyday local chat and coding help",
-			LocalRecommended:    true,
-		}
-	case mem >= 8:
-		return contracts.LocalModelRecommendation{
-			Tier:                "entry-level",
-			Runtime:             "ollama",
-			Model:               "phi3:mini",
-			DownloadSizeGB:      2.3,
-			DiskFootprintGB:     3,
-			EstimatedTokensPerS: 25,
-			Note:                "small model with clear quality expectations",
-			LocalRecommended:    true,
-		}
-	default:
-		return contracts.LocalModelRecommendation{
-			Tier:             "constrained",
-			Runtime:          "external-api",
-			Model:            "OpenAI or Anthropic API",
-			Note:             "this machine is below the local-memory floor; connect an API key instead",
-			LocalRecommended: false,
-		}
-	}
 }
 
 // DefaultExternalAPIOptions keeps the non-local path visible next to local
@@ -147,4 +105,34 @@ func machineProfileSummary(profile contracts.MachineProfile) string {
 		cpu = "unknown CPU"
 	}
 	return fmt.Sprintf("%s, %.0fGB RAM, %.0fGB free", cpu, profile.Memory.TotalGB, profile.Disk.AvailableGB)
+}
+
+func firstRecommendedModel(profile contracts.MachineProfile) contracts.LocalModelRecommendation {
+	set := RecommendLocalModels(profile, contracts.LocalModelRecommendationOptions{})
+	for _, recommendation := range set.Recommendations {
+		if recommendation.Recommended && recommendation.Use == contracts.LocalModelUseGeneral {
+			return recommendation
+		}
+	}
+	if len(set.Recommendations) > 0 {
+		return set.Recommendations[0]
+	}
+	return contracts.LocalModelRecommendation{}
+}
+
+func localSetupRecommended(snapshot contracts.FirstRunSetupSnapshot) bool {
+	return snapshot.Runtime != "external-api" && snapshot.Recommendation.ID != ""
+}
+
+func modelDisplayName(recommendation contracts.LocalModelRecommendation) string {
+	if recommendation.Name != "" {
+		if recommendation.Quantization != "" {
+			return recommendation.Name + " (" + recommendation.Quantization + ")"
+		}
+		return recommendation.Name
+	}
+	if recommendation.ID != "" {
+		return recommendation.ID
+	}
+	return "external API"
 }

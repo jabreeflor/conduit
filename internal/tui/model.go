@@ -187,7 +187,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m = m.refreshContent()
 			}
 		case key.Matches(msg, keys.SetupLocal):
-			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome && m.setup.Recommendation.LocalRecommended {
+			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome && m.setup.Recommendation.ID != "" {
 				if m.setupLocalAI != nil {
 					setup, err := m.setupLocalAI()
 					if err != nil {

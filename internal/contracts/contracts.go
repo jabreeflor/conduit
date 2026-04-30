@@ -90,24 +90,59 @@ type FirstRunSetupStep struct {
 	Detail string
 }
 
-// LocalModelRecommendation is the hardware-aware model choice shown during
-// first-run setup.
-type LocalModelRecommendation struct {
-	Tier                string
-	Runtime             string
-	Model               string
-	DownloadSizeGB      float64
-	DiskFootprintGB     float64
-	EstimatedTokensPerS float64
-	Note                string
-	LocalRecommended    bool
-}
-
 // ExternalAPIOption describes a non-local model path visible from welcome.
 type ExternalAPIOption struct {
 	Provider string
 	Label    string
 	EnvVar   string
+}
+
+// MachineClass is the local-inference capability tier inferred from a machine
+// profile.
+type MachineClass string
+
+const (
+	MachineClassHighEnd     MachineClass = "high_end"
+	MachineClassMidRange    MachineClass = "mid_range"
+	MachineClassEntryLevel  MachineClass = "entry_level"
+	MachineClassConstrained MachineClass = "constrained"
+)
+
+// LocalModelUse identifies why a model is recommended.
+type LocalModelUse string
+
+const (
+	LocalModelUseGeneral LocalModelUse = "general"
+	LocalModelUseCode    LocalModelUse = "code"
+)
+
+// LocalModelRecommendation describes a locally bundled heuristic candidate.
+type LocalModelRecommendation struct {
+	Rank                  int           `json:"rank"`
+	ID                    string        `json:"id"`
+	Name                  string        `json:"name"`
+	Use                   LocalModelUse `json:"use"`
+	MachineClass          MachineClass  `json:"machine_class"`
+	Quantization          string        `json:"quantization"`
+	DownloadSizeGB        float64       `json:"download_size_gb"`
+	DiskFootprintGB       float64       `json:"disk_footprint_gb"`
+	EstimatedTokensPerSec float64       `json:"estimated_tokens_per_sec"`
+	Recommended           bool          `json:"recommended"`
+	FitsAvailableDisk     bool          `json:"fits_available_disk"`
+	Notes                 []string      `json:"notes,omitempty"`
+}
+
+// LocalModelRecommendationOptions controls optional recommendation lanes.
+type LocalModelRecommendationOptions struct {
+	IncludeCodeModel bool
+}
+
+// LocalModelRecommendationSet is the ranked local-model recommendation result.
+type LocalModelRecommendationSet struct {
+	MachineClass    MachineClass               `json:"machine_class"`
+	Recommendations []LocalModelRecommendation `json:"recommendations"`
+	FallbackReason  string                     `json:"fallback_reason,omitempty"`
+	GeneratedAt     time.Time                  `json:"generated_at"`
 }
 
 // FirstRunSetupSnapshot is the shared core-to-surface contract for the
@@ -116,6 +151,7 @@ type FirstRunSetupSnapshot struct {
 	Phase          FirstRunSetupPhase
 	MachineProfile MachineProfile
 	Recommendation LocalModelRecommendation
+	Runtime        string
 	Steps          []FirstRunSetupStep
 	ExternalAPI    []ExternalAPIOption
 	Ready          bool
@@ -255,24 +291,38 @@ type SessionLogEntry struct {
 	Message string
 }
 
-// UsageEntry is one model-call record written to ~/.conduit/usage.jsonl.
+// UsageEntry is one model-call record written to the usage JSONL log.
 type UsageEntry struct {
-	At                       time.Time `json:"at"`
-	SessionID                string    `json:"session_id"`
-	Provider                 string    `json:"provider"`
-	Model                    string    `json:"model"`
-	InputTokens              int       `json:"input_tokens"`
-	OutputTokens             int       `json:"output_tokens"`
-	TotalTokens              int       `json:"total_tokens"`
-	CostUSD                  float64   `json:"cost_usd"`
-	CostCurrency             string    `json:"cost_currency,omitempty"`
-	CostEstimated            bool      `json:"cost_estimated,omitempty"`
-	CostSource               string    `json:"cost_source,omitempty"`
-	InferenceSeconds         float64   `json:"inference_seconds,omitempty"`
-	EstimatedPowerDrawWatts  float64   `json:"estimated_power_draw_watts,omitempty"`
-	ElectricityRateUSDPerKWh float64   `json:"electricity_rate_usd_per_kwh,omitempty"`
-	EstimatedLocalCostUSD    float64   `json:"estimated_local_cost_usd,omitempty"`
-	LocalComparisonEstimated bool      `json:"local_comparison_estimated,omitempty"`
+	Timestamp       time.Time `json:"timestamp"`
+	SessionID       string    `json:"session_id"`
+	Provider        string    `json:"provider"`
+	Model           string    `json:"model"`
+	TokensIn        int       `json:"tokens_in"`
+	TokensOut       int       `json:"tokens_out"`
+	TotalTokens     int       `json:"total_tokens"`
+	TTFMS           int64     `json:"ttft_ms"`
+	TotalMS         int64     `json:"total_ms"`
+	TokensPerSecond float64   `json:"tokens_per_sec"`
+	Status          string    `json:"status"`
+	ErrorType       string    `json:"error_type,omitempty"`
+	Feature         string    `json:"feature,omitempty"`
+	Plugin          string    `json:"plugin,omitempty"`
+	CostUSD         float64   `json:"cost_usd"`
+	CostCurrency    string    `json:"cost_currency,omitempty"`
+	CostEstimated   bool      `json:"cost_estimated,omitempty"`
+	CostSource      string    `json:"cost_source,omitempty"`
+
+	InferenceSeconds         float64 `json:"inference_seconds,omitempty"`
+	EstimatedPowerDrawWatts  float64 `json:"estimated_power_draw_watts,omitempty"`
+	ElectricityRateUSDPerKWh float64 `json:"electricity_rate_usd_per_kwh,omitempty"`
+	EstimatedLocalCostUSD    float64 `json:"estimated_local_cost_usd,omitempty"`
+	LocalComparisonEstimated bool    `json:"local_comparison_estimated,omitempty"`
+
+	// Legacy fields are retained so budget readers can still scan older
+	// ~/.conduit/usage.jsonl records written before daily session logs.
+	At           time.Time `json:"at,omitempty"`
+	InputTokens  int       `json:"input_tokens,omitempty"`
+	OutputTokens int       `json:"output_tokens,omitempty"`
 }
 
 // UsageSummary is the running totals for the status bar.

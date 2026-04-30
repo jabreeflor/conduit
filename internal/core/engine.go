@@ -383,9 +383,20 @@ func (e *Engine) SetupLocalAI() (contracts.FirstRunSetupSnapshot, error) {
 	}
 	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
 		At:      time.Now().UTC(),
-		Message: fmt.Sprintf("local AI ready: %s via %s", snapshot.Recommendation.Model, snapshot.Recommendation.Runtime),
+		Message: fmt.Sprintf("local AI ready: %s via %s", snapshot.Recommendation.Name, snapshot.Runtime),
 	})
 	return snapshot, nil
+}
+
+// LocalModelRecommendations returns ranked local-model install choices derived
+// from the cached machine profile. The heuristic is fully local and never phones
+// home.
+func (e *Engine) LocalModelRecommendations(opts contracts.LocalModelRecommendationOptions) (contracts.LocalModelRecommendationSet, error) {
+	profile, err := e.machineProfiler.Load()
+	if err != nil {
+		return contracts.LocalModelRecommendationSet{}, err
+	}
+	return RecommendLocalModels(profile, opts), nil
 }
 
 // CheckBudget evaluates whether a model call with the given estimated cost is

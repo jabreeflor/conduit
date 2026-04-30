@@ -30,35 +30,29 @@ func setupWithProfile(t *testing.T, profile contracts.MachineProfile, installer 
 	return newFirstRunSetup(profiler, installer)
 }
 
-func TestRecommendLocalModelMidRange(t *testing.T) {
-	rec := RecommendLocalModel(contracts.MachineProfile{
+func TestFirstRecommendedModelMidRange(t *testing.T) {
+	rec := firstRecommendedModel(contracts.MachineProfile{
 		Memory: contracts.MemInfo{TotalGB: 32},
 	})
 
-	if rec.Tier != "mid-range" {
-		t.Fatalf("Tier = %q, want mid-range", rec.Tier)
+	if rec.MachineClass != contracts.MachineClassMidRange {
+		t.Fatalf("MachineClass = %q, want mid_range", rec.MachineClass)
 	}
-	if rec.Runtime != "ollama" {
-		t.Fatalf("Runtime = %q, want ollama", rec.Runtime)
+	if !rec.Recommended {
+		t.Fatal("Recommended = false, want true")
 	}
-	if !rec.LocalRecommended {
-		t.Fatal("LocalRecommended = false, want true")
-	}
-	if rec.Model == "" || rec.DownloadSizeGB == 0 || rec.EstimatedTokensPerS == 0 {
+	if rec.Name == "" || rec.DownloadSizeGB == 0 || rec.EstimatedTokensPerSec == 0 {
 		t.Fatalf("recommendation missing setup estimates: %+v", rec)
 	}
 }
 
-func TestRecommendLocalModelConstrainedUsesExternalFallback(t *testing.T) {
-	rec := RecommendLocalModel(contracts.MachineProfile{
+func TestFirstRecommendedModelConstrainedUsesExternalFallback(t *testing.T) {
+	rec := firstRecommendedModel(contracts.MachineProfile{
 		Memory: contracts.MemInfo{TotalGB: 4},
 	})
 
-	if rec.LocalRecommended {
-		t.Fatal("LocalRecommended = true, want false for constrained machine")
-	}
-	if rec.Runtime != "external-api" {
-		t.Fatalf("Runtime = %q, want external-api", rec.Runtime)
+	if rec.ID != "" {
+		t.Fatalf("ID = %q, want empty recommendation for constrained machine", rec.ID)
 	}
 }
 
@@ -82,7 +76,7 @@ func TestFirstRunSetupWelcomeIncludesProfileLocalSetupAndExternalAPI(t *testing.
 	if snapshot.MachineProfile.CPU.Brand != "Apple M3 Max" {
 		t.Fatalf("profile not surfaced: %+v", snapshot.MachineProfile)
 	}
-	if snapshot.Recommendation.Model == "" || !snapshot.Recommendation.LocalRecommended {
+	if snapshot.Recommendation.Name == "" || !localSetupRecommended(snapshot) {
 		t.Fatalf("missing local recommendation: %+v", snapshot.Recommendation)
 	}
 	if len(snapshot.ExternalAPI) < 2 {
@@ -108,7 +102,7 @@ func TestSetupLocalAIMarksReadyAfterInstallerCompletes(t *testing.T) {
 	if !installer.called {
 		t.Fatal("installer was not called")
 	}
-	if installer.got.Model == "" {
+	if installer.got.Name == "" {
 		t.Fatal("installer did not receive the recommended model")
 	}
 	if snapshot.Phase != contracts.FirstRunSetupPhaseReady || !snapshot.Ready {
