@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -25,16 +26,32 @@ func run(ctx context.Context, command string, timeout time.Duration, input Input
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", expandHome(command))
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Stdin = bytes.NewReader(payload)
+	var stdout bytes.Buffer
+	cmd.Stdout = &stdout
 
-	out, err := cmd.Output()
-	if err != nil {
-		// crash or timeout → fail-safe allow
+	if err := cmd.Start(); err != nil {
+		return Output{Decision: DecisionAllow}
+	}
+	done := make(chan error, 1)
+	go func() { done <- cmd.Wait() }()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			return Output{Decision: DecisionAllow}
+		}
+	case <-ctx.Done():
+		if cmd.Process != nil {
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		}
+		<-done
 		return Output{Decision: DecisionAllow}
 	}
 
 	var result Output
-	if err := json.Unmarshal(bytes.TrimSpace(out), &result); err != nil {
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &result); err != nil {
 		return Output{Decision: DecisionAllow}
 	}
 	if result.Decision == "" {

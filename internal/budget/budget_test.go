@@ -361,13 +361,11 @@ func TestReport_allModels(t *testing.T) {
 }
 
 func TestReport_projectedOvershootWithinMonth(t *testing.T) {
-	if time.Now().Day() < 2 {
-		t.Skip("projection test requires day ≥ 2 to have a non-zero daily rate")
-	}
 	dir := t.TempDir()
-	// 99.5% of limit spent today: remaining $0.40 vs daily rate > $0.40 → overshoot today.
+	// Already over limit: projection should report an immediate overshoot date
+	// regardless of which day of the month CI is running.
 	path := writeUsageLog(t, dir, []contracts.UsageEntry{
-		entry("claude-opus-4-6", 79.60, thisMonth),
+		entry("claude-opus-4-6", 80.10, thisMonth),
 	})
 	cfg := config.BudgetsConfig{
 		Models: map[string]config.ModelBudget{
