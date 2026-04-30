@@ -300,6 +300,24 @@ type DynamicMountRequest struct {
 	BlockReason          string
 }
 
+// ToolStatus identifies the execution state of a tool call.
+type ToolStatus int
+
+const (
+	ToolStatusRunning ToolStatus = iota
+	ToolStatusDone
+	ToolStatusFailed
+)
+
+// ToolCall holds the data for one tool invocation visible to the user.
+type ToolCall struct {
+	Name     string
+	Input    string
+	Output   string
+	Status   ToolStatus
+	Expanded bool
+}
+
 // SandboxArchitecture describes the security and startup contract every agent
 // execution sandbox must satisfy.
 type SandboxArchitecture struct {
