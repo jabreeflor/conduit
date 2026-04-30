@@ -6,6 +6,7 @@ import (
 	"io"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jabreeflor/conduit/internal/core"
 )
 
@@ -14,8 +15,8 @@ func formatStatusBar(model string, totalTokens int, totalCostUSD float64) string
 	return fmt.Sprintf("[%s] [%d tokens] [$%.4f]", model, totalTokens, totalCostUSD)
 }
 
-// Run starts the terminal surface. The real Bubble Tea application will land
-// after the TUI stack decision; this boot path proves the core/surface contract.
+// Run is the non-interactive boot path that proves the core/surface contract.
+// Used by tests and piped output. For the interactive TUI, call RunInteractive.
 func Run(out io.Writer) error {
 	engine := core.New("dev")
 	info := engine.Info()
@@ -43,5 +44,21 @@ func Run(out io.Writer) error {
 		statusBar,
 		panel.TabBar(),
 	)
+	return err
+}
+
+// RunInteractive launches the full Bubble Tea three-panel TUI. It takes over
+// the terminal (alt screen) until the user quits with esc or ctrl+c.
+func RunInteractive() error {
+	engine := core.New("dev")
+	modelStatus := engine.ModelStatus()
+
+	m := newModel(modelStatus.SelectedModel)
+	p := tea.NewProgram(
+		m,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+	_, err := p.Run()
 	return err
 }

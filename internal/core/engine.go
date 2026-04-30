@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/budget"
+	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
@@ -13,17 +15,19 @@ import (
 
 // Engine owns the long-lived runtime state for Conduit.
 type Engine struct {
-	name        string
-	version     string
-	startedAt   time.Time
-	surfaces    []contracts.Surface
-	identity    *IdentityManager
-	router      *ModelRouter
-	network     *NetworkSandbox
-	permissions *PermissionManager
-	sandbox     *SandboxManager
-	sessionLog  []contracts.SessionLogEntry
-	usage       *usage.Tracker
+	name            string
+	version         string
+	startedAt       time.Time
+	surfaces        []contracts.Surface
+	identity        *IdentityManager
+	router          *ModelRouter
+	network         *NetworkSandbox
+	permissions     *PermissionManager
+	sandbox         *SandboxManager
+	machineProfiler *MachineProfiler
+	budgetEnforcer  *budget.Enforcer
+	sessionLog      []contracts.SessionLogEntry
+	usage           *usage.Tracker
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -41,12 +45,51 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		identity:    NewIdentityManager(DefaultIdentityConfig()),
-		router:      NewModelRouter(DefaultEscalationConfig()),
-		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
-		permissions: NewPermissionManager(DefaultPermissionConfig()),
-		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
-		usage:       tracker,
+		identity:        NewIdentityManager(DefaultIdentityConfig()),
+		router:          NewModelRouter(DefaultEscalationConfig()),
+		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions:     NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
+		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
+		budgetEnforcer:  newBudgetEnforcer(config.BudgetsConfig{}),
+		usage:           tracker,
+	}
+}
+
+// NewFromConfig creates a core engine initialised from a root config.
+// Fields left at zero values in cfg fall back to their built-in defaults.
+func NewFromConfig(version string, cfg config.Config) *Engine {
+	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
+	tracker, _ := usage.New(sessionID)
+
+	escalation := DefaultEscalationConfig()
+	if cfg.Escalation.DefaultModel != "" {
+		escalation.DefaultModel = cfg.Escalation.DefaultModel
+	}
+	if cfg.Escalation.EscalationModel != "" {
+		escalation.EscalationModel = cfg.Escalation.EscalationModel
+	}
+	if cfg.Escalation.ConfidenceThreshold > 0 {
+		escalation.ConfidenceThreshold = cfg.Escalation.ConfidenceThreshold
+	}
+
+	return &Engine{
+		name:      "Conduit",
+		version:   version,
+		startedAt: time.Now().UTC(),
+		surfaces: []contracts.Surface{
+			contracts.SurfaceTUI,
+			contracts.SurfaceGUI,
+			contracts.SurfaceSpotlight,
+		},
+		identity:        NewIdentityManager(DefaultIdentityConfig()),
+		router:          NewModelRouter(escalation),
+		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions:     NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
+		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
+		budgetEnforcer:  newBudgetEnforcer(cfg.Budgets),
+		usage:           tracker,
 	}
 }
 
@@ -132,6 +175,46 @@ func (e *Engine) UsageSummary() contracts.UsageSummary {
 // SessionLog returns a copy of user-visible engine events.
 func (e *Engine) SessionLog() []contracts.SessionLogEntry {
 	return append([]contracts.SessionLogEntry(nil), e.sessionLog...)
+}
+
+// MachineProfile returns the cached hardware profile, running a fresh scan on
+// first call or when no cache exists.
+func (e *Engine) MachineProfile() (contracts.MachineProfile, error) {
+	return e.machineProfiler.Load()
+}
+
+// RescanMachine runs a fresh hardware probe, overwrites the cache, and returns
+// the new profile. Call this on user-triggered re-scan requests.
+func (e *Engine) RescanMachine() (contracts.MachineProfile, error) {
+	return e.machineProfiler.Scan()
+}
+
+// CheckBudget evaluates whether a model call with the given estimated cost is
+// allowed under the configured monthly budgets. Returns ErrHardStop when the
+// call would breach a hard-stop limit.
+func (e *Engine) CheckBudget(model string, estimatedCostUSD float64) (budget.Decision, error) {
+	if e.budgetEnforcer == nil {
+		return budget.Decision{Allowed: true}, nil
+	}
+	return e.budgetEnforcer.Check(model, estimatedCostUSD)
+}
+
+// BudgetReport returns the full budget status for all configured limits.
+func (e *Engine) BudgetReport() budget.Report {
+	if e.budgetEnforcer == nil {
+		return budget.Report{}
+	}
+	return e.budgetEnforcer.Report()
+}
+
+// newBudgetEnforcer constructs a budget enforcer, returning nil on failure so
+// a missing home directory never prevents the engine from starting.
+func newBudgetEnforcer(cfg config.BudgetsConfig) *budget.Enforcer {
+	e, err := budget.New(cfg)
+	if err != nil {
+		return nil
+	}
+	return e
 }
 
 func joinReasons(reasons []contracts.EscalationReason) string {
