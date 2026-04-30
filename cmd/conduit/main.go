@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	conduiteval "github.com/jabreeflor/conduit/internal/eval"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/tui"
 )
@@ -20,6 +21,12 @@ func main() {
 		case "mcp":
 			if err := mcp.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit mcp: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "eval":
+			if err := conduiteval.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit eval: %v\n", err)
 				os.Exit(1)
 			}
 			return
