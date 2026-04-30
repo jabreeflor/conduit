@@ -4,41 +4,46 @@ package contracts
 
 import "time"
 
-// MemoryKind identifies which memory lane an entry belongs to.
-type MemoryKind string
-
-const (
-	MemoryKindShortTerm        MemoryKind = "short-term"
-	MemoryKindLongTermEpisodic MemoryKind = "long-term-episodic"
-	MemoryKindSkill            MemoryKind = "skill"
-)
-
-// MemoryEntry is a single memory record. Long-term and skill entries are stored
-// as flat markdown files so macOS Spotlight can index them naturally.
-type MemoryEntry struct {
-	ID        string
-	Kind      MemoryKind
-	Title     string
-	Body      string
-	Path      string
-	CreatedAt time.Time
+// MachineProfile is the hardware snapshot cached in ~/.conduit/machine-profile.json.
+type MachineProfile struct {
+	ProfiledAt   time.Time `json:"profiled_at"`
+	MacOSVersion string    `json:"macos_version"`
+	CPU          CPUInfo   `json:"cpu"`
+	Memory       MemInfo   `json:"memory"`
+	GPU          []GPUInfo `json:"gpu"`
+	Disk         DiskInfo  `json:"disk"`
 }
 
-// MemoryConfig configures a MemoryProvider at initialization time.
-type MemoryConfig struct {
-	Dir         string // Base directory for flat-file providers; empty uses ~/.conduit/memory
-	MaxEntries  int    // 0 means unlimited
-	SearchLimit int    // Default cap for Search; 0 means provider default
+// CPUInfo holds processor identification and core counts.
+type CPUInfo struct {
+	Brand         string `json:"brand"`
+	PhysicalCores int    `json:"physical_cores"`
+	LogicalCores  int    `json:"logical_cores"`
 }
 
-// CompressedContext is the output of a provider's Compress pass.
-type CompressedContext struct {
-	Summary      string
-	SourceIDs    []string
-	CompressedAt time.Time
+// MemInfo holds total installed RAM.
+type MemInfo struct {
+	TotalBytes int64   `json:"total_bytes"`
+	TotalGB    float64 `json:"total_gb"`
 }
 
-// MemoryProviderKind names a bundled provider implementation.
+// GPUInfo holds one GPU adapter's name, VRAM, and whether it is shared (Apple
+// Unified Memory) or dedicated (discrete AMD/NVIDIA).
+type GPUInfo struct {
+	Name     string  `json:"name"`
+	VRAMGB   float64 `json:"vram_gb"`
+	VRAMType string  `json:"vram_type"` // "shared" | "dedicated"
+}
+
+// DiskInfo holds capacity and free space for the root filesystem.
+type DiskInfo struct {
+	TotalBytes     int64   `json:"total_bytes"`
+	AvailableBytes int64   `json:"available_bytes"`
+	TotalGB        float64 `json:"total_gb"`
+	AvailableGB    float64 `json:"available_gb"`
+}
+
+// MemoryProviderKind names a bundled memory provider implementation.
 type MemoryProviderKind string
 
 const (
@@ -186,9 +191,11 @@ type UsageEntry struct {
 
 // UsageSummary is the running totals for the status bar.
 type UsageSummary struct {
-	Model        string
-	TotalTokens  int
-	TotalCostUSD float64
+	Model          string
+	SessionID      string
+	TotalTokens    int
+	TotalCostUSD   float64
+	ActiveWorkflow string // empty when no workflow is running
 }
 
 // NetworkMode controls how sandboxed network access is approved.
@@ -257,6 +264,18 @@ const (
 	SandboxBackendOCIContainer        SandboxBackend = "oci_container"
 )
 
+// SandboxRuntimeCapabilities reports what a backend can provide on the current
+// host. A RuntimeProbe populates this for the selector (PRD §15.9).
+type SandboxRuntimeCapabilities struct {
+	Backend           SandboxBackend
+	Available         bool
+	UnavailableReason string
+	SupportsRosetta2  bool
+	SupportsVirtioFS  bool
+	ColdStartBudget   time.Duration
+	MemoryOverheadMB  int
+}
+
 // SandboxNetworkPolicy controls outbound network access from agent-run code.
 type SandboxNetworkPolicy string
 
@@ -293,13 +312,33 @@ type DynamicMountRequest struct {
 	BlockReason          string
 }
 
+// ToolStatus identifies the execution state of a tool call.
+type ToolStatus int
+
+const (
+	ToolStatusRunning ToolStatus = iota
+	ToolStatusDone
+	ToolStatusFailed
+)
+
+// ToolCall holds the data for one tool invocation visible to the user.
+type ToolCall struct {
+	Name     string
+	Input    string
+	Output   string
+	Status   ToolStatus
+	Expanded bool
+}
+
 // SandboxArchitecture describes the security and startup contract every agent
 // execution sandbox must satisfy.
 type SandboxArchitecture struct {
 	Backend                   SandboxBackend
 	BaseImage                 string
 	ImagePrecached            bool
+	ColdStartBudget           time.Duration
 	WarmStartBudget           time.Duration
+	MaxMemoryOverheadMB       int
 	Shells                    []string
 	PreinstalledRuntimes      []string
 	NetworkPolicy             SandboxNetworkPolicy

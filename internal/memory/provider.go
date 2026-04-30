@@ -1,43 +1,61 @@
-// Package memory defines the pluggable MemoryProvider interface and ships the
-// bundled FlatFileProvider (default), NoOpProvider (tests), and a Registry that
-// enforces the single-active-provider constraint described in PRD §6.4.
+// Package memory defines the MemoryProvider interface and supporting types used
+// by the Conduit engine to persist and retrieve agent knowledge across sessions.
 package memory
 
 import (
 	"context"
-
-	"github.com/jabreeflor/conduit/internal/contracts"
+	"time"
 )
 
-// MemoryProvider is the interface the engine uses to store and retrieve agent
-// memory. All implementations must be safe for concurrent use.
-type MemoryProvider interface {
-	// Initialize prepares the provider for use. Called once at engine startup.
-	Initialize(ctx context.Context, cfg contracts.MemoryConfig) error
+// Kind classifies a memory entry for filtering and display.
+type Kind string
 
-	// Prefetch warms the provider's cache with entries relevant to sessionID.
-	Prefetch(ctx context.Context, sessionID string) ([]contracts.MemoryEntry, error)
+const (
+	KindFact       Kind = "fact"
+	KindDecision   Kind = "decision"
+	KindPreference Kind = "preference"
+	KindContext    Kind = "context"
+)
 
-	// Write persists a new memory entry.
-	Write(ctx context.Context, entry contracts.MemoryEntry) error
+// Entry is one unit of persistent agent memory.
+type Entry struct {
+	ID        string
+	Kind      Kind
+	Title     string
+	Body      string
+	Tags      []string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
 
-	// Search returns entries matching query, capped at limit results.
-	// A limit of 0 applies the provider's own default.
-	Search(ctx context.Context, query string, limit int) ([]contracts.MemoryEntry, error)
-
-	// Compress condenses the in-flight context window into a summary and
-	// archives the source entries. Returns nil when there is nothing to compress.
-	Compress(ctx context.Context) (*contracts.CompressedContext, error)
-
-	// Shutdown flushes pending writes and releases resources.
+// Provider is the abstract memory layer. Only one external provider may be
+// active at a time to prevent tool schema bloat (PRD §6.4).
+type Provider interface {
+	// Initialize prepares storage (creates dirs, opens connections).
+	Initialize(ctx context.Context) error
+	// Prefetch warms the in-memory cache with entries relevant to the query.
+	Prefetch(ctx context.Context, query string) ([]Entry, error)
+	// Write persists one entry; update semantics apply when ID matches an existing entry.
+	Write(ctx context.Context, entry Entry) error
+	// Search returns entries whose title, body, or tags contain the query.
+	Search(ctx context.Context, query string) ([]Entry, error)
+	// Compress merges or prunes stale entries to keep the store lean.
+	Compress(ctx context.Context) error
+	// Shutdown flushes any pending writes and releases resources.
 	Shutdown(ctx context.Context) error
 }
 
-// MemoryHooks is an optional lifecycle extension a provider may implement.
-// The engine checks for this interface after Initialize and calls hooks when present.
-type MemoryHooks interface {
-	OnTurnStart(ctx context.Context, turnID string) error
-	OnSessionEnd(ctx context.Context, sessionID string) error
-	OnPreCompress(ctx context.Context) error
-	OnMemoryWrite(ctx context.Context, entry contracts.MemoryEntry) error
+// Hooks are optional lifecycle callbacks attached to a provider. All fields are
+// optional; nil functions are silently skipped.
+type Hooks struct {
+	OnTurnStart   func(ctx context.Context) error
+	OnSessionEnd  func(ctx context.Context) error
+	OnPreCompress func(ctx context.Context, entries []Entry) error
+	OnMemoryWrite func(ctx context.Context, entry Entry) error
+}
+
+// HookProvider extends Provider with lifecycle hooks.
+type HookProvider interface {
+	Provider
+	Hooks() Hooks
 }

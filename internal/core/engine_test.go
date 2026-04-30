@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
 )
 
@@ -43,6 +44,30 @@ func TestEngineInfoReturnsSurfaceCopy(t *testing.T) {
 	}
 }
 
+func TestEngineUsageSummaryHasSessionID(t *testing.T) {
+	engine := New("test")
+
+	s := engine.UsageSummary()
+
+	if s.SessionID == "" {
+		t.Fatal("UsageSummary.SessionID is empty; expected a non-empty session ID")
+	}
+}
+
+func TestEngineUsageSummaryTracksActiveWorkflow(t *testing.T) {
+	engine := New("test")
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "" {
+		t.Fatalf("ActiveWorkflow = %q before any RouteModel call, want empty", w)
+	}
+
+	engine.RouteModel(contracts.ModelRouteRequest{WorkflowType: "code-review", Confidence: 1.0})
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "code-review" {
+		t.Fatalf("ActiveWorkflow = %q, want code-review", w)
+	}
+}
+
 func TestEngineMemoryProviderIsRegisteredOnStartup(t *testing.T) {
 	engine := New("test")
 
@@ -54,8 +79,8 @@ func TestEngineMemoryProviderIsRegisteredOnStartup(t *testing.T) {
 func TestEngineWriteAndSearchMemory(t *testing.T) {
 	engine := New("test")
 
-	entry := contracts.MemoryEntry{
-		Kind:  contracts.MemoryKindLongTermEpisodic,
+	entry := memory.Entry{
+		Kind:  memory.KindDecision,
 		Title: "Router decision",
 		Body:  "Use provider fallbacks.",
 	}
@@ -63,7 +88,7 @@ func TestEngineWriteAndSearchMemory(t *testing.T) {
 		t.Fatalf("WriteMemory returned error: %v", err)
 	}
 
-	results, err := engine.SearchMemory(context.Background(), "Router", 10)
+	results, err := engine.SearchMemory(context.Background(), "Router")
 	if err != nil {
 		t.Fatalf("SearchMemory returned error: %v", err)
 	}
@@ -73,8 +98,8 @@ func TestEngineWriteAndSearchMemory(t *testing.T) {
 
 	log := engine.SessionLog()
 	found := false
-	for _, entry := range log {
-		if strings.Contains(entry.Message, "memory write") {
+	for _, e := range log {
+		if strings.Contains(e.Message, "memory write") {
 			found = true
 			break
 		}

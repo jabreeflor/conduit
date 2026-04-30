@@ -12,17 +12,17 @@ import (
 // registered. Call Replace to swap providers with a graceful shutdown.
 var ErrProviderAlreadyActive = errors.New("memory: an external provider is already active; call Replace to swap providers")
 
-// Registry holds the active MemoryProvider and enforces the single-provider
+// Registry holds the active Provider and enforces the single-provider
 // constraint from PRD §6.4 ("only one external provider may be active at a time").
 type Registry struct {
 	mu     sync.RWMutex
-	active MemoryProvider
+	active Provider
 	kind   contracts.MemoryProviderKind
 }
 
 // Register activates provider as the sole external provider.
 // Returns ErrProviderAlreadyActive if one is already registered.
-func (r *Registry) Register(kind contracts.MemoryProviderKind, provider MemoryProvider) error {
+func (r *Registry) Register(kind contracts.MemoryProviderKind, provider Provider) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.active != nil {
@@ -34,7 +34,7 @@ func (r *Registry) Register(kind contracts.MemoryProviderKind, provider MemoryPr
 }
 
 // Replace shuts down the current provider (if any) and activates the new one.
-func (r *Registry) Replace(ctx context.Context, kind contracts.MemoryProviderKind, provider MemoryProvider) error {
+func (r *Registry) Replace(ctx context.Context, kind contracts.MemoryProviderKind, provider Provider) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.active != nil {
@@ -49,7 +49,7 @@ func (r *Registry) Replace(ctx context.Context, kind contracts.MemoryProviderKin
 
 // Active returns the current provider and its kind. Provider is nil if none
 // has been registered.
-func (r *Registry) Active() (MemoryProvider, contracts.MemoryProviderKind) {
+func (r *Registry) Active() (Provider, contracts.MemoryProviderKind) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	return r.active, r.kind

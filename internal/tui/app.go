@@ -6,16 +6,29 @@ import (
 	"io"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/core"
 )
 
-// formatStatusBar returns the "[Model] [Tokens] [$X.XX]" string for the status line.
-func formatStatusBar(model string, totalTokens int, totalCostUSD float64) string {
-	return fmt.Sprintf("[%s] [%d tokens] [$%.4f]", model, totalTokens, totalCostUSD)
+// formatStatusBar returns the status line from a UsageSummary.
+// It always shows model, session cost, and session ID; it appends workflow
+// only when one is active.
+func formatStatusBar(s contracts.UsageSummary) string {
+	parts := []string{
+		fmt.Sprintf("[%s]", s.Model),
+		fmt.Sprintf("[$%.4f]", s.TotalCostUSD),
+		fmt.Sprintf("[session:%s]", s.SessionID),
+	}
+	if s.ActiveWorkflow != "" {
+		parts = append(parts, fmt.Sprintf("[workflow:%s]", s.ActiveWorkflow))
+	}
+	return strings.Join(parts, " ")
 }
 
-// Run starts the terminal surface. The real Bubble Tea application will land
-// after the TUI stack decision; this boot path proves the core/surface contract.
+// Run is the non-interactive boot path that proves the core/surface contract.
+// Used by tests and piped output. For the interactive TUI, call RunInteractive.
 func Run(out io.Writer) error {
 	engine := core.New("dev")
 	info := engine.Info()
@@ -27,16 +40,38 @@ func Run(out io.Writer) error {
 
 	modelStatus := engine.ModelStatus()
 	usageSummary := engine.UsageSummary()
-	statusBar := formatStatusBar(modelStatus.SelectedModel, usageSummary.TotalTokens, usageSummary.TotalCostUSD)
+	usageSummary.Model = modelStatus.SelectedModel
+	statusBar := formatStatusBar(usageSummary)
+
+	panel := NewContextPanel()
+	panel.Toggle() // show by default at boot for context
+	panel.SetSessionLog(engine.SessionLog())
 
 	_, err := fmt.Fprintf(
 		out,
-		"%s core online (%s)\nstatus: model %s; escalates to %s\n%s\n",
+		"%s core online (%s)\nstatus: model %s; escalates to %s\n%s\ncontext panel: %s\n",
 		info.Name,
 		strings.Join(surfaces, ", "),
 		modelStatus.SelectedModel,
 		modelStatus.EscalationModel,
 		statusBar,
+		panel.TabBar(),
 	)
+	return err
+}
+
+// RunInteractive launches the full Bubble Tea three-panel TUI. It takes over
+// the terminal (alt screen) until the user quits with esc or ctrl+c.
+func RunInteractive() error {
+	engine := core.New("dev")
+	modelStatus := engine.ModelStatus()
+
+	m := newModel(modelStatus.SelectedModel)
+	p := tea.NewProgram(
+		m,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
+	_, err := p.Run()
 	return err
 }
