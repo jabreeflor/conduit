@@ -82,6 +82,7 @@ Where Claude Code, Cowork, Hermes Agent, Codex, and OpenClaw each solve parts of
 - Real-time cost dashboard with budgets, alerts, and projected overshoot dates
 - Local model cost estimation (compute × electricity rate)
 - 100% local — no telemetry, no phone-home
+- Privacy controls: `conduit usage purge`, raw CSV/JSON export, aggregate-only reports, and self-contained dashboard HTML
 
 ### 🔒 Sandbox & Security
 - Every agent action runs in an isolated sandbox (Apple Virtualization.framework / OCI containers)
