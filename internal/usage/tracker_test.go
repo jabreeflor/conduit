@@ -3,9 +3,11 @@ package usage
 import (
 	"bufio"
 	"encoding/json"
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
@@ -82,6 +84,84 @@ func TestRecord_unknownModelZeroCost(t *testing.T) {
 	}
 	if entry.CostUSD != 0 {
 		t.Errorf("CostUSD = %f, want 0 for unknown model", entry.CostUSD)
+	}
+}
+
+func TestRecord_usesProviderPricingTableOverride(t *testing.T) {
+	dir := t.TempDir()
+	tracker, err := NewWithPathAndOptions("sess-pricing", filepath.Join(dir, "usage.jsonl"), Options{
+		Pricing: PricingTable{Entries: []Pricing{
+			{Provider: "custom", Model: "tiny", InputPer1MUSD: 1.50, OutputPer1MUSD: 2.50},
+		}},
+	})
+	if err != nil {
+		t.Fatalf("NewWithPathAndOptions: %v", err)
+	}
+
+	entry, err := tracker.Record("custom", "tiny", 1_000_000, 2_000_000)
+	if err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+	if entry.CostUSD != 6.50 {
+		t.Errorf("CostUSD = %f, want 6.50", entry.CostUSD)
+	}
+	if entry.CostSource != "pricing_table" {
+		t.Errorf("CostSource = %q, want pricing_table", entry.CostSource)
+	}
+}
+
+func TestLoadPricingTable_userEditableJSON(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "pricing.json")
+	if err := os.WriteFile(path, []byte(`{"entries":[{"provider":"openai","model":"custom-gpt","input_per_1m_usd":2,"output_per_1m_usd":4}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	table, err := LoadPricingTable(path)
+	if err != nil {
+		t.Fatalf("LoadPricingTable: %v", err)
+	}
+	price, ok := table.Lookup("openai", "custom-gpt")
+	if !ok {
+		t.Fatal("Lookup(openai, custom-gpt) missing")
+	}
+	if price.InputPer1MUSD != 2 || price.OutputPer1MUSD != 4 {
+		t.Errorf("price = %+v, want input=2 output=4", price)
+	}
+}
+
+func TestRecordWithOptions_localModelEnergyEstimate(t *testing.T) {
+	dir := t.TempDir()
+	tracker, err := NewWithPathAndOptions("sess-local", filepath.Join(dir, "usage.jsonl"), Options{
+		ElectricityRateUSDPerKWh: 0.20,
+		MachineProfile: contracts.MachineProfile{
+			ProfiledAt: time.Now(),
+			Memory:     contracts.MemInfo{TotalGB: 32},
+		},
+	})
+	if err != nil {
+		t.Fatalf("NewWithPathAndOptions: %v", err)
+	}
+
+	entry, err := tracker.RecordWithOptions("ollama", "llama3", 100, 50, RecordOptions{
+		LocalModel:        true,
+		InferenceDuration: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("RecordWithOptions: %v", err)
+	}
+	want := 0.013 // 65W for one hour at $0.20/kWh.
+	if math.Abs(entry.CostUSD-want) > 0.000001 {
+		t.Errorf("CostUSD = %f, want %f", entry.CostUSD, want)
+	}
+	if !entry.CostEstimated {
+		t.Error("CostEstimated should be true for local model costs")
+	}
+	if entry.CostSource != "local_energy_estimate" {
+		t.Errorf("CostSource = %q, want local_energy_estimate", entry.CostSource)
+	}
+	if !entry.LocalComparisonEstimated {
+		t.Error("LocalComparisonEstimated should be true")
 	}
 }
 

@@ -176,6 +176,29 @@ credentials:
 	}
 }
 
+func TestLoadFiles_costConfig(t *testing.T) {
+	dir := t.TempDir()
+	userPath := writeYAML(t, dir, "user.yaml", `
+costs:
+  pricing_path: ~/.conduit/pricing.json
+  electricity_rate_usd_per_kwh: 0.18
+  currency: USD
+`)
+	cfg, err := config.LoadFiles(userPath, "/no/such/project.yaml")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Costs.PricingPath != "~/.conduit/pricing.json" {
+		t.Errorf("costs.pricing_path: got %q", cfg.Costs.PricingPath)
+	}
+	if cfg.Costs.ElectricityRateUSDPerKWh != 0.18 {
+		t.Errorf("costs.electricity_rate_usd_per_kwh: got %v", cfg.Costs.ElectricityRateUSDPerKWh)
+	}
+	if cfg.Costs.Currency != "USD" {
+		t.Errorf("costs.currency: got %q", cfg.Costs.Currency)
+	}
+}
+
 func TestLoadFiles_invalidYAML(t *testing.T) {
 	dir := t.TempDir()
 	badPath := writeYAML(t, dir, "bad.yaml", "models: [\nnot: valid yaml{{{{")
