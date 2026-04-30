@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -75,6 +76,32 @@ func New(version string) *Engine {
 	}
 }
 
+func newUsageTracker(sessionID string, cfg config.CostConfig) (*usage.Tracker, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, err
+	}
+	logPath := filepath.Join(home, ".conduit", "usage.jsonl")
+	pricingPath := expandHome(cfg.PricingPath, home)
+	return usage.NewWithPathAndOptions(sessionID, logPath, usage.Options{
+		PricingPath:              pricingPath,
+		ElectricityRateUSDPerKWh: cfg.ElectricityRateUSDPerKWh,
+	})
+}
+
+func expandHome(path, home string) string {
+	if path == "" || home == "" {
+		return path
+	}
+	if path == "~" {
+		return home
+	}
+	if strings.HasPrefix(path, "~/") {
+		return filepath.Join(home, strings.TrimPrefix(path, "~/"))
+	}
+	return path
+}
+
 // WithHooks attaches a hook dispatcher to the engine. Returns e for chaining.
 func (e *Engine) WithHooks(d *hooks.Dispatcher) *Engine {
 	e.hookDispatcher = d
@@ -85,7 +112,7 @@ func (e *Engine) WithHooks(d *hooks.Dispatcher) *Engine {
 // Fields left at zero values in cfg fall back to their built-in defaults.
 func NewFromConfig(version string, cfg config.Config) *Engine {
 	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
-	tracker, _ := usage.New(sessionID)
+	tracker, _ := newUsageTracker(sessionID, cfg.Costs)
 
 	escalation := DefaultEscalationConfig()
 	if cfg.Escalation.DefaultModel != "" {
@@ -198,6 +225,20 @@ func (e *Engine) RecordUsage(provider, model string, inputTokens, outputTokens i
 		return contracts.UsageEntry{}, nil
 	}
 	return e.usage.Record(provider, model, inputTokens, outputTokens)
+}
+
+// RecordUsageWithOptions records richer accounting such as local inference
+// duration and user electricity rate for energy-cost estimates.
+func (e *Engine) RecordUsageWithOptions(provider, model string, inputTokens, outputTokens int, opts usage.RecordOptions) (contracts.UsageEntry, error) {
+	if e.usage == nil {
+		return contracts.UsageEntry{}, nil
+	}
+	if opts.MachineProfile.ProfiledAt.IsZero() && opts.LocalModel {
+		if profile, err := e.machineProfiler.Load(); err == nil {
+			opts.MachineProfile = profile
+		}
+	}
+	return e.usage.RecordWithOptions(provider, model, inputTokens, outputTokens, opts)
 }
 
 // UsageSummary returns the running session totals for the status bar.

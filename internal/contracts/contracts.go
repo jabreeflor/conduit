@@ -199,14 +199,22 @@ type SessionLogEntry struct {
 
 // UsageEntry is one model-call record written to ~/.conduit/usage.jsonl.
 type UsageEntry struct {
-	At           time.Time `json:"at"`
-	SessionID    string    `json:"session_id"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	InputTokens  int       `json:"input_tokens"`
-	OutputTokens int       `json:"output_tokens"`
-	TotalTokens  int       `json:"total_tokens"`
-	CostUSD      float64   `json:"cost_usd"`
+	At                       time.Time `json:"at"`
+	SessionID                string    `json:"session_id"`
+	Provider                 string    `json:"provider"`
+	Model                    string    `json:"model"`
+	InputTokens              int       `json:"input_tokens"`
+	OutputTokens             int       `json:"output_tokens"`
+	TotalTokens              int       `json:"total_tokens"`
+	CostUSD                  float64   `json:"cost_usd"`
+	CostCurrency             string    `json:"cost_currency,omitempty"`
+	CostEstimated            bool      `json:"cost_estimated,omitempty"`
+	CostSource               string    `json:"cost_source,omitempty"`
+	InferenceSeconds         float64   `json:"inference_seconds,omitempty"`
+	EstimatedPowerDrawWatts  float64   `json:"estimated_power_draw_watts,omitempty"`
+	ElectricityRateUSDPerKWh float64   `json:"electricity_rate_usd_per_kwh,omitempty"`
+	EstimatedLocalCostUSD    float64   `json:"estimated_local_cost_usd,omitempty"`
+	LocalComparisonEstimated bool      `json:"local_comparison_estimated,omitempty"`
 }
 
 // UsageSummary is the running totals for the status bar.
