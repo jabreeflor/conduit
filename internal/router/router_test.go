@@ -90,7 +90,13 @@ func TestRouterFailsOverFromCheckpointAndRecordsUsage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resp, err := r.Infer(context.Background(), Request{SessionID: "s1", TaskType: TaskGeneral, Prompt: "hello"})
+	resp, err := r.Infer(context.Background(), Request{
+		SessionID: "s1",
+		TaskType:  TaskGeneral,
+		Feature:   "chat",
+		Plugin:    "core",
+		Prompt:    "hello",
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,8 +110,20 @@ func TestRouterFailsOverFromCheckpointAndRecordsUsage(t *testing.T) {
 	if got := resp.Usage.CostUSD; got != 7.5 {
 		t.Fatalf("CostUSD = %v, want 7.5", got)
 	}
-	if len(usage.Records) != 1 || usage.Records[0].Provider != "openai" {
-		t.Fatalf("usage records = %#v, want one openai record", usage.Records)
+	if len(usage.Records) != 2 {
+		t.Fatalf("usage records = %#v, want failed claude and successful openai records", usage.Records)
+	}
+	if usage.Records[0].Provider != "claude" || usage.Records[0].Status != "error" {
+		t.Fatalf("first usage record = %#v, want claude error", usage.Records[0])
+	}
+	if usage.Records[0].ErrorType != "rate_limited" {
+		t.Fatalf("ErrorType = %q, want rate_limited", usage.Records[0].ErrorType)
+	}
+	if usage.Records[1].Provider != "openai" || usage.Records[1].Status != "success" {
+		t.Fatalf("second usage record = %#v, want openai success", usage.Records[1])
+	}
+	if usage.Records[1].Feature != "chat" || usage.Records[1].Plugin != "core" {
+		t.Fatalf("feature/plugin = %q/%q, want chat/core", usage.Records[1].Feature, usage.Records[1].Plugin)
 	}
 	if len(failovers.Events) != 1 {
 		t.Fatalf("failover events = %d, want 1", len(failovers.Events))

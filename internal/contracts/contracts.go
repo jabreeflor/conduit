@@ -177,16 +177,29 @@ type SessionLogEntry struct {
 	Message string
 }
 
-// UsageEntry is one model-call record written to ~/.conduit/usage.jsonl.
+// UsageEntry is one model-call record written to the usage JSONL log.
 type UsageEntry struct {
-	At           time.Time `json:"at"`
-	SessionID    string    `json:"session_id"`
-	Provider     string    `json:"provider"`
-	Model        string    `json:"model"`
-	InputTokens  int       `json:"input_tokens"`
-	OutputTokens int       `json:"output_tokens"`
-	TotalTokens  int       `json:"total_tokens"`
-	CostUSD      float64   `json:"cost_usd"`
+	Timestamp       time.Time `json:"timestamp"`
+	SessionID       string    `json:"session_id"`
+	Provider        string    `json:"provider"`
+	Model           string    `json:"model"`
+	TokensIn        int       `json:"tokens_in"`
+	TokensOut       int       `json:"tokens_out"`
+	TotalTokens     int       `json:"total_tokens"`
+	TTFMS           int64     `json:"ttft_ms"`
+	TotalMS         int64     `json:"total_ms"`
+	TokensPerSecond float64   `json:"tokens_per_sec"`
+	Status          string    `json:"status"`
+	ErrorType       string    `json:"error_type,omitempty"`
+	Feature         string    `json:"feature,omitempty"`
+	Plugin          string    `json:"plugin,omitempty"`
+	CostUSD         float64   `json:"cost_usd"`
+
+	// Legacy fields are retained so budget readers can still scan older
+	// ~/.conduit/usage.jsonl records written before daily session logs.
+	At           time.Time `json:"at,omitempty"`
+	InputTokens  int       `json:"input_tokens,omitempty"`
+	OutputTokens int       `json:"output_tokens,omitempty"`
 }
 
 // UsageSummary is the running totals for the status bar.

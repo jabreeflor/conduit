@@ -1,8 +1,10 @@
 package budget_test
 
 import (
+	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -30,11 +32,58 @@ func writeUsageLog(t *testing.T, dir string, entries []contracts.UsageEntry) str
 	return path
 }
 
+func writeDailyUsageLog(t *testing.T, dir string, day time.Time, entries []contracts.UsageEntry, compressed bool) string {
+	t.Helper()
+	name := day.Format("2006-01-02") + ".jsonl"
+	path := filepath.Join(dir, name)
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("create daily usage log: %v", err)
+	}
+	enc := json.NewEncoder(f)
+	for _, e := range entries {
+		if err := enc.Encode(e); err != nil {
+			t.Fatalf("encode entry: %v", err)
+		}
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("close usage log: %v", err)
+	}
+	if !compressed {
+		return path
+	}
+
+	gzPath := path + ".gz"
+	in, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("open usage log for gzip: %v", err)
+	}
+	defer in.Close()
+	out, err := os.Create(gzPath)
+	if err != nil {
+		t.Fatalf("create gzip usage log: %v", err)
+	}
+	gz := gzip.NewWriter(out)
+	if _, err := io.Copy(gz, in); err != nil {
+		t.Fatalf("gzip usage log: %v", err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatalf("close gzip writer: %v", err)
+	}
+	if err := out.Close(); err != nil {
+		t.Fatalf("close gzip log: %v", err)
+	}
+	if err := os.Remove(path); err != nil {
+		t.Fatalf("remove source log: %v", err)
+	}
+	return gzPath
+}
+
 func entry(model string, costUSD float64, at time.Time) contracts.UsageEntry {
 	return contracts.UsageEntry{
-		At:      at,
-		Model:   model,
-		CostUSD: costUSD,
+		Timestamp: at,
+		Model:     model,
+		CostUSD:   costUSD,
 	}
 }
 
@@ -82,6 +131,25 @@ func TestReadMonthlySpend_filtersCurrentMonth(t *testing.T) {
 	}
 	if spend.ByModel["claude-opus-4-6"] < 1.49 || spend.ByModel["claude-opus-4-6"] > 1.51 {
 		t.Errorf("claude-opus-4-6: got %v, want 1.50", spend.ByModel["claude-opus-4-6"])
+	}
+}
+
+func TestReadMonthlySpend_readsDailyLogDirectory(t *testing.T) {
+	dir := t.TempDir()
+	writeDailyUsageLog(t, dir, thisMonth, []contracts.UsageEntry{
+		entry("claude-opus-4-6", 1.50, thisMonth),
+	}, false)
+	writeDailyUsageLog(t, dir, thisMonth.AddDate(0, 0, -8), []contracts.UsageEntry{
+		entry("gpt-4o", 0.80, thisMonth),
+	}, true)
+
+	spend, err := budget.ReadMonthlySpend(dir, thisMonth)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	const want = 2.30
+	if spend.Overall < want-0.001 || spend.Overall > want+0.001 {
+		t.Errorf("overall: got %v, want %v", spend.Overall, want)
 	}
 }
 

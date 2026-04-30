@@ -2,22 +2,25 @@ package usage
 
 import (
 	"bufio"
+	"compress/gzip"
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
 func TestRecord_appendsJSONL(t *testing.T) {
 	dir := t.TempDir()
-	logPath := filepath.Join(dir, "usage.jsonl")
 
-	tracker, err := NewWithPath("sess-1", logPath)
+	tracker, err := NewWithDir("sess-1", dir)
 	if err != nil {
-		t.Fatalf("NewWithPath: %v", err)
+		t.Fatalf("NewWithDir: %v", err)
 	}
+	tracker.now = func() time.Time { return time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC) }
 
 	entry, err := tracker.Record("anthropic", "claude-haiku-4-5", 1000, 200)
 	if err != nil {
@@ -30,10 +33,17 @@ func TestRecord_appendsJSONL(t *testing.T) {
 	if entry.TotalTokens != 1200 {
 		t.Errorf("TotalTokens = %d, want 1200", entry.TotalTokens)
 	}
+	if entry.TokensIn != 1000 || entry.TokensOut != 200 {
+		t.Errorf("tokens = %d/%d, want 1000/200", entry.TokensIn, entry.TokensOut)
+	}
+	if entry.Status != "success" {
+		t.Errorf("Status = %q, want success", entry.Status)
+	}
 	if entry.CostUSD == 0 {
 		t.Error("CostUSD should be non-zero for a known model")
 	}
 
+	logPath := filepath.Join(dir, "2026-04-30.jsonl")
 	f, err := os.Open(logPath)
 	if err != nil {
 		t.Fatalf("open log: %v", err)
@@ -50,6 +60,43 @@ func TestRecord_appendsJSONL(t *testing.T) {
 	}
 	if parsed.Model != "claude-haiku-4-5" {
 		t.Errorf("parsed.Model = %q, want claude-haiku-4-5", parsed.Model)
+	}
+	if parsed.Timestamp.IsZero() {
+		t.Error("parsed.Timestamp should be populated")
+	}
+}
+
+func TestRecordEvent_capturesRequestMetrics(t *testing.T) {
+	dir := t.TempDir()
+	tracker, _ := NewWithDir("sess-metrics", dir)
+	at := time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC)
+
+	entry, err := tracker.RecordEvent(Record{
+		Provider:     "anthropic",
+		Model:        "claude-haiku-4-5",
+		TokensIn:     100,
+		TokensOut:    50,
+		TTFT:         150 * time.Millisecond,
+		TotalLatency: 2 * time.Second,
+		Feature:      "code",
+		Plugin:       "reviewer",
+		Timestamp:    at,
+	})
+	if err != nil {
+		t.Fatalf("RecordEvent: %v", err)
+	}
+
+	if entry.TTFMS != 150 {
+		t.Errorf("TTFMS = %d, want 150", entry.TTFMS)
+	}
+	if entry.TotalMS != 2000 {
+		t.Errorf("TotalMS = %d, want 2000", entry.TotalMS)
+	}
+	if entry.TokensPerSecond != 25 {
+		t.Errorf("TokensPerSecond = %f, want 25", entry.TokensPerSecond)
+	}
+	if entry.Feature != "code" || entry.Plugin != "reviewer" {
+		t.Errorf("metadata = %q/%q, want code/reviewer", entry.Feature, entry.Plugin)
 	}
 }
 
@@ -105,5 +152,48 @@ func TestSummary_statusBarFormat(t *testing.T) {
 	}
 	if s.TotalTokens <= 0 {
 		t.Error("Summary.TotalTokens should be positive")
+	}
+}
+
+func TestDailyLogs_compressAndRetain(t *testing.T) {
+	dir := t.TempDir()
+	old := filepath.Join(dir, "2026-04-20.jsonl")
+	expired := filepath.Join(dir, "2026-01-01.jsonl")
+	if err := os.WriteFile(old, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(expired, []byte("{}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	tracker, _ := NewWithDir("sess-retain", dir)
+	tracker.now = func() time.Time { return time.Date(2026, 4, 30, 12, 0, 0, 0, time.UTC) }
+	if _, err := tracker.Record("anthropic", "claude-haiku-4-5", 1, 1); err != nil {
+		t.Fatalf("Record: %v", err)
+	}
+
+	if _, err := os.Stat(expired); !os.IsNotExist(err) {
+		t.Fatalf("expired log still exists or stat failed: %v", err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Fatalf("old log should be compressed and removed, stat: %v", err)
+	}
+	gzPath := old + ".gz"
+	gzFile, err := os.Open(gzPath)
+	if err != nil {
+		t.Fatalf("open compressed log: %v", err)
+	}
+	defer gzFile.Close()
+	gz, err := gzip.NewReader(gzFile)
+	if err != nil {
+		t.Fatalf("read compressed log: %v", err)
+	}
+	defer gz.Close()
+	data, err := io.ReadAll(gz)
+	if err != nil {
+		t.Fatalf("read gzip data: %v", err)
+	}
+	if string(data) != "{}\n" {
+		t.Errorf("compressed data = %q, want original JSONL", data)
 	}
 }
