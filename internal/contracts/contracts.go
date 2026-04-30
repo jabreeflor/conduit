@@ -4,6 +4,26 @@ package contracts
 
 import "time"
 
+// HookEvent identifies which lifecycle point a user-defined hook fires.
+// The seven values are the Codex-aligned events from PRD §6.25.17.
+type HookEvent string
+
+const (
+	HookEventPreToolUse        HookEvent = "PreToolUse"
+	HookEventPostToolUse       HookEvent = "PostToolUse"
+	HookEventPermissionRequest HookEvent = "PermissionRequest"
+	HookEventUserPromptSubmit  HookEvent = "UserPromptSubmit"
+	HookEventStop              HookEvent = "Stop"
+	HookEventAgentTurnComplete HookEvent = "agent-turn-complete"
+	HookEventApprovalRequested HookEvent = "approval-requested"
+)
+
+// HookRegistration describes a user-defined command bound to a lifecycle event.
+type HookRegistration struct {
+	Event   HookEvent
+	Command string
+}
+
 // MachineProfile is the hardware snapshot cached in ~/.conduit/machine-profile.json.
 type MachineProfile struct {
 	ProfiledAt   time.Time `json:"profiled_at"`
@@ -289,6 +309,24 @@ type SandboxRuntimeCapabilities struct {
 	MemoryOverheadMB  int
 }
 
+// ToolStatus identifies the execution state of a tool call.
+type ToolStatus int
+
+const (
+	ToolStatusRunning ToolStatus = iota
+	ToolStatusDone
+	ToolStatusFailed
+)
+
+// ToolCall holds the data for one tool invocation visible to the user.
+type ToolCall struct {
+	Name     string
+	Input    string
+	Output   string
+	Status   ToolStatus
+	Expanded bool
+}
+
 // SandboxNetworkPolicy controls outbound network access from agent-run code.
 type SandboxNetworkPolicy string
 
@@ -323,24 +361,6 @@ type DynamicMountRequest struct {
 	RequiresUserApproval bool
 	Blocked              bool
 	BlockReason          string
-}
-
-// ToolStatus identifies the execution state of a tool call.
-type ToolStatus int
-
-const (
-	ToolStatusRunning ToolStatus = iota
-	ToolStatusDone
-	ToolStatusFailed
-)
-
-// ToolCall holds the data for one tool invocation visible to the user.
-type ToolCall struct {
-	Name     string
-	Input    string
-	Output   string
-	Status   ToolStatus
-	Expanded bool
 }
 
 // SandboxArchitecture describes the security and startup contract every agent

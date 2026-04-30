@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	toolerrors "github.com/jabreeflor/conduit/internal/errors"
+	"github.com/jabreeflor/conduit/internal/hooks"
 	"gopkg.in/yaml.v3"
 )
 
@@ -105,8 +106,11 @@ func (r Registry) List() []string {
 // Pipeline applies base tools, agent overrides, policy rules, schema
 // normalization, and abort wrapping in that order.
 type Pipeline struct {
-	registry Registry
-	policy   PolicyConfig
+	registry  Registry
+	policy    PolicyConfig
+	hooks     *hooks.Dispatcher
+	sessionID string
+	cwd       string
 }
 
 // NewPipeline creates a policy pipeline from base tools and policy config.
@@ -115,6 +119,14 @@ func NewPipeline(base []Tool, policy PolicyConfig) *Pipeline {
 		registry: NewRegistry(base),
 		policy:   policy,
 	}
+}
+
+// WithHooks attaches a hook dispatcher and session context to the pipeline.
+func (p *Pipeline) WithHooks(d *hooks.Dispatcher, sessionID, cwd string) *Pipeline {
+	p.hooks = d
+	p.sessionID = sessionID
+	p.cwd = cwd
+	return p
 }
 
 // Resolve applies base tool lookup, agent overrides, and policy filtering.
@@ -190,6 +202,8 @@ func (p *Pipeline) WrapRunner(runner Runner) Runner {
 }
 
 // Execute resolves, normalizes, and runs a tool with the abort wrapper applied.
+// If a hooks.Dispatcher is attached, pre_tool_call fires before execution and
+// post_tool_call fires after. A block decision from pre_tool_call aborts the run.
 func (p *Pipeline) Execute(ctx context.Context, call Call, overrides AgentOverrides) (Result, Decision, error) {
 	decision := p.Resolve(call, overrides)
 	if !decision.Allowed {
@@ -202,11 +216,27 @@ func (p *Pipeline) Execute(ctx context.Context, call Call, overrides AgentOverri
 		return Result{}, decision, errors.New("tool runner unavailable")
 	}
 
+	hookInput := hooks.Input{
+		ToolName:  call.ToolName,
+		ToolInput: call.Input,
+		SessionID: p.sessionID,
+		CWD:       p.cwd,
+	}
+
+	hookInput.Event = hooks.EventPreToolCall
+	if out := p.hooks.Dispatch(ctx, hookInput); out.Decision == hooks.DecisionBlock {
+		return Result{}, decision, fmt.Errorf("pre_tool_call hook blocked: %s", out.Reason)
+	}
+
 	input, err := json.Marshal(call.Input)
 	if err != nil {
 		return Result{}, decision, err
 	}
 	result, err := p.WrapRunner(decision.Tool.Run)(ctx, input)
+
+	hookInput.Event = hooks.EventPostToolCall
+	p.hooks.Dispatch(ctx, hookInput)
+
 	if err != nil {
 		classified := toolerrors.Classify(err)
 		typed := toolerrors.Wrap(classified, err)
