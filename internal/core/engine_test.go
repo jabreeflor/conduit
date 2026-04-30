@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -39,6 +40,47 @@ func TestEngineInfoReturnsSurfaceCopy(t *testing.T) {
 	next := engine.Info()
 	if next.Surfaces[0] != contracts.SurfaceTUI {
 		t.Fatalf("surface slice was mutated through Info")
+	}
+}
+
+func TestEngineMemoryProviderIsRegisteredOnStartup(t *testing.T) {
+	engine := New("test")
+
+	if engine.MemoryProvider() == nil {
+		t.Fatal("MemoryProvider() returned nil; FlatFileProvider should be registered at startup")
+	}
+}
+
+func TestEngineWriteAndSearchMemory(t *testing.T) {
+	engine := New("test")
+
+	entry := contracts.MemoryEntry{
+		Kind:  contracts.MemoryKindLongTermEpisodic,
+		Title: "Router decision",
+		Body:  "Use provider fallbacks.",
+	}
+	if err := engine.WriteMemory(context.Background(), entry); err != nil {
+		t.Fatalf("WriteMemory returned error: %v", err)
+	}
+
+	results, err := engine.SearchMemory(context.Background(), "Router", 10)
+	if err != nil {
+		t.Fatalf("SearchMemory returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("SearchMemory returned %d results, want 1", len(results))
+	}
+
+	log := engine.SessionLog()
+	found := false
+	for _, entry := range log {
+		if strings.Contains(entry.Message, "memory write") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("session log missing memory write event")
 	}
 }
 

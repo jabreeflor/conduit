@@ -4,6 +4,50 @@ package contracts
 
 import "time"
 
+// MemoryKind identifies which memory lane an entry belongs to.
+type MemoryKind string
+
+const (
+	MemoryKindShortTerm        MemoryKind = "short-term"
+	MemoryKindLongTermEpisodic MemoryKind = "long-term-episodic"
+	MemoryKindSkill            MemoryKind = "skill"
+)
+
+// MemoryEntry is a single memory record. Long-term and skill entries are stored
+// as flat markdown files so macOS Spotlight can index them naturally.
+type MemoryEntry struct {
+	ID        string
+	Kind      MemoryKind
+	Title     string
+	Body      string
+	Path      string
+	CreatedAt time.Time
+}
+
+// MemoryConfig configures a MemoryProvider at initialization time.
+type MemoryConfig struct {
+	Dir         string // Base directory for flat-file providers; empty uses ~/.conduit/memory
+	MaxEntries  int    // 0 means unlimited
+	SearchLimit int    // Default cap for Search; 0 means provider default
+}
+
+// CompressedContext is the output of a provider's Compress pass.
+type CompressedContext struct {
+	Summary      string
+	SourceIDs    []string
+	CompressedAt time.Time
+}
+
+// MemoryProviderKind names a bundled provider implementation.
+type MemoryProviderKind string
+
+const (
+	MemoryProviderKindFlatFile MemoryProviderKind = "flatfile"
+	MemoryProviderKindLanceDB  MemoryProviderKind = "lancedb"
+	MemoryProviderKindSQLite   MemoryProviderKind = "sqlite"
+	MemoryProviderKindNoOp     MemoryProviderKind = "noop"
+)
+
 // Surface identifies a frontend attached to the Conduit core.
 type Surface string
 

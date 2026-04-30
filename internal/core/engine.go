@@ -2,11 +2,13 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -24,6 +26,7 @@ type Engine struct {
 	sandbox     *SandboxManager
 	sessionLog  []contracts.SessionLogEntry
 	usage       *usage.Tracker
+	memRegistry *memory.Registry
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -31,6 +34,12 @@ type Engine struct {
 func New(version string) *Engine {
 	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
 	tracker, _ := usage.New(sessionID) // best-effort; nil tracker is handled in RecordUsage
+
+	reg := &memory.Registry{}
+	provider := memory.NewFlatFileProvider("")
+	// Startup init and registration are best-effort; surfaces can check MemoryProvider().
+	_ = provider.Initialize(context.Background(), contracts.MemoryConfig{})
+	_ = reg.Register(contracts.MemoryProviderKindFlatFile, provider)
 
 	return &Engine{
 		name:      "Conduit",
@@ -47,6 +56,7 @@ func New(version string) *Engine {
 		permissions: NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
 		usage:       tracker,
+		memRegistry: reg,
 	}
 }
 
@@ -127,6 +137,46 @@ func (e *Engine) UsageSummary() contracts.UsageSummary {
 		return contracts.UsageSummary{}
 	}
 	return e.usage.Summary()
+}
+
+// MemoryProvider returns the active MemoryProvider, or nil if none is registered.
+func (e *Engine) MemoryProvider() memory.MemoryProvider {
+	p, _ := e.memRegistry.Active()
+	return p
+}
+
+// WriteMemory persists entry via the active MemoryProvider, fires OnMemoryWrite
+// on any registered MemoryHooks, and emits a session log entry.
+func (e *Engine) WriteMemory(ctx context.Context, entry contracts.MemoryEntry) error {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil
+	}
+	if err := p.Write(ctx, entry); err != nil {
+		return err
+	}
+	if hooks, ok := p.(memory.MemoryHooks); ok {
+		if err := hooks.OnMemoryWrite(ctx, entry); err != nil {
+			e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+				At:      time.Now().UTC(),
+				Message: fmt.Sprintf("memory hook OnMemoryWrite error: %v", err),
+			})
+		}
+	}
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: fmt.Sprintf("memory write: %s (%s)", entry.Title, entry.Kind),
+	})
+	return nil
+}
+
+// SearchMemory queries the active MemoryProvider and returns matching entries.
+func (e *Engine) SearchMemory(ctx context.Context, query string, limit int) ([]contracts.MemoryEntry, error) {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil, nil
+	}
+	return p.Search(ctx, query, limit)
 }
 
 // SessionLog returns a copy of user-visible engine events.

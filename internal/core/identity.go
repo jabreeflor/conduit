@@ -8,16 +8,20 @@ import (
 	"strings"
 	"time"
 	"unicode"
+
+	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
-// MemoryKind identifies which identity memory lane an entry belongs to.
-type MemoryKind string
+// MemoryKind and MemoryEntry are canonical in contracts; aliased here so that
+// existing callers within the core package compile without changes.
+type MemoryKind = contracts.MemoryKind
+type MemoryEntry = contracts.MemoryEntry
 
 const (
-	MemoryKindShortTerm         MemoryKind = "short-term"
-	MemoryKindLongTermEpisodic  MemoryKind = "long-term-episodic"
-	MemoryKindSkill             MemoryKind = "skill"
-	defaultConduitDirectoryName            = ".conduit"
+	MemoryKindShortTerm         = contracts.MemoryKindShortTerm
+	MemoryKindLongTermEpisodic  = contracts.MemoryKindLongTermEpisodic
+	MemoryKindSkill             = contracts.MemoryKindSkill
+	defaultConduitDirectoryName = ".conduit"
 )
 
 // IdentityConfig locates the static identity files and the flat-file memory
@@ -59,17 +63,6 @@ func (c IdentityConfig) withDefaults() IdentityConfig {
 		c.MemoryDir = filepath.Join(c.HomeDir, "memory")
 	}
 	return c
-}
-
-// MemoryEntry is a single memory record. Long-term and skill entries are stored
-// as flat markdown files so macOS Spotlight can index them naturally.
-type MemoryEntry struct {
-	ID        string
-	Kind      MemoryKind
-	Title     string
-	Body      string
-	Path      string
-	CreatedAt time.Time
 }
 
 // IdentitySnapshot is the loaded three-layer identity state for prompt assembly.
