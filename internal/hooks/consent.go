@@ -48,10 +48,10 @@ type consentState struct {
 
 const defaultStateFile = ".conduit/hook_consent.json"
 
-// New loads persisted consent state and returns a gate ready to evaluate
+// NewConsentGate loads persisted consent state and returns a gate ready to evaluate
 // hook registrations. confirm is called for interactive callers on first use;
 // it may be nil when Interactive is false.
-func New(config ConsentConfig, confirm ConfirmFunc) (*ConsentGate, error) {
+func NewConsentGate(config ConsentConfig, confirm ConfirmFunc) (*ConsentGate, error) {
 	statePath := config.StatePath
 	if statePath == "" {
 		home, err := os.UserHomeDir()

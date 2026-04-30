@@ -15,7 +15,7 @@ func newGate(t *testing.T, config ConsentConfig, confirm ConfirmFunc) *ConsentGa
 	if config.StatePath == "" {
 		config.StatePath = filepath.Join(t.TempDir(), "hook_consent.json")
 	}
-	g, err := New(config, confirm)
+	g, err := NewConsentGate(config, confirm)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -102,13 +102,13 @@ func TestConsentPersists_acrossGateInstances(t *testing.T) {
 	statePath := filepath.Join(dir, "hook_consent.json")
 	confirm := func(_ contracts.HookEvent, _ string) (bool, error) { return true, nil }
 
-	g1, _ := New(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
+	g1, _ := NewConsentGate(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
 	if err := g1.RequireConsent(echoReg); err != nil {
 		t.Fatalf("first gate: %v", err)
 	}
 
 	// A second gate instance loading from the same path should see the consent.
-	g2, _ := New(ConsentConfig{Interactive: true, StatePath: statePath}, nil)
+	g2, _ := NewConsentGate(ConsentConfig{Interactive: true, StatePath: statePath}, nil)
 	if !g2.Approved(echoReg) {
 		t.Error("second gate should load persisted consent from disk")
 	}
@@ -119,7 +119,7 @@ func TestConsentStatePath_filePermissions(t *testing.T) {
 	statePath := filepath.Join(dir, "hook_consent.json")
 	confirm := func(_ contracts.HookEvent, _ string) (bool, error) { return true, nil }
 
-	g, _ := New(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
+	g, _ := NewConsentGate(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
 	g.RequireConsent(echoReg) //nolint:errcheck
 
 	info, err := os.Stat(statePath)
@@ -136,7 +136,7 @@ func TestConsentStateJSON_isHumanReadable(t *testing.T) {
 	statePath := filepath.Join(dir, "hook_consent.json")
 	confirm := func(_ contracts.HookEvent, _ string) (bool, error) { return true, nil }
 
-	g, _ := New(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
+	g, _ := NewConsentGate(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
 	g.RequireConsent(echoReg) //nolint:errcheck
 
 	data, _ := os.ReadFile(statePath)
@@ -158,7 +158,7 @@ func TestRevokeAll_clearsApprovedSet(t *testing.T) {
 	statePath := filepath.Join(dir, "hook_consent.json")
 	confirm := func(_ contracts.HookEvent, _ string) (bool, error) { return true, nil }
 
-	g, _ := New(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
+	g, _ := NewConsentGate(ConsentConfig{Interactive: true, StatePath: statePath}, confirm)
 	g.RequireConsent(echoReg) //nolint:errcheck
 
 	if err := g.RevokeAll(); err != nil {
@@ -169,7 +169,7 @@ func TestRevokeAll_clearsApprovedSet(t *testing.T) {
 	}
 
 	// Reload from disk — persisted state should also be empty.
-	g2, _ := New(ConsentConfig{StatePath: statePath}, nil)
+	g2, _ := NewConsentGate(ConsentConfig{StatePath: statePath}, nil)
 	if g2.Approved(echoReg) {
 		t.Error("reloaded gate should not show revoked consent")
 	}
