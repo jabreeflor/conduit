@@ -4,6 +4,26 @@ package contracts
 
 import "time"
 
+// HookEvent identifies which lifecycle point a user-defined hook fires.
+// The seven values are the Codex-aligned events from PRD §6.25.17.
+type HookEvent string
+
+const (
+	HookEventPreToolUse        HookEvent = "PreToolUse"
+	HookEventPostToolUse       HookEvent = "PostToolUse"
+	HookEventPermissionRequest HookEvent = "PermissionRequest"
+	HookEventUserPromptSubmit  HookEvent = "UserPromptSubmit"
+	HookEventStop              HookEvent = "Stop"
+	HookEventAgentTurnComplete HookEvent = "agent-turn-complete"
+	HookEventApprovalRequested HookEvent = "approval-requested"
+)
+
+// HookRegistration describes a user-defined command bound to a lifecycle event.
+type HookRegistration struct {
+	Event   HookEvent
+	Command string
+}
+
 // Surface identifies a frontend attached to the Conduit core.
 type Surface string
 
