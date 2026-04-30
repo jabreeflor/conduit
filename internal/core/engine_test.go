@@ -1,10 +1,12 @@
 package core
 
 import (
+	"context"
 	"strings"
 	"testing"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
 )
 
@@ -39,6 +41,78 @@ func TestEngineInfoReturnsSurfaceCopy(t *testing.T) {
 	next := engine.Info()
 	if next.Surfaces[0] != contracts.SurfaceTUI {
 		t.Fatalf("surface slice was mutated through Info")
+	}
+}
+
+func TestEngineUsageSummaryHasSessionID(t *testing.T) {
+	engine := New("test")
+
+	s := engine.UsageSummary()
+
+	if s.SessionID == "" {
+		t.Fatal("UsageSummary.SessionID is empty; expected a non-empty session ID")
+	}
+}
+
+func TestEngineUsageSummaryTracksActiveWorkflow(t *testing.T) {
+	engine := New("test")
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "" {
+		t.Fatalf("ActiveWorkflow = %q before any RouteModel call, want empty", w)
+	}
+
+	engine.RouteModel(contracts.ModelRouteRequest{WorkflowType: "code-review", Confidence: 1.0})
+
+	if w := engine.UsageSummary().ActiveWorkflow; w != "code-review" {
+		t.Fatalf("ActiveWorkflow = %q, want code-review", w)
+	}
+}
+
+func TestEngineMemoryProviderIsRegisteredOnStartup(t *testing.T) {
+	engine := New("test")
+
+	if engine.MemoryProvider() == nil {
+		t.Fatal("MemoryProvider() returned nil; FlatFileProvider should be registered at startup")
+	}
+}
+
+func TestEngineWriteAndSearchMemory(t *testing.T) {
+	engine := New("test")
+	provider := memory.NewFlatFileProviderAt(t.TempDir())
+	if err := provider.Initialize(context.Background()); err != nil {
+		t.Fatalf("Initialize memory provider: %v", err)
+	}
+	if err := engine.memRegistry.Replace(context.Background(), contracts.MemoryProviderKindFlatFile, provider); err != nil {
+		t.Fatalf("Replace memory provider: %v", err)
+	}
+
+	entry := memory.Entry{
+		Kind:  memory.KindDecision,
+		Title: "Router decision",
+		Body:  "Use provider fallbacks.",
+	}
+	if err := engine.WriteMemory(context.Background(), entry); err != nil {
+		t.Fatalf("WriteMemory returned error: %v", err)
+	}
+
+	results, err := engine.SearchMemory(context.Background(), "Router")
+	if err != nil {
+		t.Fatalf("SearchMemory returned error: %v", err)
+	}
+	if len(results) != 1 {
+		t.Fatalf("SearchMemory returned %d results, want 1", len(results))
+	}
+
+	log := engine.SessionLog()
+	found := false
+	for _, e := range log {
+		if strings.Contains(e.Message, "memory write") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatal("session log missing memory write event")
 	}
 }
 
