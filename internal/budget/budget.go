@@ -59,6 +59,13 @@ type MonthlySpend struct {
 	ByModel map[string]float64
 }
 
+// DailySpend holds per-day-of-month spend breakdowns for one calendar month.
+// Keys are day-of-month integers (1–31); missing days had zero spend.
+type DailySpend struct {
+	Overall map[int]float64            // day-of-month → spend
+	ByModel map[string]map[int]float64 // model → day-of-month → spend
+}
+
 // ErrHardStop is returned by Check when a hard-stop limit would be breached.
 var ErrHardStop = errors.New("budget hard stop: call blocked to avoid exceeding monthly limit")
 
@@ -123,16 +130,26 @@ func (e *Enforcer) Check(model string, estimatedCostUSD float64) (Decision, erro
 }
 
 // Report returns the full budget status for all configured limits.
+// Projected overshoot dates use a rolling 7-day window rate so the estimate
+// reacts quickly to recent spending surges rather than being dampened by a
+// quiet start to the month.
 func (e *Enforcer) Report() Report {
 	now := time.Now()
-	spend, _ := ReadMonthlySpend(e.logPath, now)
+	daily, _ := ReadDailySpend(e.logPath, now)
+
+	// Sum daily totals to get monthly totals (avoids a second log pass).
+	monthlyOverall := sumDaily(daily.Overall)
+	monthlyByModel := make(map[string]float64, len(daily.ByModel))
+	for model, days := range daily.ByModel {
+		monthlyByModel[model] = sumDaily(days)
+	}
 
 	byModel := make(map[string]ModelReport, len(e.cfg.Models))
 	for name, mb := range e.cfg.Models {
 		if mb.MonthlyLimit <= 0 {
 			continue
 		}
-		spent := spend.ByModel[name]
+		spent := monthlyByModel[name]
 		d := evaluate(name, spent, mb.MonthlyLimit, mb.WarningPct, mb.HardStop)
 		byModel[name] = ModelReport{
 			SpentUSD:               spent,
@@ -140,19 +157,19 @@ func (e *Enforcer) Report() Report {
 			PctUsed:                d.PctUsed,
 			Level:                  d.Level,
 			HardStop:               mb.HardStop,
-			ProjectedOvershootDate: projectOvershoot(now, spent, mb.MonthlyLimit),
+			ProjectedOvershootDate: projectOvershoot(now, daily.ByModel[name], spent, mb.MonthlyLimit),
 		}
 	}
 
 	var overall ModelReport
 	if e.cfg.Overall.MonthlyLimit > 0 {
-		d := evaluate("overall", spend.Overall, e.cfg.Overall.MonthlyLimit, 75, false)
+		d := evaluate("overall", monthlyOverall, e.cfg.Overall.MonthlyLimit, 75, false)
 		overall = ModelReport{
-			SpentUSD:               spend.Overall,
+			SpentUSD:               monthlyOverall,
 			LimitUSD:               e.cfg.Overall.MonthlyLimit,
 			PctUsed:                d.PctUsed,
 			Level:                  d.Level,
-			ProjectedOvershootDate: projectOvershoot(now, spend.Overall, e.cfg.Overall.MonthlyLimit),
+			ProjectedOvershootDate: projectOvershoot(now, daily.Overall, monthlyOverall, e.cfg.Overall.MonthlyLimit),
 		}
 	}
 
@@ -186,6 +203,43 @@ func ReadMonthlySpend(logPath string, month time.Time) (MonthlySpend, error) {
 		}
 		result.Overall += entry.CostUSD
 		result.ByModel[entry.Model] += entry.CostUSD
+	}
+	return result, scanner.Err()
+}
+
+// ReadDailySpend scans the JSONL log and returns per-day-of-month spend for
+// the calendar month containing month. Missing files return empty maps (no error).
+func ReadDailySpend(logPath string, month time.Time) (DailySpend, error) {
+	result := DailySpend{
+		Overall: make(map[int]float64),
+		ByModel: make(map[string]map[int]float64),
+	}
+
+	f, err := os.Open(logPath)
+	if errors.Is(err, os.ErrNotExist) {
+		return result, nil
+	}
+	if err != nil {
+		return result, fmt.Errorf("budget: open log: %w", err)
+	}
+	defer f.Close()
+
+	y, m, _ := month.Date()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		var entry contracts.UsageEntry
+		if err := json.Unmarshal(scanner.Bytes(), &entry); err != nil {
+			continue
+		}
+		ey, em, ed := entry.At.Date()
+		if ey != y || em != m {
+			continue
+		}
+		result.Overall[ed] += entry.CostUSD
+		if result.ByModel[entry.Model] == nil {
+			result.ByModel[entry.Model] = make(map[int]float64)
+		}
+		result.ByModel[entry.Model][ed] += entry.CostUSD
 	}
 	return result, scanner.Err()
 }
@@ -224,44 +278,54 @@ func evaluate(key string, projectedSpend, limit float64, warningPct int, hardSto
 	}
 }
 
-// projectOvershootDate estimates when current-month spend will exceed limit.
-//
-// TODO: implement the projection here — this is where you decide how to
-// extrapolate from partial-month spend to a predicted overshoot date.
-//
-// The simplest approach: if you've spent $X in D days of a ~30-day month,
-// your daily rate is X/D, and you'll exceed the limit in (limit-X)/(X/D)
-// more days. Return nil when no overshoot is expected before month end.
-//
-// Consider: what happens on day 1 (D=0)? What if spent > limit already?
-// What rounding behavior is most useful — nearest day, or exact?
-//
-// Implement your projection in 5-10 lines below, returning a *time.Time
-// pointing to the projected overshoot date, or nil if within budget.
-func projectOvershoot(now time.Time, spentUSD, limitUSD float64) *time.Time {
-	if limitUSD <= 0 || spentUSD <= 0 {
+// projectOvershoot estimates when spend will exceed limitUSD using the average
+// daily rate over the trailing min(7, dayOfMonth) days. This 7-day window
+// responds to recent spending surges without being distorted by a quiet start
+// to the month. Returns nil when no overshoot is expected within the current
+// calendar month.
+func projectOvershoot(now time.Time, dailySpend map[int]float64, totalSpentUSD, limitUSD float64) *time.Time {
+	if limitUSD <= 0 {
 		return nil
 	}
-	dayOfMonth := now.Day()
-	if dayOfMonth <= 0 {
-		return nil
-	}
-	dailyRate := spentUSD / float64(dayOfMonth)
-	if dailyRate <= 0 {
-		return nil
-	}
-	remaining := limitUSD - spentUSD
+	remaining := limitUSD - totalSpentUSD
 	if remaining <= 0 {
-		// Already over budget — overshoot is now.
+		// Already over budget.
 		t := now
 		return &t
 	}
+
+	// Trailing window: last min(7, dayOfMonth) calendar days.
+	dayOfMonth := now.Day()
+	windowSize := 7
+	if dayOfMonth < windowSize {
+		windowSize = dayOfMonth
+	}
+	if windowSize <= 0 {
+		return nil
+	}
+
+	var windowSpend float64
+	for d := dayOfMonth - windowSize + 1; d <= dayOfMonth; d++ {
+		windowSpend += dailySpend[d]
+	}
+	dailyRate := windowSpend / float64(windowSize)
+	if dailyRate <= 0 {
+		return nil
+	}
+
 	daysUntilOvershoot := remaining / dailyRate
-	// Use fractional-day arithmetic so the result lands on the right date
-	// even when daysUntilOvershoot < 1.
 	overshootTime := now.Add(time.Duration(daysUntilOvershoot * float64(24*time.Hour)))
 	if overshootTime.Month() != now.Month() || overshootTime.Year() != now.Year() {
-		return nil // won't overshoot within the current calendar month
+		return nil // overshoot falls outside the current calendar month
 	}
 	return &overshootTime
+}
+
+// sumDaily returns the sum of all values in a day-of-month spend map.
+func sumDaily(m map[int]float64) float64 {
+	var total float64
+	for _, v := range m {
+		total += v
+	}
+	return total
 }
