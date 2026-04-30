@@ -4,12 +4,14 @@ package core
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/budget"
 	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/hooks"
 	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
@@ -33,6 +35,8 @@ type Engine struct {
 	sessionID       string
 	activeWorkflow  string
 	memRegistry     *memory.Registry
+	hookDispatcher  *hooks.Dispatcher
+	cwd             string
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -40,6 +44,7 @@ type Engine struct {
 func New(version string) *Engine {
 	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
 	tracker, _ := usage.New(sessionID) // best-effort; nil tracker is handled in RecordUsage
+	cwd, _ := os.Getwd()
 
 	reg := &memory.Registry{}
 	if provider, err := memory.NewFlatFileProvider(); err == nil {
@@ -66,7 +71,14 @@ func New(version string) *Engine {
 		usage:           tracker,
 		sessionID:       sessionID,
 		memRegistry:     reg,
+		cwd:             cwd,
 	}
+}
+
+// WithHooks attaches a hook dispatcher to the engine. Returns e for chaining.
+func (e *Engine) WithHooks(d *hooks.Dispatcher) *Engine {
+	e.hookDispatcher = d
+	return e
 }
 
 // NewFromConfig creates a core engine initialised from a root config.
@@ -244,6 +256,53 @@ func (e *Engine) SearchMemory(ctx context.Context, query string) ([]memory.Entry
 // SessionLog returns a copy of user-visible engine events.
 func (e *Engine) SessionLog() []contracts.SessionLogEntry {
 	return append([]contracts.SessionLogEntry(nil), e.sessionLog...)
+}
+
+// FireSessionStart fires the on_session_start hook point.
+func (e *Engine) FireSessionStart(ctx context.Context) hooks.Output {
+	return e.hookDispatcher.Dispatch(ctx, hooks.Input{
+		Event:     hooks.EventOnSessionStart,
+		SessionID: e.sessionID,
+		CWD:       e.cwd,
+	})
+}
+
+// FireSessionEnd fires the on_session_end hook point.
+func (e *Engine) FireSessionEnd(ctx context.Context) hooks.Output {
+	return e.hookDispatcher.Dispatch(ctx, hooks.Input{
+		Event:     hooks.EventOnSessionEnd,
+		SessionID: e.sessionID,
+		CWD:       e.cwd,
+	})
+}
+
+// FirePreLLMCall fires the pre_llm_call hook point before every model inference.
+func (e *Engine) FirePreLLMCall(ctx context.Context) hooks.Output {
+	return e.hookDispatcher.Dispatch(ctx, hooks.Input{
+		Event:     hooks.EventPreLLMCall,
+		SessionID: e.sessionID,
+		CWD:       e.cwd,
+	})
+}
+
+// FirePostLLMCall fires the post_llm_call hook point after every model inference.
+func (e *Engine) FirePostLLMCall(ctx context.Context) hooks.Output {
+	return e.hookDispatcher.Dispatch(ctx, hooks.Input{
+		Event:     hooks.EventPostLLMCall,
+		SessionID: e.sessionID,
+		CWD:       e.cwd,
+	})
+}
+
+// FireMemoryWrite fires the on_memory_write hook point when the agent writes to
+// long-term memory.
+func (e *Engine) FireMemoryWrite(ctx context.Context, entry map[string]any) hooks.Output {
+	return e.hookDispatcher.Dispatch(ctx, hooks.Input{
+		Event:     hooks.EventOnMemoryWrite,
+		ToolInput: entry,
+		SessionID: e.sessionID,
+		CWD:       e.cwd,
+	})
 }
 
 // MachineProfile returns the cached hardware profile, running a fresh scan on
