@@ -66,6 +66,9 @@ func (m Model) refreshContent() Model {
 
 func (m Model) conversationContent() string {
 	var sb strings.Builder
+	if m.setup.Phase != "" {
+		sb.WriteString(m.setupWelcomeContent() + "\n\n")
+	}
 	for _, msg := range m.messages {
 		switch msg.role {
 		case roleUser:
@@ -85,24 +88,39 @@ func (m Model) conversationContent() string {
 
 func (m Model) contextContent() string {
 	var sb strings.Builder
-	sb.WriteString(styleDim.Render("── workflow ──────────────────") + "\n\n")
-	steps := []struct {
-		n    int
-		name string
-		done bool
-	}{
-		{1, "load context files", true},
-		{2, "plan approach", false},
-		{3, "execute steps", false},
-	}
-	for _, s := range steps {
-		icon := styleToolDone.Render("✓")
-		nameStyle := styleDim
-		if !s.done {
-			icon = styleToolRunning.Render("⟳")
-			nameStyle = styleAgent
+	if len(m.setup.Steps) > 0 {
+		sb.WriteString(styleDim.Render("── first run ─────────────────") + "\n\n")
+		for i, step := range m.setup.Steps {
+			icon := setupStepIcon(step.Status)
+			nameStyle := styleAgent
+			if step.Status == "pending" {
+				nameStyle = styleDim
+			}
+			sb.WriteString(fmt.Sprintf(" %s %s. %s\n", icon, styleDim.Render(fmt.Sprintf("%d", i+1)), nameStyle.Render(step.Name)))
+			if step.Detail != "" {
+				sb.WriteString(styleDim.Render("    "+step.Detail) + "\n")
+			}
 		}
-		sb.WriteString(fmt.Sprintf(" %s %s. %s\n", icon, styleDim.Render(fmt.Sprintf("%d", s.n)), nameStyle.Render(s.name)))
+	} else {
+		sb.WriteString(styleDim.Render("── workflow ──────────────────") + "\n\n")
+		steps := []struct {
+			n    int
+			name string
+			done bool
+		}{
+			{1, "load context files", true},
+			{2, "plan approach", false},
+			{3, "execute steps", false},
+		}
+		for _, s := range steps {
+			icon := styleToolDone.Render("✓")
+			nameStyle := styleDim
+			if !s.done {
+				icon = styleToolRunning.Render("⟳")
+				nameStyle = styleAgent
+			}
+			sb.WriteString(fmt.Sprintf(" %s %s. %s\n", icon, styleDim.Render(fmt.Sprintf("%d", s.n)), nameStyle.Render(s.name)))
+		}
 	}
 	sb.WriteString("\n" + styleDim.Render("── session ───────────────────") + "\n\n")
 	sb.WriteString(styleAgent.Render(fmt.Sprintf(" %s\n", m.activeModel)))
@@ -143,9 +161,38 @@ func (m Model) renderMainRow() string {
 }
 
 func (m Model) renderInputRow() string {
-	help := styleDim.Render(" enter:send  ctrl+p:panel  x:expand  esc:quit")
+	help := " enter:send  ctrl+p:panel  x:expand  esc:quit"
+	if m.setup.Phase == "welcome" {
+		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  esc:quit"
+	}
+	help = styleDim.Render(help)
 	inputBox := stylePanel.Render(m.input.View())
 	return lipgloss.JoinVertical(lipgloss.Left, inputBox, help)
+}
+
+func (m Model) setupWelcomeContent() string {
+	rec := m.setup.Recommendation
+	var sb strings.Builder
+	sb.WriteString(styleAgent.Render("Welcome to Conduit") + "\n")
+	sb.WriteString(fmt.Sprintf("Machine: %.0fGB RAM, %.0fGB free disk\n", m.setup.MachineProfile.Memory.TotalGB, m.setup.MachineProfile.Disk.AvailableGB))
+	if rec.ID != "" {
+		sb.WriteString(fmt.Sprintf("Set up local AI: %s via %s (%.1fGB download, ~%.0f tok/s)\n", rec.Name, m.setup.Runtime, rec.DownloadSizeGB, rec.EstimatedTokensPerSec))
+	} else {
+		sb.WriteString("Local AI is not recommended for this machine.\n")
+	}
+	sb.WriteString("External API: " + formatExternalAPIOptions(m.setup.ExternalAPI))
+	return sb.String()
+}
+
+func setupStepIcon(status interface{}) string {
+	switch fmt.Sprint(status) {
+	case "done":
+		return styleToolDone.Render("✓")
+	case "running":
+		return styleToolRunning.Render("⟳")
+	default:
+		return styleDim.Render("○")
+	}
 }
 
 func max(a, b int) int {

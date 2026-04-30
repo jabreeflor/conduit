@@ -30,6 +30,7 @@ type Engine struct {
 	permissions     *PermissionManager
 	sandbox         *SandboxManager
 	machineProfiler *MachineProfiler
+	firstRunSetup   *firstRunSetup
 	budgetEnforcer  *budget.Enforcer
 	sessionLog      []contracts.SessionLogEntry
 	usage           *usage.Tracker
@@ -53,6 +54,7 @@ func New(version string) *Engine {
 		_ = reg.Register(contracts.MemoryProviderKindFlatFile, provider)
 	}
 
+	machineProfiler := NewMachineProfiler(DefaultMachineProfilerConfig())
 	return &Engine{
 		name:      "Conduit",
 		version:   version,
@@ -67,7 +69,8 @@ func New(version string) *Engine {
 		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions:     NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
-		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
+		machineProfiler: machineProfiler,
+		firstRunSetup:   newFirstRunSetup(machineProfiler, nil),
 		budgetEnforcer:  newBudgetEnforcer(config.BudgetsConfig{}),
 		usage:           tracker,
 		sessionID:       sessionID,
@@ -131,6 +134,7 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 		_ = reg.Register(contracts.MemoryProviderKindFlatFile, provider)
 	}
 
+	machineProfiler := NewMachineProfiler(DefaultMachineProfilerConfig())
 	return &Engine{
 		name:      "Conduit",
 		version:   version,
@@ -145,7 +149,8 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions:     NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
-		machineProfiler: NewMachineProfiler(DefaultMachineProfilerConfig()),
+		machineProfiler: machineProfiler,
+		firstRunSetup:   newFirstRunSetup(machineProfiler, nil),
 		budgetEnforcer:  newBudgetEnforcer(cfg.Budgets),
 		usage:           tracker,
 		sessionID:       sessionID,
@@ -356,6 +361,31 @@ func (e *Engine) MachineProfile() (contracts.MachineProfile, error) {
 // the new profile. Call this on user-triggered re-scan requests.
 func (e *Engine) RescanMachine() (contracts.MachineProfile, error) {
 	return e.machineProfiler.Scan()
+}
+
+// FirstRunSetup returns the welcome-screen state: machine profile,
+// recommendation, local setup steps, and visible external API options.
+func (e *Engine) FirstRunSetup() (contracts.FirstRunSetupSnapshot, error) {
+	return e.firstRunSetup.Welcome()
+}
+
+// SetupLocalAI runs the one-click local setup action. The default installer
+// adopts an existing local runtime; host-specific download/install backends can
+// be injected in tests or platform frontends.
+func (e *Engine) SetupLocalAI() (contracts.FirstRunSetupSnapshot, error) {
+	snapshot, err := e.firstRunSetup.SetupLocalAI()
+	if err != nil {
+		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+			At:      time.Now().UTC(),
+			Message: fmt.Sprintf("local AI setup needs attention: %v", err),
+		})
+		return snapshot, err
+	}
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: fmt.Sprintf("local AI ready: %s via %s", snapshot.Recommendation.Name, snapshot.Runtime),
+	})
+	return snapshot, nil
 }
 
 // LocalModelRecommendations returns ranked local-model install choices derived

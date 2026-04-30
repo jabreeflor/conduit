@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/contracts"
+
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -76,6 +78,8 @@ type keyMap struct {
 	Quit        key.Binding
 	Submit      key.Binding
 	ExpandTool  key.Binding
+	SetupLocal  key.Binding
+	ExternalAPI key.Binding
 }
 
 var keys = keyMap{
@@ -95,6 +99,14 @@ var keys = keyMap{
 		key.WithKeys("x"),
 		key.WithHelp("x", "expand/collapse last tool call"),
 	),
+	SetupLocal: key.NewBinding(
+		key.WithKeys("l"),
+		key.WithHelp("l", "set up local ai"),
+	),
+	ExternalAPI: key.NewBinding(
+		key.WithKeys("a"),
+		key.WithHelp("a", "external api"),
+	),
 }
 
 // ── model ─────────────────────────────────────────────────────────────────────
@@ -111,12 +123,14 @@ type Model struct {
 	showContext  bool
 	sessionCost  float64
 	activeModel  string
+	setup        contracts.FirstRunSetupSnapshot
+	setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)
 	streaming    bool
 	streamBuffer string
 	tickCount    int
 }
 
-func newModel(activeModel string) Model {
+func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
 	ta := textarea.New()
 	ta.Placeholder = "Message conduit..."
 	ta.Focus()
@@ -126,11 +140,13 @@ func newModel(activeModel string) Model {
 	ta.KeyMap.InsertNewline.SetKeys("shift+enter")
 
 	return Model{
-		input:       ta,
-		showContext: true,
-		activeModel: activeModel,
+		input:        ta,
+		showContext:  true,
+		activeModel:  activeModel,
+		setup:        setup,
+		setupLocalAI: setupLocalAI,
 		messages: []message{
-			{role: roleAgent, text: "Hello! I'm Conduit. How can I help you today?"},
+			{role: roleAgent, text: "Welcome to Conduit."},
 		},
 	}
 }
@@ -168,6 +184,33 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if len(m.toolCalls) > 0 {
 				last := len(m.toolCalls) - 1
 				m.toolCalls[last].expanded = !m.toolCalls[last].expanded
+				m = m.refreshContent()
+			}
+		case key.Matches(msg, keys.SetupLocal):
+			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome && m.setup.Recommendation.ID != "" {
+				if m.setupLocalAI != nil {
+					setup, err := m.setupLocalAI()
+					if err != nil {
+						m.setup = setup
+						m.messages = append(m.messages, message{role: roleAgent, text: "Local AI setup needs attention: " + err.Error()})
+						m = m.refreshContent()
+						break
+					}
+					m.setup = setup
+				} else {
+					m.setup.Phase = contracts.FirstRunSetupPhaseReady
+					m.setup.Ready = true
+					for i := range m.setup.Steps {
+						m.setup.Steps[i].Status = contracts.FirstRunSetupStepDone
+					}
+				}
+				m.messages = append(m.messages, message{role: roleAgent, text: "Local AI is ready. You can start a session with the recommended model now."})
+				m = m.refreshContent()
+			}
+		case key.Matches(msg, keys.ExternalAPI):
+			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome {
+				m.setup.Phase = contracts.FirstRunSetupPhaseExternal
+				m.messages = append(m.messages, message{role: roleAgent, text: "External API setup selected. Add a provider key to continue without local model downloads."})
 				m = m.refreshContent()
 			}
 		case key.Matches(msg, keys.Submit):

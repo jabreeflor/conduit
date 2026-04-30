@@ -63,6 +63,40 @@ type DiskInfo struct {
 	AvailableGB    float64 `json:"available_gb"`
 }
 
+// FirstRunSetupPhase identifies where the zero-terminal onboarding flow is.
+type FirstRunSetupPhase string
+
+const (
+	FirstRunSetupPhaseWelcome    FirstRunSetupPhase = "welcome"
+	FirstRunSetupPhaseInstalling FirstRunSetupPhase = "installing"
+	FirstRunSetupPhaseReady      FirstRunSetupPhase = "ready"
+	FirstRunSetupPhaseExternal   FirstRunSetupPhase = "external_api"
+)
+
+// FirstRunSetupStepStatus is the user-visible progress state for one setup
+// step.
+type FirstRunSetupStepStatus string
+
+const (
+	FirstRunSetupStepPending FirstRunSetupStepStatus = "pending"
+	FirstRunSetupStepRunning FirstRunSetupStepStatus = "running"
+	FirstRunSetupStepDone    FirstRunSetupStepStatus = "done"
+)
+
+// FirstRunSetupStep is one item in the welcome setup progress list.
+type FirstRunSetupStep struct {
+	Name   string
+	Status FirstRunSetupStepStatus
+	Detail string
+}
+
+// ExternalAPIOption describes a non-local model path visible from welcome.
+type ExternalAPIOption struct {
+	Provider string
+	Label    string
+	EnvVar   string
+}
+
 // MachineClass is the local-inference capability tier inferred from a machine
 // profile.
 type MachineClass string
@@ -109,6 +143,18 @@ type LocalModelRecommendationSet struct {
 	Recommendations []LocalModelRecommendation `json:"recommendations"`
 	FallbackReason  string                     `json:"fallback_reason,omitempty"`
 	GeneratedAt     time.Time                  `json:"generated_at"`
+}
+
+// FirstRunSetupSnapshot is the shared core-to-surface contract for the
+// one-click setup welcome flow.
+type FirstRunSetupSnapshot struct {
+	Phase          FirstRunSetupPhase
+	MachineProfile MachineProfile
+	Recommendation LocalModelRecommendation
+	Runtime        string
+	Steps          []FirstRunSetupStep
+	ExternalAPI    []ExternalAPIOption
+	Ready          bool
 }
 
 // MemoryProviderKind names a bundled memory provider implementation.
