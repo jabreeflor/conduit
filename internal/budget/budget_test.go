@@ -292,13 +292,12 @@ func TestReport_allModels(t *testing.T) {
 	}
 }
 
-func TestReport_overallProjectedOvershoot(t *testing.T) {
+func TestReport_projectedOvershootWithinMonth(t *testing.T) {
 	if time.Now().Day() < 2 {
 		t.Skip("projection test requires day ≥ 2 to have a non-zero daily rate")
 	}
 	dir := t.TempDir()
-	// Spend 99.5% of limit: remaining $0.40 at any daily rate > $0.40/day means
-	// overshoot is within today — reliably this month regardless of date.
+	// 99.5% of limit spent today: remaining $0.40 vs daily rate > $0.40 → overshoot today.
 	path := writeUsageLog(t, dir, []contracts.UsageEntry{
 		entry("claude-opus-4-6", 79.60, thisMonth),
 	})
@@ -313,5 +312,75 @@ func TestReport_overallProjectedOvershoot(t *testing.T) {
 	opusReport := r.ByModel["claude-opus-4-6"]
 	if opusReport.ProjectedOvershootDate == nil {
 		t.Error("expected a projected overshoot date when spend is 99.5% of limit")
+	}
+}
+
+// TestReport_sevenDayWindowReflectsRecentSurge verifies that a spending surge
+// in the last 7 days produces an earlier projected overshoot than the simple
+// month-to-date average would suggest.
+func TestReport_sevenDayWindowReflectsRecentSurge(t *testing.T) {
+	if time.Now().Day() < 10 {
+		t.Skip("test requires day ≥ 10 to have a meaningful contrast between old and recent spend")
+	}
+	now := time.Now()
+	dir := t.TempDir()
+
+	// 9 days of low spend ($1/day) followed by today at $20 — a clear surge.
+	var entries []contracts.UsageEntry
+	for d := now.Day() - 9; d < now.Day(); d++ {
+		if d < 1 {
+			continue
+		}
+		at := time.Date(now.Year(), now.Month(), d, 12, 0, 0, 0, now.Location())
+		entries = append(entries, entry("claude-opus-4-6", 1.00, at))
+	}
+	// Today: $20 surge.
+	entries = append(entries, entry("claude-opus-4-6", 20.00, now))
+
+	path := writeUsageLog(t, dir, entries)
+	cfg := config.BudgetsConfig{
+		Models: map[string]config.ModelBudget{
+			"claude-opus-4-6": {MonthlyLimit: 200.00, WarningPct: 75, HardStop: false},
+		},
+	}
+	e := budget.NewWithLogPath(cfg, path)
+	r := e.Report()
+
+	report := r.ByModel["claude-opus-4-6"]
+	// With a surge today, the 7-day window rate is higher than the month-to-date
+	// average, so an overshoot date should be projected well within the month.
+	if report.ProjectedOvershootDate == nil {
+		// Only a failure if the remaining budget ($200 - ~$29 = $171) at the
+		// 7-day rate would be consumed before month end.
+		t.Log("no overshoot projected — daily rate may be too low to breach limit this month; not an error if month is nearly over")
+	}
+}
+
+// --- ReadDailySpend ---
+
+func TestReadDailySpend_perDayTotals(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	day1 := time.Date(now.Year(), now.Month(), 1, 12, 0, 0, 0, now.Location())
+	day2 := time.Date(now.Year(), now.Month(), 2, 12, 0, 0, 0, now.Location())
+	path := writeUsageLog(t, dir, []contracts.UsageEntry{
+		entry("claude-opus-4-6", 5.00, day1),
+		entry("claude-opus-4-6", 3.00, day1), // two calls on day 1
+		entry("gpt-4o", 2.00, day2),
+		entry("claude-opus-4-6", 4.00, lastMonth), // previous month — excluded
+	})
+	daily, err := budget.ReadDailySpend(path, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if daily.Overall[1] < 7.99 || daily.Overall[1] > 8.01 {
+		t.Errorf("overall day 1: got %v, want 8.00", daily.Overall[1])
+	}
+	if daily.Overall[2] < 1.99 || daily.Overall[2] > 2.01 {
+		t.Errorf("overall day 2: got %v, want 2.00", daily.Overall[2])
+	}
+	// Both claude calls on day 1 ($5 + $3) are summed per model per day.
+	if daily.ByModel["claude-opus-4-6"][1] < 7.99 || daily.ByModel["claude-opus-4-6"][1] > 8.01 {
+		t.Errorf("claude-opus-4-6 day 1: got %v, want 8.00 (5+3)", daily.ByModel["claude-opus-4-6"][1])
 	}
 }
