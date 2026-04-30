@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	conduiterrors "github.com/jabreeflor/conduit/internal/errors"
 )
 
 // Provider is the narrow adapter every model integration implements.
@@ -19,6 +21,8 @@ type Request struct {
 	SessionID    string
 	CheckpointID string
 	TaskType     TaskType
+	Feature      string
+	Plugin       string
 	Inputs       []Input
 	Prompt       string
 }
@@ -70,6 +74,12 @@ type UsageRecord struct {
 	InputTokens  int
 	OutputTokens int
 	CostUSD      float64
+	TTFT         time.Duration
+	TotalLatency time.Duration
+	Status       string
+	ErrorType    string
+	Feature      string
+	Plugin       string
 	RecordedAt   time.Time
 }
 
@@ -172,10 +182,13 @@ func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
 		}
 
 		attemptCtx, cancel := r.contextForProvider(ctx, name)
+		startedAt := r.now()
 		resp, err := provider.Infer(attemptCtx, attemptReq)
+		totalLatency := r.now().Sub(startedAt)
 		cancel()
 		if err != nil {
 			failures = append(failures, fmt.Errorf("%s: %w", name, err))
+			r.recordUsageFailure(ctx, req, name, totalLatency, err)
 			r.recordFailover(ctx, req.SessionID, name, nextProvider(chain, i), attemptReq.CheckpointID, err)
 			continue
 		}
@@ -188,7 +201,7 @@ func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
 			resp.CheckpointID = attemptReq.CheckpointID
 		}
 		resp.Usage.CostUSD = r.costFor(name, resp.Usage)
-		r.recordUsage(ctx, req.SessionID, resp)
+		r.recordUsage(ctx, req, resp, totalLatency)
 		return resp, nil
 	}
 
@@ -288,19 +301,47 @@ func (r *Router) costFor(provider string, usage Usage) float64 {
 		(float64(usage.OutputTokens)/1000)*meta.OutputCostPer1KUSD
 }
 
-func (r *Router) recordUsage(ctx context.Context, sessionID string, resp Response) {
+func (r *Router) recordUsage(ctx context.Context, req Request, resp Response, totalLatency time.Duration) {
 	if r.usage == nil {
 		return
 	}
 	_ = r.usage.RecordUsage(ctx, UsageRecord{
-		SessionID:    sessionID,
+		SessionID:    req.SessionID,
 		Provider:     resp.Provider,
 		Model:        resp.Model,
 		InputTokens:  resp.Usage.InputTokens,
 		OutputTokens: resp.Usage.OutputTokens,
 		CostUSD:      resp.Usage.CostUSD,
+		TotalLatency: totalLatency,
+		Status:       "success",
+		Feature:      req.Feature,
+		Plugin:       req.Plugin,
 		RecordedAt:   r.now(),
 	})
+}
+
+func (r *Router) recordUsageFailure(ctx context.Context, req Request, provider string, totalLatency time.Duration, err error) {
+	if r.usage == nil {
+		return
+	}
+	_ = r.usage.RecordUsage(ctx, UsageRecord{
+		SessionID:    req.SessionID,
+		Provider:     provider,
+		Model:        r.metadata[provider].Model,
+		TotalLatency: totalLatency,
+		Status:       "error",
+		ErrorType:    errorType(err),
+		Feature:      req.Feature,
+		Plugin:       req.Plugin,
+		RecordedAt:   r.now(),
+	})
+}
+
+func errorType(err error) string {
+	if err == nil {
+		return ""
+	}
+	return string(conduiterrors.Classify(err))
 }
 
 func (r *Router) recordFailover(ctx context.Context, sessionID, from, to, checkpointID string, err error) {

@@ -106,7 +106,7 @@ func Classify(err error) Kind {
 	switch {
 	case containsAny(msg, "timeout", "deadline exceeded", "context deadline"):
 		return KindTimeout
-	case containsAny(msg, "rate limit", "rate_limit", "too many requests", "429"):
+	case containsAny(msg, "rate limit", "rate_limit", "rate limited", "too many requests", "429"):
 		return KindRateLimited
 	case containsAny(msg, "permission denied", "unauthorized", "forbidden", "403", "401"):
 		return KindPermission
