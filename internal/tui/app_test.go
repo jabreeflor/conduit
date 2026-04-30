@@ -28,6 +28,12 @@ func TestRunBootsAgainstCore(t *testing.T) {
 	if !strings.Contains(got, "[session:") {
 		t.Fatalf("output %q does not include session ID in status bar", got)
 	}
+	if !strings.Contains(got, "welcome:") {
+		t.Fatalf("output %q does not include first-run welcome state", got)
+	}
+	if !strings.Contains(got, "external API: Connect OpenAI, Connect Anthropic") {
+		t.Fatalf("output %q does not include external API setup choices", got)
+	}
 }
 
 func TestFormatStatusBarAllFields(t *testing.T) {

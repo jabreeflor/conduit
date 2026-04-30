@@ -42,12 +42,16 @@ func Run(out io.Writer) error {
 	usageSummary := engine.UsageSummary()
 	usageSummary.Model = modelStatus.SelectedModel
 	statusBar := formatStatusBar(usageSummary)
+	setup, err := engine.FirstRunSetup()
+	if err != nil {
+		return err
+	}
 
 	panel := NewContextPanel()
 	panel.Toggle() // show by default at boot for context
 	panel.SetSessionLog(engine.SessionLog())
 
-	_, err := fmt.Fprintf(
+	_, err = fmt.Fprintf(
 		out,
 		"%s core online (%s)\nstatus: model %s; escalates to %s\n%s\ncontext panel: %s\n",
 		info.Name,
@@ -57,6 +61,18 @@ func Run(out io.Writer) error {
 		statusBar,
 		panel.TabBar(),
 	)
+	if err != nil {
+		return err
+	}
+	_, err = fmt.Fprintf(
+		out,
+		"welcome: %s on %.0fGB RAM\nlocal setup: %s via %s\nexternal API: %s\n",
+		setup.Recommendation.Tier,
+		setup.MachineProfile.Memory.TotalGB,
+		setup.Recommendation.Model,
+		setup.Recommendation.Runtime,
+		formatExternalAPIOptions(setup.ExternalAPI),
+	)
 	return err
 }
 
@@ -65,13 +81,25 @@ func Run(out io.Writer) error {
 func RunInteractive() error {
 	engine := core.New("dev")
 	modelStatus := engine.ModelStatus()
+	setup, err := engine.FirstRunSetup()
+	if err != nil {
+		return err
+	}
 
-	m := newModel(modelStatus.SelectedModel)
+	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI)
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(),
 	)
-	_, err := p.Run()
+	_, err = p.Run()
 	return err
+}
+
+func formatExternalAPIOptions(options []contracts.ExternalAPIOption) string {
+	labels := make([]string, 0, len(options))
+	for _, option := range options {
+		labels = append(labels, option.Label)
+	}
+	return strings.Join(labels, ", ")
 }
