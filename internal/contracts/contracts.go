@@ -128,6 +128,19 @@ type SessionLogEntry struct {
 	Message string
 }
 
+// HookAuditEntry records one hook subprocess execution for observability.
+type HookAuditEntry struct {
+	At       time.Time
+	Event    string
+	Command  string
+	Decision string
+	Reason   string
+	Context  string
+	Elapsed  time.Duration
+	TimedOut bool
+	Error    string
+}
+
 // UsageEntry is one model-call record written to ~/.conduit/usage.jsonl.
 type UsageEntry struct {
 	At           time.Time `json:"at"`

@@ -2,11 +2,13 @@
 package core
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/hooks"
 	"github.com/jabreeflor/conduit/internal/security"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -15,6 +17,7 @@ import (
 type Engine struct {
 	name        string
 	version     string
+	sessionID   string
 	startedAt   time.Time
 	surfaces    []contracts.Surface
 	identity    *IdentityManager
@@ -22,6 +25,7 @@ type Engine struct {
 	network     *NetworkSandbox
 	permissions *PermissionManager
 	sandbox     *SandboxManager
+	hooks       *hooks.Manager
 	sessionLog  []contracts.SessionLogEntry
 	usage       *usage.Tracker
 }
@@ -32,9 +36,12 @@ func New(version string) *Engine {
 	sessionID := fmt.Sprintf("%d", time.Now().UnixMilli())
 	tracker, _ := usage.New(sessionID) // best-effort; nil tracker is handled in RecordUsage
 
+	hookCfg, _ := hooks.LoadConfig() // best-effort; empty config means no hooks run
+
 	return &Engine{
 		name:      "Conduit",
 		version:   version,
+		sessionID: sessionID,
 		startedAt: time.Now().UTC(),
 		surfaces: []contracts.Surface{
 			contracts.SurfaceTUI,
@@ -46,6 +53,7 @@ func New(version string) *Engine {
 		network:     NewNetworkSandbox(DefaultNetworkSandboxConfig()),
 		permissions: NewPermissionManager(DefaultPermissionConfig()),
 		sandbox:     NewSandboxManager(DefaultSandboxArchitecture()),
+		hooks:       hooks.New(hookCfg, sessionID),
 		usage:       tracker,
 	}
 }
@@ -127,6 +135,24 @@ func (e *Engine) UsageSummary() contracts.UsageSummary {
 		return contracts.UsageSummary{}
 	}
 	return e.usage.Summary()
+}
+
+// Hooks returns the engine-owned hook manager.
+func (e *Engine) Hooks() *hooks.Manager {
+	return e.hooks
+}
+
+// FireHook runs all hooks registered for event and records the decision in the
+// session log when the outcome is not a plain allow.
+func (e *Engine) FireHook(ctx context.Context, event hooks.EventType, input hooks.HookInput) (hooks.HookOutput, error) {
+	out, err := e.hooks.Fire(ctx, event, input)
+	if out.Decision != hooks.DecisionAllow {
+		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+			At:      time.Now().UTC(),
+			Message: hooks.FormatDecision(string(event), out),
+		})
+	}
+	return out, err
 }
 
 // SessionLog returns a copy of user-visible engine events.
