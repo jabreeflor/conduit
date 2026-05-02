@@ -492,3 +492,54 @@ type SandboxArchitecture struct {
 	RequiresProcessNamespace  bool
 	RequiresFilesystemOverlay bool
 }
+
+// ComputerUsePermission identifies a macOS TCC permission required by the
+// computer-use surface (PRD §6.8).
+type ComputerUsePermission string
+
+const (
+	// ComputerUsePermissionScreenRecording is the macOS Screen Recording grant
+	// required to capture before/after screenshots and observe the desktop.
+	ComputerUsePermissionScreenRecording ComputerUsePermission = "screen_recording"
+	// ComputerUsePermissionAccessibility is the macOS Accessibility grant
+	// required to drive the system via the Accessibility API.
+	ComputerUsePermissionAccessibility ComputerUsePermission = "accessibility"
+)
+
+// ComputerUsePermissionState records whether a single TCC grant is present.
+type ComputerUsePermissionState string
+
+const (
+	// ComputerUsePermissionStateGranted means the host has confirmed the grant.
+	ComputerUsePermissionStateGranted ComputerUsePermissionState = "granted"
+	// ComputerUsePermissionStateMissing means the host explicitly reports the
+	// grant is not present.
+	ComputerUsePermissionStateMissing ComputerUsePermissionState = "missing"
+	// ComputerUsePermissionStateUnknown means the host could not determine the
+	// state (probe failed, missing toolchain, non-darwin, etc).
+	ComputerUsePermissionStateUnknown ComputerUsePermissionState = "unknown"
+	// ComputerUsePermissionStateNotApplicable means the host platform does not
+	// require this permission (non-darwin).
+	ComputerUsePermissionStateNotApplicable ComputerUsePermissionState = "not_applicable"
+)
+
+// ComputerUsePermissionStatus is the per-permission probe result with a
+// deep-link URL pointing at the System Settings pane that grants it.
+type ComputerUsePermissionStatus struct {
+	Permission   ComputerUsePermission      `json:"permission"`
+	State        ComputerUsePermissionState `json:"state"`
+	SettingsURL  string                     `json:"settings_url,omitempty"`
+	Detail       string                     `json:"detail,omitempty"`
+	ProbedAt     time.Time                  `json:"probed_at"`
+	ProbeCommand string                     `json:"probe_command,omitempty"`
+}
+
+// ComputerUsePermissionReport bundles the permissions required before a
+// computer-use session can start.
+type ComputerUsePermissionReport struct {
+	Platform    string                        `json:"platform"`
+	Required    []ComputerUsePermission       `json:"required"`
+	Statuses    []ComputerUsePermissionStatus `json:"statuses"`
+	AllGranted  bool                          `json:"all_granted"`
+	GeneratedAt time.Time                     `json:"generated_at"`
+}
