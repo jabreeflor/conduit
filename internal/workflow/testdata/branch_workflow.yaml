@@ -1,0 +1,33 @@
+id: triage
+name: Branching triage
+version: "1.0.0"
+steps:
+  - id: classify
+    model:
+      provider: anthropic
+      model: claude-haiku
+      prompt: "Classify the issue."
+  - id: route
+    branch:
+      cases:
+        - when: "step.classify.output == 'bug'"
+          steps:
+            - id: file-bug
+              tool:
+                name: jira-create
+                with:
+                  project: ENG
+                  type: Bug
+        - when: "step.classify.output == 'feature'"
+          steps:
+            - id: file-feature
+              tool:
+                name: jira-create
+                with:
+                  project: ENG
+                  type: Story
+      default:
+        - id: ignore
+          tool:
+            name: noop
+            with: {}

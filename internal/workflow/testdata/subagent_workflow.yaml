@@ -1,0 +1,11 @@
+id: research-spawn
+name: Spawn research subagent
+version: "0.0.1"
+steps:
+  - id: research
+    subagent:
+      profile: research
+      prompt: "Investigate the topic and return findings."
+      inputs:
+        topic: "Conduit workflow engine"
+        depth: 3

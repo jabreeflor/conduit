@@ -1,0 +1,23 @@
+id: summarize-doc
+name: Summarize a document
+version: "0.1.0"
+inputs:
+  source:
+    type: string
+    required: true
+steps:
+  - id: read
+    tool:
+      name: file-read
+      with:
+        path: "{{ inputs.source }}"
+  - id: summarize
+    model:
+      provider: anthropic
+      model: claude-opus-4-7
+      system: You produce concise executive summaries.
+      prompt: "Summarize this content: {{ step.read.output }}"
+      tags:
+        - destructive
+outputs:
+  summary: "{{ step.summarize.output }}"

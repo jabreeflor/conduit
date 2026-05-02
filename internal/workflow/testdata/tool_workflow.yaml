@@ -1,0 +1,29 @@
+id: ship-release
+name: Ship release
+description: Cut a release tarball and notify the team.
+version: "1.0.0"
+schedule: "0 9 * * 1"
+inputs:
+  release_tag:
+    type: string
+    description: The git tag to publish.
+    required: true
+env:
+  RELEASE_CHANNEL: stable
+steps:
+  - id: archive
+    name: Build archive
+    tool:
+      name: shell
+      with:
+        command: "tar -czf release-{{ inputs.release_tag }}.tar.gz dist/"
+  - id: announce
+    name: Announce on chat
+    if: "{{ step.archive.output }} != ''"
+    tool:
+      name: chat-post
+      with:
+        channel: "#releases"
+        message: "Release {{ inputs.release_tag }} ready"
+outputs:
+  artifact: "{{ step.archive.output }}"
