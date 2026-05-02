@@ -74,12 +74,13 @@ type message struct {
 // ── key bindings ─────────────────────────────────────────────────────────────
 
 type keyMap struct {
-	TogglePanel key.Binding
-	Quit        key.Binding
-	Submit      key.Binding
-	ExpandTool  key.Binding
-	SetupLocal  key.Binding
-	ExternalAPI key.Binding
+	TogglePanel     key.Binding
+	Quit            key.Binding
+	Submit          key.Binding
+	ExpandTool      key.Binding
+	SetupLocal      key.Binding
+	ExternalAPI     key.Binding
+	MemoryInspector key.Binding
 }
 
 var keys = keyMap{
@@ -107,27 +108,34 @@ var keys = keyMap{
 		key.WithKeys("a"),
 		key.WithHelp("a", "external api"),
 	),
+	MemoryInspector: key.NewBinding(
+		key.WithKeys("ctrl+m"),
+		key.WithHelp("ctrl+m", "memory inspector"),
+	),
 }
 
 // ── model ─────────────────────────────────────────────────────────────────────
 
 // Model is the Bubble Tea application state for the three-panel layout.
 type Model struct {
-	width        int
-	height       int
-	conversation viewport.Model
-	contextPanel viewport.Model
-	input        textarea.Model
-	messages     []message
-	toolCalls    []toolCall
-	showContext  bool
-	sessionCost  float64
-	activeModel  string
-	setup        contracts.FirstRunSetupSnapshot
-	setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)
-	streaming    bool
-	streamBuffer string
-	tickCount    int
+	width            int
+	height           int
+	conversation     viewport.Model
+	contextPanel     viewport.Model
+	input            textarea.Model
+	messages         []message
+	toolCalls        []toolCall
+	showContext      bool
+	sessionCost      float64
+	activeModel      string
+	setup            contracts.FirstRunSetupSnapshot
+	setupLocalAI     func() (contracts.FirstRunSetupSnapshot, error)
+	streaming        bool
+	streamBuffer     string
+	tickCount        int
+	inspector        *MemoryInspector
+	inspectorOpen    bool
+	memoryController MemoryController // backing engine for inspector actions; may be nil in tests
 }
 
 func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
@@ -145,10 +153,19 @@ func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLo
 		activeModel:  activeModel,
 		setup:        setup,
 		setupLocalAI: setupLocalAI,
+		inspector:    NewMemoryInspector(),
 		messages: []message{
 			{role: roleAgent, text: "Welcome to Conduit."},
 		},
 	}
+}
+
+// WithMemoryController attaches the engine adapter that backs the memory
+// inspector. Returning the model keeps newModel pure for tests that don't
+// need a live provider.
+func (m Model) WithMemoryController(c MemoryController) Model {
+	m.memoryController = c
+	return m
 }
 
 func (m Model) Init() tea.Cmd {
@@ -174,9 +191,26 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m = m.recalculateLayout()
 
 	case tea.KeyMsg:
+		// Memory inspector takes precedence over normal input when open so
+		// its scoped key bindings (delete, pin, filter) do not collide with
+		// the chat textarea.
+		if m.inspectorOpen {
+			var consumed bool
+			m, consumed = m.handleInspectorKey(msg)
+			if consumed {
+				return m, nil
+			}
+		}
 		switch {
 		case key.Matches(msg, keys.Quit):
+			if m.inspectorOpen {
+				m = m.closeMemoryInspector()
+				return m, nil
+			}
 			return m, tea.Quit
+		case key.Matches(msg, keys.MemoryInspector):
+			m = m.openMemoryInspector()
+			return m, nil
 		case key.Matches(msg, keys.TogglePanel):
 			m.showContext = !m.showContext
 			m = m.recalculateLayout()

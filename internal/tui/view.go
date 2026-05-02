@@ -136,6 +136,14 @@ func (m Model) View() string {
 	}
 
 	statusBar := m.renderStatusBar()
+
+	// When the memory inspector is open it takes over the main row entirely;
+	// the input row is hidden so its keystrokes don't bleed into the chat.
+	if m.inspectorOpen && m.inspector != nil {
+		body := styleActivePanel.Render(m.inspector.Render())
+		return lipgloss.JoinVertical(lipgloss.Left, statusBar, body)
+	}
+
 	mainRow := m.renderMainRow()
 	inputRow := m.renderInputRow()
 
@@ -161,7 +169,7 @@ func (m Model) renderMainRow() string {
 }
 
 func (m Model) renderInputRow() string {
-	help := " enter:send  ctrl+p:panel  x:expand  esc:quit"
+	help := " enter:send  ctrl+p:panel  ctrl+m:memory  x:expand  esc:quit"
 	if m.setup.Phase == "welcome" {
 		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  esc:quit"
 	}

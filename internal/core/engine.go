@@ -350,6 +350,73 @@ func (e *Engine) SearchMemory(ctx context.Context, query string) ([]memory.Entry
 	return p.Search(ctx, query)
 }
 
+// DeleteMemory removes a single memory entry by ID. Used by the TUI memory
+// inspector for user-driven deletes; bypasses the Pinned guard because the
+// user is acting explicitly.
+func (e *Engine) DeleteMemory(ctx context.Context, id string) error {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil
+	}
+	if err := p.Delete(ctx, id); err != nil {
+		return err
+	}
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: fmt.Sprintf("memory delete: %s", id),
+	})
+	return nil
+}
+
+// PruneMemory bulk-deletes entries matched by query, skipping pinned entries.
+// Returns the IDs removed. Used by the TUI memory inspector's "prune matching"
+// action.
+func (e *Engine) PruneMemory(ctx context.Context, query string) ([]string, error) {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil, nil
+	}
+	removed, err := p.Prune(ctx, query)
+	if err != nil {
+		return removed, err
+	}
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At:      time.Now().UTC(),
+		Message: fmt.Sprintf("memory prune: %d entries (query=%q)", len(removed), query),
+	})
+	return removed, nil
+}
+
+// SetMemoryPinned toggles the protect/pin flag on a memory entry. Pinned
+// entries are skipped by PruneMemory and any future automatic compactor.
+func (e *Engine) SetMemoryPinned(ctx context.Context, id string, pinned bool) error {
+	p, _ := e.memRegistry.Active()
+	if p == nil {
+		return nil
+	}
+	// Re-write through the provider so existing storage layout (file paths,
+	// timestamps) is preserved without exposing a Pin-specific API.
+	entries, err := p.Search(ctx, "")
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		if entry.ID != id {
+			continue
+		}
+		entry.Pinned = pinned
+		if err := p.Write(ctx, entry); err != nil {
+			return err
+		}
+		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+			At:      time.Now().UTC(),
+			Message: fmt.Sprintf("memory pin: %s = %t", id, pinned),
+		})
+		return nil
+	}
+	return nil
+}
+
 // SessionLog returns a copy of user-visible engine events.
 func (e *Engine) SessionLog() []contracts.SessionLogEntry {
 	return append([]contracts.SessionLogEntry(nil), e.sessionLog...)
