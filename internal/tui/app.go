@@ -10,6 +10,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/core"
+	"github.com/jabreeflor/conduit/internal/sessions"
 )
 
 // formatStatusBar returns the status line from a UsageSummary.
@@ -87,6 +88,13 @@ func RunInteractive() error {
 	}
 
 	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI)
+	// Best-effort sessions wiring: a missing home dir is non-fatal and just
+	// disables /sessions until a store is reachable. The Responder is left
+	// nil because the live provider client lands in a follow-up; replay
+	// surfaces a friendly error in the meantime.
+	if store, err := sessions.NewStore(""); err == nil {
+		m = m.AttachSessions(&sessions.Dispatcher{Store: store})
+	}
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),

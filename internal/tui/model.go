@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/sessions"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -74,12 +75,13 @@ type message struct {
 // ── key bindings ─────────────────────────────────────────────────────────────
 
 type keyMap struct {
-	TogglePanel key.Binding
-	Quit        key.Binding
-	Submit      key.Binding
-	ExpandTool  key.Binding
-	SetupLocal  key.Binding
-	ExternalAPI key.Binding
+	TogglePanel    key.Binding
+	Quit           key.Binding
+	Submit         key.Binding
+	ExpandTool     key.Binding
+	SetupLocal     key.Binding
+	ExternalAPI    key.Binding
+	SessionBrowser key.Binding
 }
 
 var keys = keyMap{
@@ -107,6 +109,10 @@ var keys = keyMap{
 		key.WithKeys("a"),
 		key.WithHelp("a", "external api"),
 	),
+	SessionBrowser: key.NewBinding(
+		key.WithKeys("ctrl+s"),
+		key.WithHelp("ctrl+s", "session tree browser"),
+	),
 }
 
 // ── model ─────────────────────────────────────────────────────────────────────
@@ -128,6 +134,13 @@ type Model struct {
 	streaming    bool
 	streamBuffer string
 	tickCount    int
+
+	// Sessions wiring. The dispatcher is optional — when nil, slash commands
+	// surface a friendly error instead of crashing. The browser is opened
+	// on ctrl+s and on /sessions invocations with no args.
+	sessions        *sessions.Dispatcher
+	sessionsBrowser *SessionsBrowser
+	activeSessionID string
 }
 
 func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
@@ -166,6 +179,17 @@ func tick() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// When the sessions browser is open, route key/window events to it
+	// first; everything else falls through to the normal model update.
+	if m.sessionsBrowser != nil {
+		next, cmd := m.sessionsBrowser.Update(msg)
+		m.sessionsBrowser = &next
+		if next.IsClosed() {
+			m = m.handleSessionsBrowserClose(next.Selected())
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -177,6 +201,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, keys.Quit):
 			return m, tea.Quit
+		case key.Matches(msg, keys.SessionBrowser):
+			m = m.openSessionsBrowser()
+			return m, nil
 		case key.Matches(msg, keys.TogglePanel):
 			m.showContext = !m.showContext
 			m = m.recalculateLayout()
@@ -215,6 +242,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, keys.Submit):
 			if text := strings.TrimSpace(m.input.Value()); text != "" {
+				if strings.HasPrefix(text, "/sessions") {
+					m.input.Reset()
+					m = m.handleSessionsSlash(text)
+					return m, nil
+				}
 				m.messages = append(m.messages, message{role: roleUser, text: text})
 				m.input.Reset()
 				m.streaming = true

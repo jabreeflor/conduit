@@ -136,6 +136,16 @@ func (m Model) View() string {
 	}
 
 	statusBar := m.renderStatusBar()
+
+	// When the sessions browser is up, render it full-width in place of
+	// the conversation/context row. Status bar and input row stay so the
+	// user can still see model + cost and dismiss with esc/q.
+	if m.sessionsBrowser != nil {
+		browserPanel := styleActivePanel.Render(m.sessionsBrowser.View())
+		inputRow := styleDim.Render(" ↑/↓ navigate  enter:load  f:fork  r:replay  q/esc:close")
+		return lipgloss.JoinVertical(lipgloss.Left, statusBar, browserPanel, inputRow)
+	}
+
 	mainRow := m.renderMainRow()
 	inputRow := m.renderInputRow()
 
@@ -161,9 +171,9 @@ func (m Model) renderMainRow() string {
 }
 
 func (m Model) renderInputRow() string {
-	help := " enter:send  ctrl+p:panel  x:expand  esc:quit"
+	help := " enter:send  ctrl+p:panel  ctrl+s:sessions  x:expand  esc:quit"
 	if m.setup.Phase == "welcome" {
-		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  esc:quit"
+		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  ctrl+s:sessions  esc:quit"
 	}
 	help = styleDim.Render(help)
 	inputBox := stylePanel.Render(m.input.View())
