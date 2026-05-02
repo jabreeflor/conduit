@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/budget"
+	cupermissions "github.com/jabreeflor/conduit/internal/computeruse/permissions"
 	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/hooks"
@@ -20,25 +21,26 @@ import (
 
 // Engine owns the long-lived runtime state for Conduit.
 type Engine struct {
-	name            string
-	version         string
-	startedAt       time.Time
-	surfaces        []contracts.Surface
-	identity        *IdentityManager
-	router          *ModelRouter
-	network         *NetworkSandbox
-	permissions     *PermissionManager
-	sandbox         *SandboxManager
-	machineProfiler *MachineProfiler
-	firstRunSetup   *firstRunSetup
-	budgetEnforcer  *budget.Enforcer
-	sessionLog      []contracts.SessionLogEntry
-	usage           *usage.Tracker
-	sessionID       string
-	activeWorkflow  string
-	memRegistry     *memory.Registry
-	hookDispatcher  *hooks.Dispatcher
-	cwd             string
+	name               string
+	version            string
+	startedAt          time.Time
+	surfaces           []contracts.Surface
+	identity           *IdentityManager
+	router             *ModelRouter
+	network            *NetworkSandbox
+	permissions        *PermissionManager
+	sandbox            *SandboxManager
+	machineProfiler    *MachineProfiler
+	firstRunSetup      *firstRunSetup
+	budgetEnforcer     *budget.Enforcer
+	sessionLog         []contracts.SessionLogEntry
+	usage              *usage.Tracker
+	sessionID          string
+	activeWorkflow     string
+	memRegistry        *memory.Registry
+	hookDispatcher     *hooks.Dispatcher
+	cwd                string
+	computerUsePermMgr *cupermissions.Manager
 }
 
 // New creates a core engine instance with the surfaces planned for the
@@ -64,18 +66,19 @@ func New(version string) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		identity:        NewIdentityManager(DefaultIdentityConfig()),
-		router:          NewModelRouter(DefaultEscalationConfig()),
-		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
-		permissions:     NewPermissionManager(DefaultPermissionConfig()),
-		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
-		machineProfiler: machineProfiler,
-		firstRunSetup:   newFirstRunSetup(machineProfiler, nil),
-		budgetEnforcer:  newBudgetEnforcer(config.BudgetsConfig{}),
-		usage:           tracker,
-		sessionID:       sessionID,
-		memRegistry:     reg,
-		cwd:             cwd,
+		identity:           NewIdentityManager(DefaultIdentityConfig()),
+		router:             NewModelRouter(DefaultEscalationConfig()),
+		network:            NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions:        NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:            NewSandboxManager(DefaultSandboxArchitecture()),
+		machineProfiler:    machineProfiler,
+		firstRunSetup:      newFirstRunSetup(machineProfiler, nil),
+		budgetEnforcer:     newBudgetEnforcer(config.BudgetsConfig{}),
+		usage:              tracker,
+		sessionID:          sessionID,
+		memRegistry:        reg,
+		cwd:                cwd,
+		computerUsePermMgr: cupermissions.NewManager(),
 	}
 }
 
@@ -144,17 +147,18 @@ func NewFromConfig(version string, cfg config.Config) *Engine {
 			contracts.SurfaceGUI,
 			contracts.SurfaceSpotlight,
 		},
-		identity:        NewIdentityManager(DefaultIdentityConfig()),
-		router:          NewModelRouter(escalation),
-		network:         NewNetworkSandbox(DefaultNetworkSandboxConfig()),
-		permissions:     NewPermissionManager(DefaultPermissionConfig()),
-		sandbox:         NewSandboxManager(DefaultSandboxArchitecture()),
-		machineProfiler: machineProfiler,
-		firstRunSetup:   newFirstRunSetup(machineProfiler, nil),
-		budgetEnforcer:  newBudgetEnforcer(cfg.Budgets),
-		usage:           tracker,
-		sessionID:       sessionID,
-		memRegistry:     reg,
+		identity:           NewIdentityManager(DefaultIdentityConfig()),
+		router:             NewModelRouter(escalation),
+		network:            NewNetworkSandbox(DefaultNetworkSandboxConfig()),
+		permissions:        NewPermissionManager(DefaultPermissionConfig()),
+		sandbox:            NewSandboxManager(DefaultSandboxArchitecture()),
+		machineProfiler:    machineProfiler,
+		firstRunSetup:      newFirstRunSetup(machineProfiler, nil),
+		budgetEnforcer:     newBudgetEnforcer(cfg.Budgets),
+		usage:              tracker,
+		sessionID:          sessionID,
+		memRegistry:        reg,
+		computerUsePermMgr: cupermissions.NewManager(),
 	}
 }
 
@@ -193,6 +197,53 @@ func (e *Engine) EvaluatePermission(req contracts.PermissionRequest) contracts.P
 		Message: formatPermissionDecision(decision),
 	})
 	return decision
+}
+
+// ComputerUsePermissions returns the engine-owned macOS Screen Recording +
+// Accessibility permissions manager. Surfaces use it to drive the first-launch
+// permissions flow described in PRD §6.8.
+//
+// The MCP-based computer-use runtime (issue #37) consumes this manager via
+// EnsureComputerUseAllowed before starting a session. If #37 has not landed
+// yet, this manager is still safe to call standalone.
+func (e *Engine) ComputerUsePermissions() *cupermissions.Manager {
+	if e.computerUsePermMgr == nil {
+		e.computerUsePermMgr = cupermissions.NewManager()
+	}
+	return e.computerUsePermMgr
+}
+
+// ComputerUsePermissionReport runs the macOS permissions probe and emits a
+// session-log entry per missing permission so the user can see why a session
+// is blocked.
+func (e *Engine) ComputerUsePermissionReport(ctx context.Context) contracts.ComputerUsePermissionReport {
+	report := e.ComputerUsePermissions().Report(ctx)
+	for _, s := range report.Statuses {
+		if s.State == contracts.ComputerUsePermissionStateGranted {
+			continue
+		}
+		if s.State == contracts.ComputerUsePermissionStateNotApplicable {
+			continue
+		}
+		e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+			At:      time.Now().UTC(),
+			Message: fmt.Sprintf("computer-use permission %s: %s", s.Permission, s.State),
+		})
+	}
+	return report
+}
+
+// EnsureComputerUseAllowed is the gate every computer-use session must call
+// before kicking off the MCP runtime. Returns nil only when every required
+// permission is granted (or NotApplicable on non-darwin). On a missing grant
+// it returns *cupermissions.UngrantedError so surfaces can render the right
+// "Open System Settings" UI.
+//
+// TODO(#37): once the MCP-based computer-use runtime is wired up, call this
+// from its session-start path. Until then this is invokable standalone for
+// preflight tooling.
+func (e *Engine) EnsureComputerUseAllowed(ctx context.Context) error {
+	return e.ComputerUsePermissions().EnsureSessionAllowed(ctx)
 }
 
 // RouteModel selects a model for an inference request and logs transparent

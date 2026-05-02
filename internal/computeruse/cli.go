@@ -9,6 +9,8 @@ import (
 	"io"
 	"os"
 	"strings"
+
+	"github.com/jabreeflor/conduit/internal/computeruse/permissions"
 )
 
 // RunCLI is the entry point for `conduit computer-use`. It manages the
@@ -27,8 +29,10 @@ func RunCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error 
 		return runRevoke(args[1:], stdout, stderr)
 	case "check":
 		return runCheck(args[1:], stdout, stderr)
+	case "permissions":
+		return permissions.RunCLI(ctx, args[1:], stdout, stderr)
 	default:
-		return fmt.Errorf("unknown computer-use subcommand %q; try: list, approve, revoke, check", args[0])
+		return fmt.Errorf("unknown computer-use subcommand %q; try: list, approve, revoke, check, permissions", args[0])
 	}
 }
 
@@ -46,6 +50,8 @@ Commands:
           [--name <name>]
   check   --bundle <id>      exit 0 if the app is approved, 1 otherwise
           [--name <name>]
+  permissions [check|open <permission>|verify]
+                             macOS Screen Recording + Accessibility flow
 
 Approvals persist to ~/.conduit/approved-apps.json and survive across runs.
 `)
