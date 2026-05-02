@@ -10,5 +10,7 @@ func (NoOpProvider) Initialize(_ context.Context) error                    { ret
 func (NoOpProvider) Prefetch(_ context.Context, _ string) ([]Entry, error) { return nil, nil }
 func (NoOpProvider) Write(_ context.Context, _ Entry) error                { return nil }
 func (NoOpProvider) Search(_ context.Context, _ string) ([]Entry, error)   { return nil, nil }
+func (NoOpProvider) Delete(_ context.Context, _ string) error              { return nil }
+func (NoOpProvider) Prune(_ context.Context, _ string) ([]string, error)   { return nil, nil }
 func (NoOpProvider) Compress(_ context.Context) error                      { return nil }
 func (NoOpProvider) Shutdown(_ context.Context) error                      { return nil }

@@ -107,6 +107,58 @@ func (p *FlatFileProvider) Search(_ context.Context, query string) ([]Entry, err
 	return out, nil
 }
 
+// Delete removes the entry with the given ID. Idempotent: returns nil if no
+// matching file is present.
+func (p *FlatFileProvider) Delete(_ context.Context, id string) error {
+	if id == "" {
+		return nil
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if path, ok := p.findFileByID(id); ok {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("memory: delete %s: %w", path, err)
+		}
+	}
+	return nil
+}
+
+// Prune removes every entry matched by query (case-insensitive substring on
+// title/body/tags) except those with Pinned=true. An empty query prunes all
+// non-pinned entries. Returns the IDs that were removed.
+func (p *FlatFileProvider) Prune(_ context.Context, query string) ([]string, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	entries, err := p.readAll()
+	if err != nil {
+		return nil, err
+	}
+	q := strings.ToLower(query)
+	var removed []string
+	for _, e := range entries {
+		if e.Pinned {
+			continue
+		}
+		if q != "" {
+			if !strings.Contains(strings.ToLower(e.Title), q) &&
+				!strings.Contains(strings.ToLower(e.Body), q) &&
+				!containsTag(e.Tags, q) {
+				continue
+			}
+		}
+		path, ok := p.findFileByID(e.ID)
+		if !ok {
+			continue
+		}
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return removed, fmt.Errorf("memory: prune %s: %w", path, err)
+		}
+		removed = append(removed, e.ID)
+	}
+	return removed, nil
+}
+
 // Compress is a no-op for the flat-file backend. Entry curation is agent-driven
 // and happens after task completion via Write calls.
 func (p *FlatFileProvider) Compress(_ context.Context) error { return nil }
@@ -166,6 +218,10 @@ func marshalEntry(e Entry) string {
 	fmt.Fprintf(&b, "tags: [%s]\n", strings.Join(e.Tags, ", "))
 	fmt.Fprintf(&b, "created: %s\n", e.CreatedAt.Format(time.RFC3339))
 	fmt.Fprintf(&b, "updated: %s\n", e.UpdatedAt.Format(time.RFC3339))
+	if e.Pinned {
+		// Only emit when true so existing files stay byte-identical.
+		b.WriteString("pinned: true\n")
+	}
 	b.WriteString("---\n\n")
 	fmt.Fprintf(&b, "# %s\n\n", e.Title)
 	b.WriteString(strings.TrimRight(e.Body, "\n"))
@@ -212,6 +268,8 @@ func parseEntry(s string) (Entry, bool) {
 			e.CreatedAt, _ = time.Parse(time.RFC3339, v)
 		case "updated":
 			e.UpdatedAt, _ = time.Parse(time.RFC3339, v)
+		case "pinned":
+			e.Pinned = strings.EqualFold(strings.TrimSpace(v), "true")
 		}
 	}
 	if e.ID == "" {

@@ -100,7 +100,8 @@ func RunInteractive() error {
 	}
 	setKeys(km)
 
-	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI)
+	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI).
+		WithMemoryController(engine)
 	p := tea.NewProgram(
 		m,
 		tea.WithAltScreen(),
