@@ -130,11 +130,17 @@ func NewManager(opts ...Option) *Manager {
 }
 
 // Report runs every required probe and returns the aggregated status.
+//
+// AllGranted is computed strictly from the Prober results: a permission
+// counts as "satisfied" when its state is Granted or NotApplicable. We
+// deliberately do not short-circuit on runtime.GOOS so test injection of a
+// stub Prober behaves identically across platforms. The default non-darwin
+// Prober returns NotApplicable for every permission, which keeps the gate
+// open on Linux/Windows hosts where TCC does not exist.
 func (m *Manager) Report(ctx context.Context) contracts.ComputerUsePermissionReport {
 	required := RequiredPermissions()
 	statuses := make([]contracts.ComputerUsePermissionStatus, 0, len(required))
 	allGranted := true
-	platformApplies := runtime.GOOS == "darwin"
 	for _, p := range required {
 		status := m.prober.Probe(ctx, p)
 		if status.SettingsURL == "" {
@@ -147,16 +153,13 @@ func (m *Manager) Report(ctx context.Context) contracts.ComputerUsePermissionRep
 			status.Permission = p
 		}
 		statuses = append(statuses, status)
-		if status.State != contracts.ComputerUsePermissionStateGranted {
-			if !(status.State == contracts.ComputerUsePermissionStateNotApplicable) {
-				allGranted = false
-			}
+		switch status.State {
+		case contracts.ComputerUsePermissionStateGranted,
+			contracts.ComputerUsePermissionStateNotApplicable:
+			// satisfied — leave allGranted as-is
+		default:
+			allGranted = false
 		}
-	}
-	if !platformApplies {
-		// On non-darwin every required permission is reported NotApplicable so
-		// we treat the gate as open: nothing to grant.
-		allGranted = true
 	}
 	// Stable ordering by permission name for deterministic output.
 	sort.SliceStable(statuses, func(i, j int) bool {
