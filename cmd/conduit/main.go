@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jabreeflor/conduit/internal/computeruse"
 	"github.com/jabreeflor/conduit/internal/endpoint"
 	evalpkg "github.com/jabreeflor/conduit/internal/eval"
 	"github.com/jabreeflor/conduit/internal/localmodel"
@@ -45,6 +46,12 @@ func main() {
 		case "usage":
 			if err := usage.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit usage: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "computer-use":
+			if err := computeruse.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit computer-use: %v\n", err)
 				os.Exit(1)
 			}
 			return
