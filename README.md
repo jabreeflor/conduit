@@ -169,6 +169,39 @@ make test       # unit tests
 make release    # darwin arm64/amd64 release binaries in dist/
 ```
 
+## MCP Servers
+
+Conduit speaks the Model Context Protocol both ways: it exposes its built-in tools as an MCP server (`conduit mcp serve`) and connects to external MCP servers configured in `~/.conduit/mcp.yaml` (or per-project `.conduit/mcp.yaml`).
+
+```sh
+conduit mcp list                       # show configured servers + tool counts
+conduit mcp serve [addr]                # expose Conduit tools over MCP/HTTP
+conduit mcp call <server> <tool> k=v…   # one-shot tool invocation
+```
+
+### Computer use (PRD §6.8)
+
+Conduit ships a built-in integration with [`open-codex-computer-use`](https://github.com/iFurySt/open-codex-computer-use) for macOS Accessibility + Screen Recording. It is **off by default**. Enable it in your root config:
+
+```yaml
+# ~/.conduit/config.yaml
+computer_use:
+  enabled: true
+  # command: open-computer-use   # optional override
+  # args: [mcp]                  # optional override
+  # allowlist: [list_apps, get_app_state, press_key]
+```
+
+Then install the upstream binary and grant macOS permissions on first run:
+
+```sh
+npm i -g open-computer-use
+open-computer-use            # one-time: grant Accessibility + Screen Recording
+conduit mcp list             # should show "open-computer-use" with ok status
+```
+
+The integration is gated on `runtime.GOOS == "darwin"` so non-macOS dev environments stay untouched even if the flag is enabled. User-supplied entries with the same name in `mcp.yaml` always win, so you can pin a custom binary path or transport without losing the rest of your MCP config.
+
 ## Roadmap
 
 Conduit is shipped in phases. See [docs/PRD.md § 19](./docs/PRD.md) for the full roadmap.

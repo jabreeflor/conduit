@@ -56,6 +56,52 @@ func TestTransportKindConstants(t *testing.T) {
 	}
 }
 
+func TestRegisterBuiltinServer_AppendsAndDeduplicates(t *testing.T) {
+	t.Cleanup(mcp.ResetBuiltins)
+	mcp.ResetBuiltins()
+
+	mcp.RegisterBuiltinServer(mcp.ServerEntry{
+		Name:      "builtin-a",
+		Transport: mcp.TransportStdio,
+		Command:   "a",
+	})
+	// Re-register with the same name should replace, not duplicate.
+	mcp.RegisterBuiltinServer(mcp.ServerEntry{
+		Name:      "builtin-a",
+		Transport: mcp.TransportStdio,
+		Command:   "a-v2",
+	})
+	mcp.RegisterBuiltinServer(mcp.ServerEntry{
+		Name:      "builtin-b",
+		Transport: mcp.TransportStdio,
+		Command:   "b",
+	})
+
+	cfg, err := mcp.LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+
+	var seenA, seenB bool
+	for _, s := range cfg.Servers {
+		switch s.Name {
+		case "builtin-a":
+			if seenA {
+				t.Errorf("builtin-a registered twice")
+			}
+			if s.Command != "a-v2" {
+				t.Errorf("builtin-a not replaced: %q", s.Command)
+			}
+			seenA = true
+		case "builtin-b":
+			seenB = true
+		}
+	}
+	if !seenA || !seenB {
+		t.Errorf("expected both builtins in config; seenA=%v seenB=%v", seenA, seenB)
+	}
+}
+
 // TestConfigServerAllowlist verifies that Allowlist field is parsed correctly.
 func TestConfigServerAllowlist(t *testing.T) {
 	dir := t.TempDir()

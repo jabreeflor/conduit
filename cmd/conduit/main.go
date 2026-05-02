@@ -7,6 +7,8 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jabreeflor/conduit/internal/computeruse"
+	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/endpoint"
 	evalpkg "github.com/jabreeflor/conduit/internal/eval"
 	"github.com/jabreeflor/conduit/internal/localmodel"
@@ -18,7 +20,25 @@ import (
 
 var version = "dev"
 
+// registerBuiltinMCPServers wires Conduit subsystems that ship their own
+// MCP servers (PRD §6.8 computer use today; more later) into the MCP
+// runtime. User-supplied mcp.yaml entries always override these.
+func registerBuiltinMCPServers() {
+	cfg, err := config.Load()
+	if err != nil {
+		// Config errors are surfaced when callers actually need a
+		// section — don't fail startup on a bad config here.
+		return
+	}
+	cu := computeruse.FromRootConfig(cfg)
+	if entry, ok := cu.ServerEntry(); ok {
+		mcp.RegisterBuiltinServer(entry)
+	}
+}
+
 func main() {
+	registerBuiltinMCPServers()
+
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "--version", "version":
