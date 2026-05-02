@@ -16,6 +16,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
+	"github.com/jabreeflor/conduit/internal/sandbox"
 	"github.com/jabreeflor/conduit/internal/sessions"
 	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tools"
@@ -100,6 +101,12 @@ func main() {
 		case "agents", "agents-create", "agents-update", "agents-delete":
 			if err := runAgentsCLI(os.Args[1], os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit %s: %v\n", os.Args[1], err)
+				os.Exit(1)
+			}
+			return
+		case "sandbox":
+			if err := sandbox.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit sandbox: %v\n", err)
 				os.Exit(1)
 			}
 			return

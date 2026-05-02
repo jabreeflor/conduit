@@ -151,6 +151,10 @@ type Model struct {
 	sessions        *sessions.Dispatcher
 	sessionsBrowser *SessionsBrowser
 	activeSessionID string
+
+	// activeSandbox is the currently-selected sandbox name (PRD §15.7).
+	// Empty means no sandbox is selected; the status bar omits the segment.
+	activeSandbox string
 }
 
 func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
@@ -180,6 +184,13 @@ func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLo
 // need a live provider.
 func (m Model) WithMemoryController(c MemoryController) Model {
 	m.memoryController = c
+	return m
+}
+
+// WithActiveSandbox sets the active-sandbox name shown in the status bar
+// (PRD §15.7). Pass an empty string to hide the segment.
+func (m Model) WithActiveSandbox(name string) Model {
+	m.activeSandbox = name
 	return m
 }
 
