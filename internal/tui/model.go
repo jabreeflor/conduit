@@ -7,6 +7,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/keybindings"
+	"github.com/jabreeflor/conduit/internal/multimodal"
 	"github.com/jabreeflor/conduit/internal/sessions"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -69,8 +70,9 @@ const (
 )
 
 type message struct {
-	role role
-	text string
+	role        role
+	text        string
+	attachments []multimodal.Attachment
 }
 
 // ── key bindings ─────────────────────────────────────────────────────────────
@@ -121,6 +123,13 @@ var keys = buildKeyMap(keybindings.Default())
 // setKeys swaps the global keymap. Called by the TUI entry point after
 // loading ~/.conduit/keybindings.json.
 func setKeys(km *keybindings.Keymap) { keys = buildKeyMap(km) }
+
+// parseSubmit extracts @image/@pdf directives from raw input, returning the
+// cleaned text and loaded attachments. Extracted so the Update handler and
+// tests share the same code path.
+func parseSubmit(text string) (cleanText string, atts []multimodal.Attachment, err error) {
+	return multimodal.ParseAndLoad(text)
+}
 
 // ── model ─────────────────────────────────────────────────────────────────────
 
@@ -294,7 +303,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					m = m.handleSessionsSlash(text)
 					return m, nil
 				}
-				m.messages = append(m.messages, message{role: roleUser, text: text})
+				cleanText, atts, parseErr := parseSubmit(text)
+				if parseErr != nil {
+					m.messages = append(m.messages, message{role: roleAgent, text: "attachment error: " + parseErr.Error()})
+					m.input.Reset()
+					m = m.refreshContent()
+					return m, nil
+				}
+				displayText := cleanText
+				if displayText == "" && len(atts) > 0 {
+					displayText = "(attached files)"
+				}
+				m.messages = append(m.messages, message{role: roleUser, text: displayText, attachments: atts})
 				m.input.Reset()
 				m.streaming = true
 				m.streamBuffer = ""

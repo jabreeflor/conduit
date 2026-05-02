@@ -29,9 +29,11 @@ type Request struct {
 
 // Input is an inference request payload.
 type Input struct {
-	Type InputType
-	Ref  string
-	Text string
+	Type      InputType
+	Ref       string
+	Text      string
+	Data      string // base64-encoded content for image and PDF inputs
+	MediaType string // MIME type, e.g. "image/png", "application/pdf"
 }
 
 // Response is the normalized provider result returned by the router.
