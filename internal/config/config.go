@@ -25,6 +25,18 @@ type Config struct {
 	Costs       CostConfig                     `yaml:"costs"`
 	Credentials map[string]ProviderCredentials `yaml:"credentials"`
 	ComputerUse ComputerUseConfig              `yaml:"computer_use"`
+	WebSearch   WebSearchConfig                `yaml:"web_search"`
+}
+
+// WebSearchConfig controls the built-in web search tool (PRD §6.25.7).
+type WebSearchConfig struct {
+	// Mode is "cached" (default), "live", or "disabled".
+	Mode string `yaml:"mode"`
+	// CacheDir overrides the default ~/.conduit/cache/websearch/ path.
+	CacheDir string `yaml:"cache_dir,omitempty"`
+	// BodyLimit caps response body bytes retained per result. Zero means the
+	// package default (8192).
+	BodyLimit int `yaml:"body_limit,omitempty"`
 }
 
 // ComputerUseConfig controls the open-codex-computer-use MCP integration
