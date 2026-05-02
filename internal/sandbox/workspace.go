@@ -37,6 +37,15 @@ import (
 // (PRD §15.5: 10 GiB).
 const DefaultQuotaBytes int64 = 10 * 1024 * 1024 * 1024
 
+// DefaultMemoryBytes is the default memory ceiling for processes inside the
+// sandbox (PRD §15.7: 4 GiB). 0 means "unset / inherit defaults at runtime".
+const DefaultMemoryBytes int64 = 4 * 1024 * 1024 * 1024
+
+// DefaultCPULimit is the default CPU share. 0 means "unconstrained"; values
+// are interpreted as fractional cores (1.0 = one full core, 2.5 = two and a
+// half cores) by whoever enforces the limit at runtime.
+const DefaultCPULimit float64 = 0
+
 // Permissions used across the workspace tree.
 const (
 	dirPerm        fs.FileMode = 0o755
@@ -48,6 +57,7 @@ const (
 	configFileName = "config.yaml"
 	lockFileName   = ".lock"
 	sandboxesDir   = "sandboxes"
+	activeFileName = "active"
 )
 
 var nameRegex = regexp.MustCompile(`^[a-z0-9][a-z0-9._-]{0,63}$`)
@@ -63,6 +73,8 @@ var (
 	// ErrLocked is returned when a session-scoped operation cannot acquire the
 	// per-workspace file lock.
 	ErrLocked = errors.New("sandbox workspace is locked by another session")
+	// ErrNoActive is returned by Active when no sandbox has been selected.
+	ErrNoActive = errors.New("no active sandbox set")
 )
 
 // Subdir identifies one of the canonical sub-paths inside a workspace.
@@ -87,20 +99,30 @@ var allSubdirs = []Subdir{
 	SubdirTmp,
 }
 
-// CreateOptions controls Create. A zero CreateOptions yields a 10 GiB quota.
+// CreateOptions controls Create. A zero CreateOptions yields the default
+// 10 GiB disk quota and 4 GiB memory limit; CPU is unconstrained.
 type CreateOptions struct {
 	// QuotaBytes is the disk quota applied to the workspace. Values <= 0
 	// fall back to DefaultQuotaBytes.
 	QuotaBytes int64
+	// MemoryBytes is the per-sandbox process memory ceiling. Values <= 0
+	// fall back to DefaultMemoryBytes.
+	MemoryBytes int64
+	// CPULimit is the CPU allowance expressed in fractional cores (1.0 =
+	// one full core). Values <= 0 mean unconstrained.
+	CPULimit float64
 }
 
 // WorkspaceInfo is a lightweight directory-listing record returned by List.
 type WorkspaceInfo struct {
-	Name       string    `json:"name"`
-	Path       string    `json:"path"`
-	CreatedAt  time.Time `json:"created_at"`
-	LastUsedAt time.Time `json:"last_used_at"`
-	QuotaBytes int64     `json:"quota_bytes"`
+	Name        string    `json:"name"`
+	Path        string    `json:"path"`
+	CreatedAt   time.Time `json:"created_at"`
+	LastUsedAt  time.Time `json:"last_used_at"`
+	QuotaBytes  int64     `json:"quota_bytes"`
+	MemoryBytes int64     `json:"memory_bytes"`
+	CPULimit    float64   `json:"cpu_limit"`
+	Active      bool      `json:"active"`
 }
 
 // UsageReport summarises bytes-on-disk for one workspace, broken down by
@@ -143,10 +165,12 @@ type CleanupReport struct {
 // workspaceConfig is the on-disk YAML schema for config.yaml. Field tags use
 // snake_case so the file is friendly to manual edits.
 type workspaceConfig struct {
-	Name       string    `yaml:"name"`
-	CreatedAt  time.Time `yaml:"created_at"`
-	LastUsedAt time.Time `yaml:"last_used_at"`
-	QuotaBytes int64     `yaml:"quota_bytes"`
+	Name        string    `yaml:"name"`
+	CreatedAt   time.Time `yaml:"created_at"`
+	LastUsedAt  time.Time `yaml:"last_used_at"`
+	QuotaBytes  int64     `yaml:"quota_bytes"`
+	MemoryBytes int64     `yaml:"memory_bytes,omitempty"`
+	CPULimit    float64   `yaml:"cpu_limit,omitempty"`
 }
 
 // Manager is the entry point: Create / Open / List / Destroy named workspaces.
@@ -220,13 +244,23 @@ func (m *Manager) Create(name string, opts CreateOptions) (*Workspace, error) {
 	if quota <= 0 {
 		quota = DefaultQuotaBytes
 	}
+	memory := opts.MemoryBytes
+	if memory <= 0 {
+		memory = DefaultMemoryBytes
+	}
+	cpu := opts.CPULimit
+	if cpu < 0 {
+		cpu = DefaultCPULimit
+	}
 
 	now := time.Now().UTC()
 	cfg := workspaceConfig{
-		Name:       name,
-		CreatedAt:  now,
-		LastUsedAt: now,
-		QuotaBytes: quota,
+		Name:        name,
+		CreatedAt:   now,
+		LastUsedAt:  now,
+		QuotaBytes:  quota,
+		MemoryBytes: memory,
+		CPULimit:    cpu,
 	}
 	if err := writeConfig(path, cfg); err != nil {
 		return nil, err
@@ -290,8 +324,17 @@ func (m *Manager) List() ([]WorkspaceInfo, error) {
 			info.CreatedAt = cfg.CreatedAt
 			info.LastUsedAt = cfg.LastUsedAt
 			info.QuotaBytes = cfg.QuotaBytes
+			info.MemoryBytes = cfg.MemoryBytes
+			info.CPULimit = cfg.CPULimit
 		}
 		out = append(out, info)
+	}
+
+	active, _ := m.Active()
+	for i := range out {
+		if out[i].Name == active {
+			out[i].Active = true
+		}
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
 	return out, nil
@@ -299,6 +342,9 @@ func (m *Manager) List() ([]WorkspaceInfo, error) {
 
 // Destroy removes the workspace tree. Returns ErrNotFound if the workspace
 // does not exist; the caller can errors.Is-test for idempotent teardown.
+//
+// If the destroyed sandbox was the active one, the active pointer is cleared
+// so subsequent CLI calls don't dereference a missing sandbox.
 func (m *Manager) Destroy(name string) error {
 	if err := validateName(name); err != nil {
 		return err
@@ -312,6 +358,9 @@ func (m *Manager) Destroy(name string) error {
 	}
 	if err := os.RemoveAll(path); err != nil {
 		return fmt.Errorf("remove workspace: %w", err)
+	}
+	if active, err := m.Active(); err == nil && active == name {
+		_ = m.ClearActive()
 	}
 	return nil
 }
@@ -344,6 +393,14 @@ func (w *Workspace) Root() string { return w.path }
 // Quota returns the configured disk quota in bytes.
 func (w *Workspace) Quota() int64 { return w.cfg.QuotaBytes }
 
+// MemoryLimit returns the configured per-sandbox memory ceiling in bytes.
+// 0 means no limit was recorded.
+func (w *Workspace) MemoryLimit() int64 { return w.cfg.MemoryBytes }
+
+// CPULimit returns the configured CPU allowance in fractional cores. 0 means
+// unconstrained.
+func (w *Workspace) CPULimit() float64 { return w.cfg.CPULimit }
+
 // SetQuota updates the workspace quota and persists the change to
 // config.yaml. quota must be > 0.
 func (w *Workspace) SetQuota(bytes int64) error {
@@ -351,6 +408,26 @@ func (w *Workspace) SetQuota(bytes int64) error {
 		return fmt.Errorf("quota must be positive, got %d", bytes)
 	}
 	w.cfg.QuotaBytes = bytes
+	return writeConfig(w.path, w.cfg)
+}
+
+// SetMemoryLimit updates the per-sandbox memory ceiling and persists the
+// change. Pass 0 to clear the limit.
+func (w *Workspace) SetMemoryLimit(bytes int64) error {
+	if bytes < 0 {
+		return fmt.Errorf("memory limit must be non-negative, got %d", bytes)
+	}
+	w.cfg.MemoryBytes = bytes
+	return writeConfig(w.path, w.cfg)
+}
+
+// SetCPULimit updates the per-sandbox CPU allowance (fractional cores) and
+// persists the change. Pass 0 to clear the limit.
+func (w *Workspace) SetCPULimit(cores float64) error {
+	if cores < 0 {
+		return fmt.Errorf("cpu limit must be non-negative, got %f", cores)
+	}
+	w.cfg.CPULimit = cores
 	return writeConfig(w.path, w.cfg)
 }
 
