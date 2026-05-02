@@ -13,3 +13,4 @@ build/
 target/
 .conduit/
 .worktrees/
+conduit
