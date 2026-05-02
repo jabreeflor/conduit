@@ -579,3 +579,39 @@ type SkillConflict struct {
 	Winner string
 	Losers []string
 }
+
+// CodingTier groups coding-agent tools by the host capabilities they need.
+// The tier model exists so `conduit code` can ship a safe default tool set
+// (read/search/web) and let users opt into write or shell access without
+// touching the underlying tools.Pipeline policy file.
+type CodingTier string
+
+const (
+	CodingTierAlways        CodingTier = "always"
+	CodingTierRequiresWrite CodingTier = "requires_write"
+	CodingTierRequiresShell CodingTier = "requires_shell"
+)
+
+// CodingPermissions captures the per-session coding-agent capability flags
+// negotiated at REPL start. Whether a tool is registered with the pipeline
+// is decided here — once registered, normal tools.Pipeline policy applies.
+type CodingPermissions struct {
+	AllowWrite bool
+	AllowShell bool
+}
+
+// CodingSnapshotID is the opaque identifier returned by the session journal
+// after a turn is persisted. Callers treat it as a black box; the journal
+// owns the format (currently "snap-<RFC3339>-<random>").
+type CodingSnapshotID string
+
+// CodingTurn is one entry in a coding REPL conversation, persisted to the
+// session journal. Role mirrors the OpenAI-style "user" | "assistant" |
+// "tool" labelling. SnapshotID is empty until the journal has flushed it.
+type CodingTurn struct {
+	Index      int
+	At         time.Time
+	Role       string
+	Content    string
+	SnapshotID CodingSnapshotID
+}
