@@ -7,6 +7,8 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/jabreeflor/conduit/internal/multimodal"
 )
 
 // ── layout ────────────────────────────────────────────────────────────────────
@@ -73,7 +75,15 @@ func (m Model) conversationContent() string {
 	for _, msg := range m.messages {
 		switch msg.role {
 		case roleUser:
-			sb.WriteString(styleUser.Render("you  ") + msg.text + "\n\n")
+			sb.WriteString(styleUser.Render("you  ") + msg.text)
+			if len(msg.attachments) > 0 {
+				chips := make([]string, len(msg.attachments))
+				for i, a := range msg.attachments {
+					chips[i] = styleDim.Render(multimodal.AttachmentLabel(a))
+				}
+				sb.WriteString(" " + strings.Join(chips, " "))
+			}
+			sb.WriteString("\n\n")
 		case roleAgent:
 			sb.WriteString(styleAgent.Render("conduit  ") + msg.text + "\n\n")
 		}
