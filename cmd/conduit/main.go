@@ -68,6 +68,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "computer-use":
+			if err := computeruse.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit computer-use: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 
