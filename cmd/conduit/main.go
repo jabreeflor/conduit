@@ -9,11 +9,13 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/computeruse"
 	"github.com/jabreeflor/conduit/internal/config"
+	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/endpoint"
 	evalpkg "github.com/jabreeflor/conduit/internal/eval"
 	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
+	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tui"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -71,6 +73,12 @@ func main() {
 		case "computer-use":
 			if err := computeruse.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit computer-use: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "skills":
+			if err := runSkillsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit skills: %v\n", err)
 				os.Exit(1)
 			}
 			return
@@ -237,4 +245,79 @@ func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
 	default:
 		return nil, false
 	}
+}
+
+// runSkillsCLI loads the skill registry on demand and dispatches the simple
+// list/lookup/search verbs. The CLI is intentionally thin — full task-start
+// integration lives in the agent loop, not here.
+func runSkillsCLI(args []string, stdout, stderr *os.File) error {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search> [args...]")
+		return flag.ErrHelp
+	}
+
+	registry, err := newSkillsRegistry()
+	if err != nil {
+		return err
+	}
+
+	switch args[0] {
+	case "list":
+		printSkillRows(stdout, registry.List())
+		return nil
+	case "lookup":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: conduit skills lookup <name>")
+		}
+		skill, ok := registry.Lookup(args[1])
+		if !ok {
+			fmt.Fprintln(stderr, "not found")
+			os.Exit(1)
+		}
+		fmt.Fprintln(stdout, skill.Body)
+		return nil
+	case "search":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: conduit skills search <query>")
+		}
+		printSkillRows(stdout, registry.Search(strings.Join(args[1:], " ")))
+		return nil
+	default:
+		return fmt.Errorf("unknown skills command %q", args[0])
+	}
+}
+
+func newSkillsRegistry() (*skills.Registry, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		// A missing home dir is unusual but should not break the CLI; the
+		// registry will simply have no personal/imported/bundled tiers.
+		home = ""
+	}
+	workspace, err := os.Getwd()
+	if err != nil {
+		workspace = ""
+	}
+	registry := skills.NewRegistry(skills.DefaultRoots(home, workspace))
+	if err := registry.Load([]skills.Adapter{skills.NewMarkdownAdapter()}); err != nil {
+		return nil, err
+	}
+	return registry, nil
+}
+
+func printSkillRows(out *os.File, list []contracts.Skill) {
+	for _, skill := range list {
+		fmt.Fprintf(out, "%s\t%s\t%s\n", skill.Tier, skill.Name, truncate(skill.Description, 80))
+	}
+}
+
+func truncate(s string, max int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= max {
+		return s
+	}
+	if max <= 1 {
+		return s[:max]
+	}
+	return s[:max-1] + "…"
 }
