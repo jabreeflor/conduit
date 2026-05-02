@@ -138,6 +138,15 @@ func (m Model) View() string {
 
 	statusBar := m.renderStatusBar()
 
+	// When the sessions browser is up, render it full-width in place of
+	// the conversation/context row. Status bar and input row stay so the
+	// user can still see model + cost and dismiss with esc/q.
+	if m.sessionsBrowser != nil {
+		browserPanel := styleActivePanel.Render(m.sessionsBrowser.View())
+		inputRow := styleDim.Render(" ↑/↓ navigate  enter:load  f:fork  r:replay  q/esc:close")
+		return lipgloss.JoinVertical(lipgloss.Left, statusBar, browserPanel, inputRow)
+	}
+
 	// When the memory inspector is open it takes over the main row entirely;
 	// the input row is hidden so its keystrokes don't bleed into the chat.
 	if m.inspectorOpen && m.inspector != nil {
@@ -171,9 +180,10 @@ func (m Model) renderMainRow() string {
 
 func (m Model) renderInputRow() string {
 	memKey := firstKey(keys.MemoryInspector, "ctrl+m")
-	help := fmt.Sprintf(" enter:send  ctrl+p:panel  %s:memory  x:expand  esc:quit", memKey)
+	sessKey := firstKey(keys.SessionBrowser, "ctrl+b")
+	help := fmt.Sprintf(" enter:send  ctrl+p:panel  %s:memory  %s:sessions  x:expand  esc:quit", memKey, sessKey)
 	if m.setup.Phase == "welcome" {
-		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  esc:quit"
+		help = fmt.Sprintf(" l:local setup  a:external api  enter:send  ctrl+p:panel  %s:sessions  esc:quit", sessKey)
 	}
 	help = styleDim.Render(help)
 	inputBox := stylePanel.Render(m.input.View())

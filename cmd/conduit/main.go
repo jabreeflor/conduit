@@ -16,6 +16,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
+	"github.com/jabreeflor/conduit/internal/sessions"
 	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tools"
 	"github.com/jabreeflor/conduit/internal/tui"
@@ -87,6 +88,12 @@ func main() {
 		case "code":
 			if err := runCodeCLI(context.Background(), os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit code: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "sessions":
+			if err := runSessionsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit sessions: %v\n", err)
 				os.Exit(1)
 			}
 			return
@@ -388,4 +395,24 @@ func truncate(s string, max int) string {
 		return s[:max]
 	}
 	return s[:max-1] + "…"
+}
+
+// runSessionsCLI dispatches `conduit sessions <verb>` to the same
+// dispatcher the TUI slash commands use, so behaviour stays consistent
+// across surfaces. Replay is intentionally disabled at the CLI for now —
+// no Responder is injected here because the live provider client lands
+// in a follow-up; users who want CLI replay should use `conduit eval
+// replay`, which already supports it.
+func runSessionsCLI(args []string, stdout, stderr *os.File) error {
+	store, err := sessions.NewStore("")
+	if err != nil {
+		return err
+	}
+	d := &sessions.Dispatcher{Store: store}
+	res, err := d.Dispatch(args)
+	if err != nil {
+		return err
+	}
+	sessions.WriteResult(stdout, res)
+	return nil
 }

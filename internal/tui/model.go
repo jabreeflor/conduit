@@ -7,6 +7,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/keybindings"
+	"github.com/jabreeflor/conduit/internal/sessions"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -85,6 +86,7 @@ type keyMap struct {
 	SetupLocal      key.Binding
 	ExternalAPI     key.Binding
 	MemoryInspector key.Binding
+	SessionBrowser  key.Binding
 }
 
 // buildKeyMap turns a resolved keybindings.Keymap into the bubbles/key bindings
@@ -108,6 +110,7 @@ func buildKeyMap(km *keybindings.Keymap) keyMap {
 		SetupLocal:      binding(keybindings.CommandTUISetupLocal, "set up local ai"),
 		ExternalAPI:     binding(keybindings.CommandTUISetupAPI, "external api"),
 		MemoryInspector: binding(keybindings.CommandMemoryInspect, "memory inspector"),
+		SessionBrowser:  binding(keybindings.CommandTUISessionBrowser, "session tree browser"),
 	}
 }
 
@@ -141,6 +144,13 @@ type Model struct {
 	inspector        *MemoryInspector
 	inspectorOpen    bool
 	memoryController MemoryController // backing engine for inspector actions; may be nil in tests
+
+	// Sessions wiring (PRD §6.13). Optional — when nil, /sessions slash
+	// commands surface a friendly error instead of crashing. The browser is
+	// opened via CommandTUISessionBrowser (ctrl+b by default).
+	sessions        *sessions.Dispatcher
+	sessionsBrowser *SessionsBrowser
+	activeSessionID string
 }
 
 func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
@@ -188,6 +198,17 @@ func tick() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// When the sessions browser is open, route key/window events to it
+	// first; everything else falls through to the normal model update.
+	if m.sessionsBrowser != nil {
+		next, cmd := m.sessionsBrowser.Update(msg)
+		m.sessionsBrowser = &next
+		if next.IsClosed() {
+			m = m.handleSessionsBrowserClose(next.Selected())
+		}
+		return m, cmd
+	}
+
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -213,6 +234,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, nil
 			}
 			return m, tea.Quit
+		case key.Matches(msg, keys.SessionBrowser):
+			m = m.openSessionsBrowser()
+			return m, nil
 		case key.Matches(msg, keys.MemoryInspector):
 			m = m.openMemoryInspector()
 			return m, nil
@@ -254,6 +278,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		case key.Matches(msg, keys.Submit):
 			if text := strings.TrimSpace(m.input.Value()); text != "" {
+				if strings.HasPrefix(text, "/sessions") {
+					m.input.Reset()
+					m = m.handleSessionsSlash(text)
+					return m, nil
+				}
 				m.messages = append(m.messages, message{role: roleUser, text: text})
 				m.input.Reset()
 				m.streaming = true

@@ -59,11 +59,12 @@ const (
 	// TUI-internal commands — surfaced here so users can rebind them too.
 	// They aren't in the PRD's headline list but are the only existing TUI
 	// shortcuts, and giving them stable IDs is the whole point of this issue.
-	CommandTUITogglePanel = Command("tui.togglePanel")
-	CommandTUIExpandTool  = Command("tui.expandTool")
-	CommandTUISubmit      = Command("tui.submit")
-	CommandTUISetupLocal  = Command("setup.local")
-	CommandTUISetupAPI    = Command("setup.externalAPI")
+	CommandTUITogglePanel    = Command("tui.togglePanel")
+	CommandTUIExpandTool     = Command("tui.expandTool")
+	CommandTUISubmit         = Command("tui.submit")
+	CommandTUISetupLocal     = Command("setup.local")
+	CommandTUISetupAPI       = Command("setup.externalAPI")
+	CommandTUISessionBrowser = Command("tui.sessionBrowser")
 )
 
 // AllCommands is the registry of canonical command IDs. Order matters for
@@ -85,6 +86,7 @@ var AllCommands = []Command{
 	CommandTUISubmit,
 	CommandTUISetupLocal,
 	CommandTUISetupAPI,
+	CommandTUISessionBrowser,
 }
 
 // IsKnown reports whether c is in the canonical registry.
@@ -129,6 +131,9 @@ func Defaults() []Binding {
 		{Key: "enter", Command: CommandTUISubmit},
 		{Key: "l", Command: CommandTUISetupLocal},
 		{Key: "a", Command: CommandTUISetupAPI},
+		// PRD §6.13 session tree browser. ctrl+b avoids collision with
+		// session.fork on mod+s, which has a different `when` scope.
+		{Key: "ctrl+b", Command: CommandTUISessionBrowser},
 
 		// Two paths to quit because the existing TUI accepts both — and the
 		// PRD's command list explicitly includes conduit.quit.
