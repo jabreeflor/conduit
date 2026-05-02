@@ -171,9 +171,9 @@ func (m Model) renderMainRow() string {
 }
 
 func (m Model) renderInputRow() string {
-	help := " enter:send  ctrl+p:panel  ctrl+s:sessions  x:expand  esc:quit"
+	help := " enter:send  ctrl+p:panel  ctrl+b:sessions  x:expand  esc:quit"
 	if m.setup.Phase == "welcome" {
-		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  ctrl+s:sessions  esc:quit"
+		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  ctrl+b:sessions  esc:quit"
 	}
 	help = styleDim.Render(help)
 	inputBox := stylePanel.Render(m.input.View())

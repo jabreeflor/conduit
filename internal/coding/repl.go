@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/replytags"
 	"github.com/jabreeflor/conduit/internal/tools"
 )
 
@@ -61,6 +62,14 @@ type REPL struct {
 	// long structured responses without enabling runaway loops on a
 	// misbehaving provider.
 	MaxAutoContinue int
+
+	// TagSink, if non-nil, receives structured reply tags ([[silent]],
+	// [[voice: ...]], [[media: ...]], [[heartbeat]], [[canvas: ...]]) parsed
+	// out of the assistant stream. Tag bytes are filtered from Out; only
+	// plain text reaches the user. The session journal still records the
+	// full unfiltered turn so replays can re-dispatch tags. Leave nil to
+	// keep the legacy passthrough behavior. See PRD §6.14.
+	TagSink func(replytags.Event)
 }
 
 // Run drives the read/stream/append loop until the input is exhausted or
@@ -127,10 +136,40 @@ func (r *REPL) streamAssistant(ctx context.Context, prompt string, isContinuatio
 	current := prompt
 	for {
 		var assistantBuf strings.Builder
+
+		// When a TagSink is wired in, deltas flow through the reply-tag
+		// parser so [[silent]] / [[voice: ...]] / etc. never reach the
+		// terminal verbatim. The raw stream is still buffered into
+		// assistantBuf for the session journal.
+		var tagParser *replytags.Parser
+		var silenced bool
+		if r.TagSink != nil {
+			tagParser = replytags.New(replytags.Sink{
+				Text: func(s string) {
+					if !silenced {
+						fmt.Fprint(r.Out, s)
+					}
+				},
+				Tag: func(ev replytags.Event) {
+					if ev.Kind == replytags.KindSilent {
+						silenced = true
+					}
+					r.TagSink(ev)
+				},
+			})
+		}
+
 		full, finish, err := r.Streamer.Stream(ctx, current, func(delta string) {
 			assistantBuf.WriteString(delta)
+			if tagParser != nil {
+				_, _ = tagParser.Write(delta)
+				return
+			}
 			fmt.Fprint(r.Out, delta)
 		})
+		if tagParser != nil {
+			tagParser.Close()
+		}
 		if err != nil {
 			return err
 		}

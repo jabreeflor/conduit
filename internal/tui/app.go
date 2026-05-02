@@ -4,12 +4,14 @@ package tui
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/core"
+	"github.com/jabreeflor/conduit/internal/keybindings"
 	"github.com/jabreeflor/conduit/internal/sessions"
 )
 
@@ -86,6 +88,18 @@ func RunInteractive() error {
 	if err != nil {
 		return err
 	}
+
+	// Resolve the user keymap before constructing the model so input handlers
+	// dispatch on the merged defaults+overrides table from the first frame.
+	km, warnings, err := keybindings.Load()
+	if err != nil {
+		log.Printf("keybindings: %v (using defaults)", err)
+		km = keybindings.Default()
+	}
+	for _, w := range warnings {
+		log.Printf("keybindings: %s", w)
+	}
+	setKeys(km)
 
 	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI)
 	// Best-effort sessions wiring: a missing home dir is non-fatal and just
