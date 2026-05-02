@@ -10,6 +10,7 @@ import (
 
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/tools"
+	"github.com/jabreeflor/conduit/internal/tools/websearch"
 )
 
 // TieredTool wraps a tools.Tool with the coding tier that controls whether
@@ -45,28 +46,30 @@ func RegisterCodingTools(base []TieredTool, perms contracts.CodingPermissions) [
 	return out
 }
 
-// DefaultCodingTools returns the PRD §6.24.4 coding tool set as stubs.
-// Real runners arrive in follow-up PRs; the stub layer exists so the tier
-// gating, REPL wiring, and pipeline integration can be exercised end-to-end
-// without blocking on per-tool implementation work.
+// DefaultCodingTools returns the PRD §6.24.4 coding tool set.
+// web_search is fully implemented (PRD §6.25.7); remaining tools are stubs
+// whose real runners arrive in follow-up PRs.
 func DefaultCodingTools() []TieredTool {
-	always := []string{
+	alwaysStubs := []string{
 		"list_dir",
 		"read_file",
 		"glob_search",
 		"grep_search",
 		"web_fetch",
-		"web_search",
 		"tool_search",
 		"sleep",
 	}
 	requiresWrite := []string{"write_file", "edit_file", "notebook_edit"}
 	requiresShell := []string{"bash"}
 
-	out := make([]TieredTool, 0, len(always)+len(requiresWrite)+len(requiresShell))
-	for _, name := range always {
+	out := make([]TieredTool, 0, len(alwaysStubs)+1+len(requiresWrite)+len(requiresShell))
+	for _, name := range alwaysStubs {
 		out = append(out, newStubTool(name, contracts.CodingTierAlways))
 	}
+	out = append(out, TieredTool{
+		Tool: websearch.New(websearch.DefaultConfig()),
+		Tier: contracts.CodingTierAlways,
+	})
 	for _, name := range requiresWrite {
 		out = append(out, newStubTool(name, contracts.CodingTierRequiresWrite))
 	}
@@ -74,6 +77,19 @@ func DefaultCodingTools() []TieredTool {
 		out = append(out, newStubTool(name, contracts.CodingTierRequiresShell))
 	}
 	return out
+}
+
+// DefaultCodingToolsWithConfig returns DefaultCodingTools with the web_search
+// tool configured from cfg instead of the package defaults.
+func DefaultCodingToolsWithConfig(wsCfg websearch.Config) []TieredTool {
+	tools := DefaultCodingTools()
+	for i, t := range tools {
+		if t.Tool.Name == "web_search" {
+			tools[i].Tool = websearch.New(wsCfg)
+			break
+		}
+	}
+	return tools
 }
 
 func newStubTool(name string, tier contracts.CodingTier) TieredTool {
