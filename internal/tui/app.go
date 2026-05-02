@@ -12,6 +12,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/core"
 	"github.com/jabreeflor/conduit/internal/keybindings"
+	"github.com/jabreeflor/conduit/internal/sandbox"
 	"github.com/jabreeflor/conduit/internal/sessions"
 )
 
@@ -102,7 +103,8 @@ func RunInteractive() error {
 	setKeys(km)
 
 	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI).
-		WithMemoryController(engine)
+		WithMemoryController(engine).
+		WithActiveSandbox(resolveActiveSandbox())
 	// Best-effort sessions wiring (PRD §6.13): a missing home dir is
 	// non-fatal and just disables /sessions until a store is reachable.
 	// The Responder is left nil because the live provider client lands in
@@ -117,6 +119,18 @@ func RunInteractive() error {
 	)
 	_, err = p.Run()
 	return err
+}
+
+// resolveActiveSandbox reads the persisted active-sandbox pointer (PRD §15.7).
+// Returns "" when no sandbox is set so the status bar omits the segment;
+// errors are intentionally swallowed because a missing pointer is not a
+// startup failure.
+func resolveActiveSandbox() string {
+	name, err := sandbox.NewManager("").Active()
+	if err != nil {
+		return ""
+	}
+	return name
 }
 
 func formatExternalAPIOptions(options []contracts.ExternalAPIOption) string {

@@ -163,10 +163,15 @@ func (m Model) View() string {
 func (m Model) renderStatusBar() string {
 	mod := styleActiveModel.Render(m.activeModel)
 	cost := styleCost.Render(fmt.Sprintf("$%.4f", m.sessionCost))
-	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(mod)-lipgloss.Width(cost)-6))
-	return styleStatusBar.Width(m.width).Render(
-		fmt.Sprintf(" %s  %s%s", mod, cost, gap),
-	)
+
+	left := fmt.Sprintf(" %s  %s", mod, cost)
+	if m.activeSandbox != "" {
+		sandbox := styleActiveModel.Render("⛶ " + m.activeSandbox)
+		left = fmt.Sprintf(" %s  %s  %s", mod, sandbox, cost)
+	}
+
+	gap := strings.Repeat(" ", max(0, m.width-lipgloss.Width(left)-2))
+	return styleStatusBar.Width(m.width).Render(left + gap)
 }
 
 func (m Model) renderMainRow() string {
