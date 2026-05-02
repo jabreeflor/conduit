@@ -543,3 +543,39 @@ type ComputerUsePermissionReport struct {
 	AllGranted  bool                          `json:"all_granted"`
 	GeneratedAt time.Time                     `json:"generated_at"`
 }
+
+// SkillTier names a precedence layer in the skill hierarchy.
+// Workspace skills always shadow personal, which shadow imported, which shadow
+// bundled — the explicit ordering keeps user/team customization wins free of
+// runtime config.
+type SkillTier string
+
+const (
+	SkillTierWorkspace SkillTier = "workspace"
+	SkillTierPersonal  SkillTier = "personal"
+	SkillTierImported  SkillTier = "imported"
+	SkillTierBundled   SkillTier = "bundled"
+)
+
+// Skill is one indexed instruction file the registry can hand to the agent at
+// task start. Path is the absolute on-disk source so surfaces can deep-link to
+// "open the underlying file" without re-resolving the hierarchy.
+type Skill struct {
+	Name        string
+	Tier        SkillTier
+	Description string
+	Tags        []string
+	Path        string
+	Body        string
+	UpdatedAt   time.Time
+}
+
+// SkillConflict records a name collision the registry resolved during Load.
+// It is non-fatal: surfaces (TUI/GUI later) display the loser paths so users
+// can rename or delete duplicates without an import sweep failing.
+type SkillConflict struct {
+	Name   string
+	Tier   SkillTier
+	Winner string
+	Losers []string
+}
