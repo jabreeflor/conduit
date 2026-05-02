@@ -13,6 +13,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/tui"
+	"github.com/jabreeflor/conduit/internal/usage"
 )
 
 var version = "dev"
@@ -38,6 +39,12 @@ func main() {
 		case "eval":
 			if err := runEvalCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit eval: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "usage":
+			if err := usage.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit usage: %v\n", err)
 				os.Exit(1)
 			}
 			return
