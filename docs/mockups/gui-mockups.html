@@ -1,0 +1,2350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Conduit GUI Mockups — Multi-Fidelity Review (Issue #44)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  /* ============================================================
+     CONDUIT DESIGN TOKENS (subset, dark mode)
+     Mirrors design/tokens.yaml. Kept inline so this file is
+     self-contained and reviewable without a build step.
+     ============================================================ */
+  :root {
+    /* indigo — surfaces & text */
+    --indigo-50:  #F5F6FA;
+    --indigo-100: #E2E5EE;
+    --indigo-200: #C0C5D6;
+    --indigo-300: #8C93AB;
+    --indigo-400: #5D637A;
+    --indigo-500: #3E4358;
+    --indigo-600: #2A2E40;
+    --indigo-700: #1A1D2C;
+    --indigo-800: #10131E;
+    --indigo-900: #0A0C14;
+    /* saffron — brand & agent active */
+    --saffron-100: #FFDB9C;
+    --saffron-200: #FFBE54;
+    --saffron-300: #F59E1F;
+    --saffron-400: #DC7E08;
+    --saffron-700: #673802;
+    --saffron-800: #412401;
+    /* cyan — info, links, thinking */
+    --cyan-100: #BCE6F3;
+    --cyan-200: #74CFE5;
+    --cyan-300: #36B3CF;
+    --cyan-700: #06414F;
+    --cyan-800: #042932;
+    /* violet — alt accent */
+    --violet-200: #B69BE4;
+    --violet-300: #8E6DD1;
+    --violet-700: #2C1D54;
+    /* status */
+    --green-300: #6FCB85;
+    --green-700: #155F2C;
+    --red-300:   #F38282;
+    --red-700:   #8C1414;
+
+    /* semantic — dark mode */
+    --surface-canvas:   var(--indigo-900);
+    --surface-primary:  var(--indigo-800);
+    --surface-elevated: var(--indigo-700);
+    --surface-sunken:   #000000;
+    --border-subtle:    var(--indigo-700);
+    --border-default:   var(--indigo-600);
+    --border-strong:    var(--indigo-500);
+    --border-focus:     var(--saffron-300);
+    --text-body:        var(--indigo-100);
+    --text-muted:       var(--indigo-300);
+    --text-subtle:      var(--indigo-400);
+    --text-link:        var(--cyan-300);
+    --brand:            var(--saffron-300);
+    --brand-on:         var(--indigo-900);
+    --agent-idle:       var(--indigo-400);
+    --agent-active:     var(--saffron-300);
+    --agent-thinking:   var(--cyan-300);
+
+    /* type */
+    --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
+    --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", monospace;
+    --font-display: ui-sans-serif, -apple-system, "SF Pro Display", "Inter", system-ui, sans-serif;
+
+    /* radius */
+    --r-sm: 4px; --r-md: 8px; --r-lg: 12px; --r-xl: 16px;
+
+    /* shadow */
+    --sh-sm: 0 1px 2px rgba(0,0,0,0.30);
+    --sh-md: 0 4px 8px rgba(0,0,0,0.35);
+    --sh-lg: 0 12px 24px rgba(0,0,0,0.40);
+    --focus-ring: 0 0 0 3px rgba(245,158,31,0.45);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: #06080d;
+    color: var(--text-body);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* ============================================================
+     PAGE CHROME — header + tab navigation
+     ============================================================ */
+  header.page {
+    padding: 28px 32px 18px;
+    border-bottom: 1px solid var(--indigo-800);
+    background: linear-gradient(180deg, #0a0d12 0%, #06080d 100%);
+  }
+  header.page h1 {
+    margin: 0 0 4px 0;
+    font: 600 22px var(--font-display);
+    letter-spacing: -0.01em;
+  }
+  header.page p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    max-width: 880px;
+    line-height: 1.55;
+  }
+  header.page p a { color: var(--cyan-300); text-decoration: none; }
+  header.page p a:hover { text-decoration: underline; }
+  header.page .meta {
+    margin-top: 12px;
+    color: var(--text-subtle);
+    font: 11.5px var(--font-mono);
+  }
+
+  .tabs {
+    display: flex;
+    gap: 6px;
+    padding: 14px 32px 0;
+    border-bottom: 1px solid var(--indigo-800);
+    background: #06080d;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+  }
+  .tab {
+    appearance: none;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-bottom: none;
+    border-radius: var(--r-md) var(--r-md) 0 0;
+    padding: 10px 16px;
+    font: 500 13px var(--font-sans);
+    cursor: pointer;
+    transition: color 120ms ease, background 120ms ease, border-color 120ms ease;
+  }
+  .tab:hover { color: var(--text-body); }
+  .tab[aria-selected="true"] {
+    color: var(--text-body);
+    background: var(--surface-primary);
+    border-color: var(--indigo-700);
+    border-bottom: 1px solid var(--surface-primary);
+    margin-bottom: -1px;
+  }
+  .tab .badge {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 1px 7px;
+    font-size: 10.5px;
+    border-radius: 999px;
+    background: var(--indigo-700);
+    color: var(--text-muted);
+  }
+
+  .pane { display: none; padding: 28px 32px 80px; }
+  .pane[data-active="true"] { display: block; }
+
+  /* ============================================================
+     COMMON: section titles, intros, mockup frames, legends
+     ============================================================ */
+  .section-title {
+    margin: 8px 2px 12px;
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+  .section-title h2 {
+    font: 600 14px var(--font-sans);
+    letter-spacing: -0.005em;
+    margin: 0;
+    color: var(--text-body);
+  }
+  .section-title .num {
+    color: var(--text-subtle);
+    font: 600 12px var(--font-mono);
+    width: 28px;
+  }
+  .section-title .desc {
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+
+  .pane > .intro {
+    margin: 0 0 22px;
+    padding: 14px 16px;
+    border: 1px dashed var(--border-default);
+    border-radius: var(--r-md);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+    background: #0c1014;
+  }
+  .pane > .intro b { color: var(--text-body); }
+
+  .mockup {
+    background: var(--surface-primary);
+    border: 1px solid var(--border-default);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    box-shadow: var(--sh-sm), var(--sh-lg);
+  }
+  .mockup + .mockup { margin-top: 28px; }
+  .mockup-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border-default);
+    background: linear-gradient(180deg, var(--surface-elevated) 0%, var(--surface-primary) 100%);
+  }
+  .mockup-head .title {
+    font: 600 13px var(--font-sans);
+    color: var(--text-body);
+    letter-spacing: -0.005em;
+  }
+  .mockup-head .sub {
+    font: 12px var(--font-sans);
+    color: var(--text-muted);
+  }
+  .dots { display: inline-flex; gap: 6px; margin-right: 10px; vertical-align: middle; }
+  .dots i { width: 11px; height: 11px; border-radius: 50%; display: inline-block; background: var(--indigo-600); }
+  .dots i:nth-child(1) { background: #ff5f57; }
+  .dots i:nth-child(2) { background: #febc2e; }
+  .dots i:nth-child(3) { background: #28c840; }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 22px;
+    padding: 14px 16px;
+    border-top: 1px solid var(--border-default);
+    background: #0e1119;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+  .legend code {
+    color: var(--text-body);
+    background: var(--surface-elevated);
+    padding: 1px 6px;
+    border-radius: var(--r-sm);
+    font: 11.5px var(--font-mono);
+  }
+
+  .note {
+    margin: 6px 2px 0;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.55;
+  }
+  .note b { color: var(--text-body); }
+
+  /* ============================================================
+     MOCKUP CANVAS — the area inside each .mockup that holds the
+     actual screen rendering. Each fidelity overrides its look.
+     ============================================================ */
+  .canvas {
+    position: relative;
+    height: 560px;
+    overflow: hidden;
+  }
+  .canvas.tall { height: 720px; }
+  .canvas.short { height: 440px; }
+
+  /* ============================================================
+     FIDELITY 1: WIREFRAME
+     Dashed-border rectangles, monochrome gray, no fills, labels.
+     Industry-standard "Balsamiq / hand-sketch" style.
+     ============================================================ */
+  .wf .mockup { background: #fafafa; border-color: #d0d0d0; }
+  .wf .mockup-head { background: #ededed; border-color: #d0d0d0; }
+  .wf .mockup-head .title { color: #1a1a1a; }
+  .wf .mockup-head .sub { color: #5a5a5a; }
+  .wf .legend { background: #f4f4f4; border-color: #d0d0d0; color: #555; }
+  .wf .legend code { background: #e8e8e8; color: #1a1a1a; }
+  .wf .canvas { background: #fafafa; }
+  .wf .box {
+    border: 1.5px dashed #8a8a8a;
+    border-radius: 4px;
+    background: transparent;
+    color: #4a4a4a;
+    font: 500 12px var(--font-sans);
+    padding: 10px 12px;
+    position: absolute;
+  }
+  .wf .box .label {
+    display: inline-block;
+    background: #e8e8e8;
+    color: #1a1a1a;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font: 600 10.5px var(--font-mono);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+  .wf .box .ph {
+    color: #b8b8b8;
+    font-family: var(--font-mono);
+  }
+  .wf .box .desc {
+    color: #6a6a6a;
+    font-size: 11.5px;
+    margin-top: 6px;
+    line-height: 1.5;
+  }
+  .wf .box.solid { border-style: solid; border-color: #6a6a6a; }
+  .wf .box.heavy { border-width: 2px; border-color: #2a2a2a; color: #1a1a1a; }
+  .wf .x { /* cross-hatch placeholder for image / video */
+    background-image:
+      linear-gradient(45deg, transparent 49%, #c8c8c8 49%, #c8c8c8 51%, transparent 51%),
+      linear-gradient(-45deg, transparent 49%, #c8c8c8 49%, #c8c8c8 51%, transparent 51%);
+    background-size: 24px 24px;
+  }
+  .wf .pill {
+    display: inline-block;
+    border: 1.5px dashed #8a8a8a;
+    border-radius: 999px;
+    padding: 2px 10px;
+    font: 500 11px var(--font-sans);
+    color: #4a4a4a;
+  }
+  .wf .btn {
+    display: inline-block;
+    border: 1.5px solid #6a6a6a;
+    border-radius: 4px;
+    padding: 5px 11px;
+    font: 500 11.5px var(--font-sans);
+    color: #1a1a1a;
+    background: #f0f0f0;
+  }
+  .wf .arrow {
+    position: absolute;
+    border-top: 1.5px dashed #8a8a8a;
+  }
+  .wf .arrow.down { border-left: 1.5px dashed #8a8a8a; border-top: none; }
+
+  /* ============================================================
+     FIDELITY 2: GRAYSCALE
+     Fully styled layout, no hue. All grays. Establishes hierarchy
+     and weight before color decisions land.
+     ============================================================ */
+  .gs .canvas { background: #1a1d22; }
+  .gs .surface { background: #14171b; color: #cfd2d6; }
+  .gs .panel { background: #1f2329; }
+  .gs .elevated { background: #2a2e34; }
+  .gs .sunken { background: #0a0b0d; }
+  .gs .border { border: 1px solid #353a42; }
+  .gs .border-strong { border: 1px solid #4a4f57; }
+  .gs .text-body { color: #d6d9de; }
+  .gs .text-muted { color: #8d9199; }
+  .gs .text-subtle { color: #5e6168; }
+  .gs .accent { color: #ffffff; font-weight: 600; }
+  .gs .pill {
+    display: inline-block;
+    background: #2a2e34;
+    color: #d6d9de;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font: 500 11px var(--font-sans);
+    border: 1px solid #3a3f47;
+  }
+  .gs .btn {
+    display: inline-block;
+    background: #ffffff;
+    color: #0a0b0d;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font: 600 12px var(--font-sans);
+    border: none;
+  }
+  .gs .btn.ghost {
+    background: transparent;
+    color: #d6d9de;
+    border: 1px solid #4a4f57;
+  }
+  .gs .badge {
+    background: #3a3f47;
+    color: #f4f4f4;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font: 500 10.5px var(--font-mono);
+  }
+
+  /* ============================================================
+     FIDELITY 3: COLOR
+     Full Conduit token palette. This is the locked-spec pass.
+     ============================================================ */
+  .clr .canvas { background: var(--surface-canvas); }
+  .clr .surface { background: var(--surface-canvas); color: var(--text-body); }
+  .clr .panel { background: var(--surface-primary); }
+  .clr .elevated { background: var(--surface-elevated); }
+  .clr .sunken { background: var(--surface-sunken); }
+  .clr .border { border: 1px solid var(--border-subtle); }
+  .clr .border-strong { border: 1px solid var(--border-default); }
+  .clr .text-body { color: var(--text-body); }
+  .clr .text-muted { color: var(--text-muted); }
+  .clr .text-subtle { color: var(--text-subtle); }
+  .clr .text-link { color: var(--text-link); }
+  .clr .accent { color: var(--brand); }
+  .clr .accent-cyan { color: var(--cyan-300); }
+  .clr .accent-violet { color: var(--violet-300); }
+
+  .clr .pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font: 500 11px var(--font-sans);
+    border: 1px solid;
+  }
+  .clr .pill.brand   { background: var(--saffron-800); color: var(--saffron-200); border-color: var(--saffron-700); }
+  .clr .pill.info    { background: var(--cyan-800);    color: var(--cyan-200);    border-color: var(--cyan-700); }
+  .clr .pill.success { background: #0d2516;            color: var(--green-300);   border-color: var(--green-700); }
+  .clr .pill.error   { background: #2a0d0d;            color: var(--red-300);     border-color: var(--red-700); }
+  .clr .pill.violet  { background: var(--violet-700);  color: var(--violet-200);  border-color: #4a3a8a; }
+  .clr .pill.muted   { background: var(--surface-elevated); color: var(--text-muted); border-color: var(--border-subtle); }
+
+  .clr .btn {
+    display: inline-block;
+    background: var(--brand);
+    color: var(--brand-on);
+    padding: 6px 12px;
+    border-radius: var(--r-md);
+    font: 600 12px var(--font-sans);
+    border: none;
+  }
+  .clr .btn.ghost {
+    background: transparent;
+    color: var(--text-body);
+    border: 1px solid var(--border-default);
+  }
+  .clr .btn.cyan { background: var(--cyan-300); color: var(--indigo-900); }
+
+  .clr .badge {
+    background: var(--surface-elevated);
+    color: var(--text-body);
+    padding: 1px 7px;
+    border-radius: 3px;
+    font: 500 10.5px var(--font-mono);
+    border: 1px solid var(--border-subtle);
+  }
+
+  .clr .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .clr .dot.idle    { background: var(--agent-idle); }
+  .clr .dot.active  { background: var(--agent-active); box-shadow: 0 0 8px var(--saffron-400); }
+  .clr .dot.thinking{ background: var(--agent-thinking); }
+  .clr .dot.success { background: var(--green-300); }
+  .clr .dot.error   { background: var(--red-300); }
+
+  /* ============================================================
+     SHARED MOCKUP PRIMITIVES — used across all three fidelities
+     (just override colors via the parent fidelity class).
+     Layout/positioning is identical so the three passes line up.
+     ============================================================ */
+
+  /* --- A. Three-column shell --- */
+  .shell {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-rows: 36px 1fr 28px;
+    grid-template-columns: 220px 1fr 320px;
+    grid-template-areas:
+      "top top top"
+      "side main ctx"
+      "status status status";
+  }
+  .shell .top    { grid-area: top;    display: flex; align-items: center; padding: 0 12px; gap: 12px; }
+  .shell .side   { grid-area: side;   padding: 12px 8px; overflow: hidden; }
+  .shell .main   { grid-area: main;   display: flex; flex-direction: column; }
+  .shell .ctx    { grid-area: ctx;    padding: 12px; overflow: hidden; }
+  .shell .status { grid-area: status; display: flex; align-items: center; padding: 0 12px; gap: 18px; font: 11px var(--font-mono); }
+
+  .gs .shell .top, .clr .shell .top, .gs .shell .status, .clr .shell .status { border-color: var(--border-subtle); }
+  .gs .shell .top, .clr .shell .top { border-bottom: 1px solid; background: var(--surface-elevated); }
+  .gs .shell .top { border-color: #353a42; background: #2a2e34; }
+  .gs .shell .status { background: #1a1d22; border-top: 1px solid #353a42; color: #8d9199; }
+  .clr .shell .status { background: var(--surface-elevated); border-top: 1px solid var(--border-subtle); color: var(--text-muted); }
+  .gs .shell .side { background: #1a1d22; border-right: 1px solid #353a42; }
+  .clr .shell .side { background: var(--surface-primary); border-right: 1px solid var(--border-subtle); }
+  .gs .shell .ctx  { background: #1a1d22; border-left: 1px solid #353a42; }
+  .clr .shell .ctx  { background: var(--surface-primary); border-left: 1px solid var(--border-subtle); }
+  .gs .shell .main, .clr .shell .main { background: var(--surface-canvas); }
+  .gs .shell .main { background: #14171b; }
+
+  .side-section {
+    font: 600 10.5px var(--font-mono);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 8px 8px 6px;
+  }
+  .side-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    font: 13px var(--font-sans);
+    cursor: pointer;
+  }
+  .side-item.active { font-weight: 600; }
+  .gs .side-section { color: #5e6168; }
+  .gs .side-item { color: #b8bcc2; }
+  .gs .side-item.active { background: #2a2e34; color: #ffffff; }
+  .gs .side-item:hover { background: #20242a; }
+  .clr .side-section { color: var(--text-subtle); }
+  .clr .side-item { color: var(--text-muted); }
+  .clr .side-item.active { background: var(--surface-elevated); color: var(--text-body); border-left: 2px solid var(--brand); padding-left: 8px; }
+  .clr .side-item:hover { background: var(--surface-elevated); }
+
+  /* --- conversation rows --- */
+  .conv {
+    flex: 1;
+    overflow: hidden;
+    padding: 18px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .msg { max-width: 720px; }
+  .msg .role {
+    font: 600 11px var(--font-mono);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .msg .body { font-size: 13.5px; line-height: 1.55; }
+  .gs .msg.user .role { color: #ffffff; }
+  .gs .msg.agent .role { color: #b8bcc2; }
+  .gs .msg.user .body { color: #ffffff; }
+  .gs .msg.agent .body { color: #cfd2d6; }
+  .clr .msg.user .role { color: var(--text-body); }
+  .clr .msg.agent .role { color: var(--saffron-300); }
+  .clr .msg.user .body { color: var(--text-body); }
+  .clr .msg.agent .body { color: var(--text-body); }
+
+  /* tool block */
+  .toolblock {
+    border-radius: var(--r-md);
+    border: 1px solid;
+    overflow: hidden;
+    margin-top: 10px;
+    max-width: 720px;
+  }
+  .toolblock .head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    font: 12px var(--font-mono);
+  }
+  .toolblock .body {
+    padding: 10px 12px;
+    font: 12px var(--font-mono);
+    line-height: 1.5;
+    border-top: 1px solid;
+  }
+  .gs .toolblock { border-color: #353a42; background: #1a1d22; }
+  .gs .toolblock .body { border-color: #353a42; background: #0a0b0d; color: #8d9199; }
+  .clr .toolblock { border-color: var(--border-subtle); background: var(--surface-primary); }
+  .clr .toolblock .head { color: var(--cyan-300); }
+  .clr .toolblock .body { border-color: var(--border-subtle); background: var(--surface-sunken); color: var(--text-muted); }
+
+  .composer {
+    border-top: 1px solid;
+    padding: 14px 28px 18px;
+  }
+  .gs .composer { border-color: #353a42; background: #14171b; }
+  .clr .composer { border-color: var(--border-subtle); background: var(--surface-canvas); }
+  .composer .field {
+    display: flex; align-items: center; gap: 10px;
+    border-radius: var(--r-md);
+    padding: 10px 14px;
+    border: 1px solid;
+  }
+  .gs .composer .field { background: #1f2329; border-color: #4a4f57; color: #cfd2d6; }
+  .clr .composer .field { background: var(--surface-primary); border-color: var(--border-default); color: var(--text-body); }
+  .clr .composer .field:focus-within { border-color: var(--border-focus); box-shadow: var(--focus-ring); }
+
+  /* --- B. Computer-use stream --- */
+  .vidframe {
+    position: absolute; inset: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .vidframe .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid;
+  }
+  .gs .vidframe .toolbar { background: #1f2329; border-color: #353a42; }
+  .clr .vidframe .toolbar { background: var(--surface-elevated); border-color: var(--border-subtle); }
+  .vidframe .stream {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+  .gs .vidframe .stream { background: #0a0b0d; }
+  .clr .vidframe .stream { background: #000; }
+  .vidframe .overlay-hud {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .vidframe .overlay-actions {
+    position: absolute;
+    bottom: 14px;
+    right: 14px;
+    display: flex;
+    gap: 8px;
+  }
+  .vidframe .cursor {
+    position: absolute;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    border: 2px solid;
+  }
+  .gs .vidframe .cursor { border-color: #ffffff; box-shadow: 0 0 0 4px rgba(255,255,255,0.15); }
+  .clr .vidframe .cursor { border-color: var(--saffron-300); box-shadow: 0 0 0 4px rgba(245,158,31,0.25); }
+
+  /* --- D. Workflow DAG --- */
+  .dag { position: absolute; inset: 0; padding: 24px; overflow: hidden; }
+  .dag-node {
+    position: absolute;
+    width: 160px;
+    border-radius: var(--r-md);
+    padding: 10px 12px;
+    font: 12px var(--font-sans);
+    border: 1px solid;
+  }
+  .gs .dag-node { background: #1f2329; border-color: #353a42; color: #cfd2d6; }
+  .gs .dag-node.active { background: #2a2e34; border-color: #ffffff; color: #ffffff; }
+  .gs .dag-node.done   { background: #1a1d22; border-color: #6a6e76; color: #8d9199; }
+  .gs .dag-node.error  { background: #1a1d22; border-color: #ffffff; color: #ffffff; }
+  .clr .dag-node { background: var(--surface-elevated); border-color: var(--border-subtle); color: var(--text-body); }
+  .clr .dag-node.active { background: var(--saffron-800); border-color: var(--saffron-300); color: var(--saffron-100); box-shadow: 0 0 16px rgba(245,158,31,0.25); }
+  .clr .dag-node.done   { background: #0d2516; border-color: var(--green-700); color: var(--green-300); }
+  .clr .dag-node.error  { background: #2a0d0d; border-color: var(--red-700); color: var(--red-300); }
+  .clr .dag-node.queued { background: var(--surface-elevated); border-color: var(--border-subtle); color: var(--text-muted); }
+
+  .dag-node .step-num { font: 600 10.5px var(--font-mono); opacity: 0.7; }
+  .dag-node .step-name { font: 600 12.5px var(--font-sans); margin-top: 2px; }
+  .dag-node .step-meta { font: 10.5px var(--font-mono); opacity: 0.7; margin-top: 4px; }
+
+  .dag-edge {
+    position: absolute;
+    height: 2px;
+  }
+  .gs .dag-edge { background: #4a4f57; }
+  .clr .dag-edge { background: var(--border-strong); }
+  .clr .dag-edge.active { background: var(--saffron-300); }
+
+  /* --- E. Spotlight overlay --- */
+  .spotlight-bg {
+    position: absolute; inset: 0;
+    backdrop-filter: blur(8px);
+    background: rgba(0,0,0,0.55);
+  }
+  .spotlight {
+    position: absolute;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 580px;
+    border-radius: var(--r-lg);
+    overflow: hidden;
+    border: 1px solid;
+    box-shadow: var(--sh-lg);
+  }
+  .gs .spotlight { background: #2a2e34; border-color: #4a4f57; }
+  .clr .spotlight { background: var(--surface-elevated); border-color: var(--border-default); }
+  .spotlight .input {
+    padding: 14px 18px;
+    border-bottom: 1px solid;
+    font: 16px var(--font-sans);
+    display: flex; align-items: center; gap: 10px;
+  }
+  .gs .spotlight .input { border-color: #353a42; color: #ffffff; }
+  .clr .spotlight .input { border-color: var(--border-subtle); color: var(--text-body); }
+  .spotlight .results { padding: 6px; max-height: 320px; overflow: hidden; }
+  .spotlight .result {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 12px;
+    border-radius: var(--r-sm);
+    font: 13px var(--font-sans);
+  }
+  .gs .spotlight .result { color: #cfd2d6; }
+  .gs .spotlight .result.sel { background: #3a3f47; color: #ffffff; }
+  .clr .spotlight .result { color: var(--text-muted); }
+  .clr .spotlight .result.sel { background: var(--saffron-800); color: var(--saffron-100); }
+  .spotlight .result .kind {
+    font: 10.5px var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    opacity: 0.6;
+  }
+  .spotlight .result .name { flex: 1; }
+  .spotlight .result .hint { font: 11px var(--font-mono); opacity: 0.5; }
+
+  /* --- F. Session tree --- */
+  .tree {
+    position: absolute; inset: 0;
+    padding: 18px 22px;
+    overflow: hidden;
+  }
+  .tree-node {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 10px;
+    border-radius: var(--r-sm);
+    font: 12.5px var(--font-sans);
+  }
+  .tree-node .branch-glyph { font: 600 13px var(--font-mono); width: 12px; }
+  .tree-node .name { flex: 1; }
+  .tree-node .meta { font: 10.5px var(--font-mono); opacity: 0.6; }
+  .gs .tree-node { color: #cfd2d6; }
+  .gs .tree-node.head { background: #2a2e34; color: #ffffff; font-weight: 600; }
+  .gs .tree-node.muted { color: #6a6e76; }
+  .clr .tree-node { color: var(--text-body); }
+  .clr .tree-node.head { background: var(--saffron-800); color: var(--saffron-200); font-weight: 600; }
+  .clr .tree-node.muted { color: var(--text-muted); }
+
+  /* --- G. SOUL.md editor — split pane --- */
+  .editor {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 36px 1fr;
+    grid-template-areas:
+      "tabs tabs"
+      "src preview";
+  }
+  .editor .tabs-row { grid-area: tabs; display: flex; align-items: center; padding: 0 12px; gap: 8px; border-bottom: 1px solid; }
+  .editor .src     { grid-area: src; padding: 14px 18px; overflow: hidden; font: 13px var(--font-mono); line-height: 1.6; border-right: 1px solid; }
+  .editor .preview { grid-area: preview; padding: 14px 22px; overflow: hidden; font: 13.5px var(--font-sans); line-height: 1.55; }
+  .gs .editor .tabs-row, .gs .editor .src { border-color: #353a42; background: #14171b; }
+  .gs .editor .preview { background: #1a1d22; }
+  .clr .editor .tabs-row { border-color: var(--border-subtle); background: var(--surface-elevated); }
+  .clr .editor .src { border-color: var(--border-subtle); background: var(--surface-primary); }
+  .clr .editor .preview { background: var(--surface-canvas); }
+
+  .editor .file-tab {
+    padding: 6px 12px;
+    border-radius: var(--r-sm) var(--r-sm) 0 0;
+    font: 12px var(--font-mono);
+  }
+  .gs .editor .file-tab { color: #8d9199; }
+  .gs .editor .file-tab.active { background: #1a1d22; color: #ffffff; }
+  .clr .editor .file-tab { color: var(--text-muted); }
+  .clr .editor .file-tab.active { background: var(--surface-canvas); color: var(--text-body); border-bottom: 2px solid var(--brand); }
+
+  .md-h1 { font: 600 22px var(--font-display); margin: 0 0 12px; }
+  .md-h2 { font: 600 16px var(--font-display); margin: 16px 0 8px; }
+  .md-p { margin: 0 0 10px; }
+  .gs .md-h1, .gs .md-h2 { color: #ffffff; }
+  .gs .md-p { color: #cfd2d6; }
+  .clr .md-h1 { color: var(--text-body); }
+  .clr .md-h2 { color: var(--saffron-300); }
+  .clr .md-p { color: var(--text-body); }
+
+  .src .key  { color: var(--cyan-300); }
+  .src .str  { color: var(--green-300); }
+  .src .h    { color: var(--saffron-300); font-weight: 600; }
+  .src .co   { opacity: 0.6; }
+  .gs .src .key { color: #ffffff; }
+  .gs .src .str { color: #c8ccd1; }
+  .gs .src .h   { color: #ffffff; font-weight: 600; }
+  .gs .src .co  { color: #6a6e76; }
+
+  /* --- H. Diff view --- */
+  .diff {
+    position: absolute; inset: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 40px 1fr;
+    grid-template-areas:
+      "head head"
+      "left right";
+  }
+  .diff .head { grid-area: head; display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid; }
+  .diff .left { grid-area: left;  border-right: 1px solid; overflow: hidden; }
+  .diff .right{ grid-area: right; overflow: hidden; }
+  .diff .col-head {
+    padding: 8px 14px;
+    font: 600 11.5px var(--font-mono);
+    border-bottom: 1px solid;
+    letter-spacing: 0.04em;
+  }
+  .diff .lines { padding: 6px 0; font: 12.5px var(--font-mono); line-height: 1.55; }
+  .diff .ln {
+    display: grid;
+    grid-template-columns: 36px 18px 1fr;
+    padding: 1px 0;
+  }
+  .diff .ln .num { color: #5e6168; text-align: right; padding-right: 8px; }
+  .diff .ln .gut { text-align: center; opacity: 0.7; }
+  .diff .ln .code { padding-right: 14px; white-space: pre; }
+
+  .gs .diff .head, .gs .diff .col-head, .gs .diff .left { border-color: #353a42; }
+  .gs .diff .head { background: #1f2329; }
+  .gs .diff .col-head { background: #14171b; color: #b8bcc2; }
+  .gs .diff .left, .gs .diff .right { background: #14171b; }
+  .gs .diff .ln.add  { background: rgba(255,255,255,0.06); }
+  .gs .diff .ln.add  .gut { color: #ffffff; }
+  .gs .diff .ln.add  .code { color: #ffffff; }
+  .gs .diff .ln.del  { background: rgba(255,255,255,0.10); }
+  .gs .diff .ln.del  .gut { color: #ffffff; }
+  .gs .diff .ln.del  .code { color: #b8bcc2; text-decoration: line-through; }
+  .gs .diff .ln.ctx  .code { color: #8d9199; }
+
+  .clr .diff .head, .clr .diff .col-head, .clr .diff .left { border-color: var(--border-subtle); }
+  .clr .diff .head { background: var(--surface-elevated); }
+  .clr .diff .col-head { background: var(--surface-primary); color: var(--text-muted); }
+  .clr .diff .left, .clr .diff .right { background: var(--surface-canvas); }
+  .clr .diff .ln.add  { background: rgba(111,203,133,0.10); }
+  .clr .diff .ln.add  .gut { color: var(--green-300); }
+  .clr .diff .ln.add  .code { color: var(--green-300); }
+  .clr .diff .ln.del  { background: rgba(243,130,130,0.10); }
+  .clr .diff .ln.del  .gut { color: var(--red-300); }
+  .clr .diff .ln.del  .code { color: var(--red-300); }
+  .clr .diff .ln.ctx  .code { color: var(--text-muted); }
+
+  /* --- C. Canvas panel — agent HTML render --- */
+  .canvasview {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+  }
+  .canvasview .toolbar {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    border-bottom: 1px solid;
+  }
+  .canvasview .web {
+    flex: 1;
+    padding: 28px 36px;
+    overflow: hidden;
+  }
+  .gs .canvasview .toolbar { background: #1f2329; border-color: #353a42; }
+  .gs .canvasview .web { background: #ffffff; color: #1a1a1a; }
+  .clr .canvasview .toolbar { background: var(--surface-elevated); border-color: var(--border-subtle); }
+  .clr .canvasview .web { background: #ffffff; color: #0a0c14; }
+  .canvasview .web h1 { font: 600 26px var(--font-display); margin: 0 0 8px; }
+  .canvasview .web .subtitle { color: #6a6e76; margin: 0 0 22px; font-size: 14px; }
+  .canvasview .web .chart {
+    width: 100%; height: 180px;
+    background: linear-gradient(180deg, rgba(245,158,31,0.18), rgba(245,158,31,0));
+    border: 1px solid #e2e5ee;
+    border-radius: var(--r-md);
+    position: relative;
+    overflow: hidden;
+  }
+  .gs .canvasview .web .chart {
+    background: linear-gradient(180deg, rgba(0,0,0,0.18), rgba(0,0,0,0));
+    border-color: #d0d0d0;
+  }
+  .canvasview .web .chart .line {
+    position: absolute;
+    height: 2px;
+    background: var(--saffron-300);
+    top: 60px;
+    left: 5%;
+    right: 5%;
+    transform: skewY(-6deg);
+  }
+  .gs .canvasview .web .chart .line { background: #1a1a1a; }
+  .canvasview .web table { width: 100%; border-collapse: collapse; margin-top: 18px; font: 12.5px var(--font-sans); }
+  .canvasview .web th { text-align: left; padding: 8px 10px; border-bottom: 1px solid #c0c5d6; color: #5d637a; font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: 0.05em; }
+  .canvasview .web td { padding: 8px 10px; border-bottom: 1px solid #e2e5ee; color: #1a1d2c; }
+
+  /* utility */
+  .row { display: flex; align-items: center; gap: 8px; }
+  .col { display: flex; flex-direction: column; gap: 8px; }
+  .grow { flex: 1; }
+  .mt8 { margin-top: 8px; }
+  .mt12 { margin-top: 12px; }
+  .mt16 { margin-top: 16px; }
+
+</style>
+</head>
+<body>
+
+<header class="page">
+  <h1>Conduit — GUI Multi-Fidelity Mockups</h1>
+  <p>Three fidelity passes (wireframe → grayscale → color) covering the eight GUI surfaces called out in <a href="https://github.com/jabreeflor/conduit/issues/44">issue #44</a>: three-column shell, computer-use screenshot stream, canvas panel, workflow DAG, spotlight overlay, session tree browser, SOUL.md/USER.md editor, and GitHub-style diff view. Same content in every fidelity — only the visual treatment changes — so each review pass isolates a different category of feedback.</p>
+  <div class="meta">issue #44 · phase 5 · review-before-build · design language: Claude Desktop + Codex + T3 Code</div>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="Fidelity">
+  <button class="tab" role="tab" aria-selected="false" data-target="wf">Wireframe <span class="badge">structure</span></button>
+  <button class="tab" role="tab" aria-selected="false" data-target="gs">Grayscale <span class="badge">hierarchy</span></button>
+  <button class="tab" role="tab" aria-selected="true"  data-target="clr">Color <span class="badge">locked spec</span></button>
+</nav>
+
+<!-- ============================================================
+     PANE: WIREFRAME
+     ============================================================ -->
+<section class="pane wf" id="wf" data-active="false" role="tabpanel" aria-label="Wireframe fidelity">
+
+  <div class="intro">
+    <b>What to look for.</b> Region sizing, panel ratios, information density, and where each surface lives inside the shell. Ignore color, typography weight, and visual polish — those are the next two passes.
+  </div>
+
+  <!-- A. Three-column layout -->
+  <div class="section-title"><div class="num">A</div><h2>Three-column layout — primary shell</h2><div class="desc">sidebar · main · context panel · top bar · status bar</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Conduit — Three-Column Shell</span></div>
+      <div class="sub">1280 × 800 default · resizable splits</div>
+    </div>
+    <div class="canvas">
+      <!-- Top bar -->
+      <div class="box solid" style="top:8px;left:8px;right:8px;height:36px;display:flex;align-items:center;gap:14px;">
+        <span class="label">TOP BAR</span>
+        <span class="ph">workspace switcher · model · cost · session · tier · profile</span>
+      </div>
+      <!-- Sidebar -->
+      <div class="box" style="top:52px;left:8px;width:220px;bottom:42px;">
+        <span class="label">SIDEBAR</span>
+        <div class="desc">
+          • Sessions list<br>
+          • Pinned workflows<br>
+          • Memory files<br>
+          • MCP servers<br>
+          • Settings
+        </div>
+      </div>
+      <!-- Main conversation -->
+      <div class="box heavy" style="top:52px;left:236px;right:336px;bottom:42px;">
+        <span class="label">MAIN — CONVERSATION</span>
+        <div class="desc">
+          Message history (user / agent rows)<br>
+          Tool-call cards inline<br>
+          <span class="ph">────────── messages stream ──────────</span><br><br>
+          ┌─ tool: read_file ─[ ✓ ]─┐<br>
+          └─────────────────────────┘<br><br>
+          <span class="ph">composer ↓</span>
+        </div>
+        <div class="box solid" style="bottom:12px;left:14px;right:14px;height:48px;display:flex;align-items:center;">
+          <span class="label">COMPOSER</span>
+          <span class="ph" style="margin-left:10px;">▌ message + attach + send</span>
+        </div>
+      </div>
+      <!-- Context panel -->
+      <div class="box" style="top:52px;right:8px;width:320px;bottom:42px;">
+        <span class="label">CONTEXT PANEL</span>
+        <div class="desc">
+          Tabs: Workflow · Memory · Hooks · Tree · Tools<br>
+          <span class="ph">— content area —</span><br><br>
+          <span class="ph">………………………………</span><br>
+          <span class="ph">………………………………</span><br>
+          <span class="ph">………………………………</span>
+        </div>
+      </div>
+      <!-- Status bar -->
+      <div class="box solid" style="bottom:8px;left:8px;right:8px;height:28px;display:flex;align-items:center;gap:14px;">
+        <span class="label">STATUS BAR</span>
+        <span class="ph">model · tokens · cost · agent state · keybinding hints</span>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Column ratio: <code>220 / flex / 320</code></span>
+      <span>Top bar: <code>36px</code></span>
+      <span>Status bar: <code>28px</code></span>
+      <span>Splits: <code>drag-resizable</code></span>
+    </div>
+  </div>
+  <div class="note">The three-column shell mirrors Claude Desktop. <b>Sidebar</b> persists across surfaces; <b>main</b> swaps between conversation / canvas / DAG / diff; <b>context panel</b> is collapsible (⌘P).</div>
+
+  <!-- B. Computer-use screenshot stream -->
+  <div class="section-title" style="margin-top:32px"><div class="num">B</div><h2>Computer-use screenshot stream</h2><div class="desc">full-bleed viewport · overlay HUD · pause / take-over / approve</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Computer-Use Stream</span></div>
+      <div class="sub">live screencast · 2 fps · agent-controlled</div>
+    </div>
+    <div class="canvas">
+      <div class="box solid" style="top:8px;left:8px;right:8px;height:44px;display:flex;align-items:center;gap:12px;">
+        <span class="label">TOOLBAR</span>
+        <span class="pill">▶ playing</span>
+        <span class="ph">action: click(842, 318) · target: "Run" button</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <span class="btn">Pause</span>
+          <span class="btn">Take over</span>
+          <span class="btn">Approve next</span>
+        </div>
+      </div>
+      <div class="box x" style="top:60px;left:8px;right:8px;bottom:8px;">
+        <span class="label" style="position:absolute;top:10px;left:10px;">SCREEN STREAM (full-bleed image)</span>
+        <div class="box" style="position:absolute;top:60px;left:60px;width:240px;">
+          <span class="label">HUD OVERLAY</span>
+          <div class="desc">step 4 of 9<br>action queue ↓</div>
+        </div>
+        <div style="position:absolute;top:230px;left:540px;width:24px;height:24px;border:2px solid #1a1a1a;border-radius:50%;"></div>
+        <div class="box" style="position:absolute;bottom:60px;right:60px;width:200px;">
+          <span class="label">ACTION LOG</span>
+          <div class="desc">click → type → wait</div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Stream: <code>full-bleed, 16:10</code></span>
+      <span>HUD: <code>top-left, semi-transparent</code></span>
+      <span>Cursor ring: <code>shows agent click target</code></span>
+      <span>Take-over: <code>routes input back to user</code></span>
+    </div>
+  </div>
+
+  <!-- C. Canvas panel -->
+  <div class="section-title" style="margin-top:32px"><div class="num">C</div><h2>Canvas panel — WKWebView area</h2><div class="desc">agent-generated HTML · charts · interactive widgets</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Canvas — WKWebView</span></div>
+      <div class="sub">⌘⇧C to open · sandboxed renderer</div>
+    </div>
+    <div class="canvas">
+      <div class="box solid" style="top:8px;left:8px;right:8px;height:40px;display:flex;align-items:center;gap:10px;">
+        <span class="label">CANVAS TOOLBAR</span>
+        <span class="ph">⌘← back · ⌘→ fwd · reload · open externally · export</span>
+      </div>
+      <div class="box" style="top:56px;left:8px;right:8px;bottom:8px;background:#fff;">
+        <span class="label">RENDERED HTML AREA</span>
+        <div class="desc" style="margin-top:14px;">
+          <span class="ph">▌H1: Quarterly Spend Report</span><br>
+          <span class="ph">subtitle ……………………………</span><br><br>
+          <span class="ph">[chart placeholder ─────────────────]</span><br>
+          <span class="ph">[ ── ── ── line ── ── ── ]</span><br><br>
+          <span class="ph">┌─ table ─────────────────────┐</span><br>
+          <span class="ph">│ row · row · row · row       │</span><br>
+          <span class="ph">└─────────────────────────────┘</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Renderer: <code>WKWebView, sandboxed</code></span>
+      <span>Inputs: <code>postMessage to agent</code></span>
+      <span>Cap: <code>5 MB HTML, no network</code></span>
+    </div>
+  </div>
+
+  <!-- D. Workflow DAG -->
+  <div class="section-title" style="margin-top:32px"><div class="num">D</div><h2>Workflow DAG</h2><div class="desc">nodes · edges · running / done / failed / queued</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Workflow — nightly-eval</span></div>
+      <div class="sub">9 steps · 3 done · 1 running · 5 queued</div>
+    </div>
+    <div class="canvas">
+      <!-- Step 1 -->
+      <div class="box solid" style="top:60px;left:40px;width:160px;height:60px;">
+        <span class="label">STEP 1</span>
+        <div class="desc">load fixtures · ✓ done</div>
+      </div>
+      <!-- Step 2 -->
+      <div class="box solid" style="top:60px;left:240px;width:160px;height:60px;">
+        <span class="label">STEP 2</span>
+        <div class="desc">run model A · ✓ done</div>
+      </div>
+      <!-- Step 3 (active) -->
+      <div class="box heavy" style="top:60px;left:440px;width:160px;height:60px;">
+        <span class="label">STEP 3</span>
+        <div class="desc">run model B · ⟳ running</div>
+      </div>
+      <!-- Step 4 -->
+      <div class="box" style="top:60px;left:640px;width:160px;height:60px;">
+        <span class="label">STEP 4</span>
+        <div class="desc">compare · □ queued</div>
+      </div>
+      <!-- Step 5 -->
+      <div class="box" style="top:60px;left:840px;width:160px;height:60px;">
+        <span class="label">STEP 5</span>
+        <div class="desc">summarize · □ queued</div>
+      </div>
+      <!-- Edges -->
+      <div class="arrow" style="top:90px;left:200px;width:40px;"></div>
+      <div class="arrow" style="top:90px;left:400px;width:40px;"></div>
+      <div class="arrow" style="top:90px;left:600px;width:40px;"></div>
+      <div class="arrow" style="top:90px;left:800px;width:40px;"></div>
+      <!-- Step 6 (branch) -->
+      <div class="box" style="top:200px;left:440px;width:160px;height:60px;">
+        <span class="label">STEP 6</span>
+        <div class="desc">post slack · □ queued</div>
+      </div>
+      <div class="box" style="top:200px;left:640px;width:160px;height:60px;">
+        <span class="label">STEP 7</span>
+        <div class="desc">archive · □ queued</div>
+      </div>
+      <div class="arrow down" style="top:120px;left:520px;height:80px;"></div>
+      <div class="arrow" style="top:230px;left:600px;width:40px;"></div>
+      <!-- Failed branch -->
+      <div class="box heavy" style="top:340px;left:440px;width:160px;height:60px;">
+        <span class="label">STEP 8</span>
+        <div class="desc">notify owners · ✗ failed</div>
+      </div>
+      <div class="arrow down" style="top:260px;left:520px;height:80px;"></div>
+      <!-- Inspector -->
+      <div class="box" style="top:60px;right:24px;width:240px;bottom:24px;">
+        <span class="label">INSPECTOR</span>
+        <div class="desc">
+          step: run model B<br>
+          input: ────<br>
+          output: ────<br>
+          duration: 4m 12s<br>
+          cost: $0.42<br><br>
+          [retry] [skip] [edit]
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Node states: <code>queued · running · done · failed</code></span>
+      <span>Layout: <code>top-down DAG, auto</code></span>
+      <span>Inspector: <code>right rail, 240px</code></span>
+    </div>
+  </div>
+
+  <!-- E. Spotlight overlay -->
+  <div class="section-title" style="margin-top:32px"><div class="num">E</div><h2>Spotlight UI overlay</h2><div class="desc">⌘K · Raycast-style centered floating panel</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Spotlight — Universal Command Palette</span></div>
+      <div class="sub">⌘K trigger · 580px wide · centered</div>
+    </div>
+    <div class="canvas">
+      <!-- Faint background hint -->
+      <div class="box" style="top:24px;left:24px;right:24px;bottom:24px;border-style:dotted;color:#bbb;">
+        <span class="label" style="background:#f0f0f0;color:#888;">PARENT SHELL (dimmed)</span>
+      </div>
+      <!-- Overlay -->
+      <div class="box heavy" style="top:60px;left:50%;transform:translateX(-50%);width:580px;">
+        <div style="padding:14px 18px;border-bottom:1.5px dashed #6a6a6a;font:600 14px var(--font-sans);">
+          <span class="ph">▌</span> &nbsp; <span style="color:#1a1a1a;">switch model to claude-haiku</span>
+        </div>
+        <div style="padding:8px 6px;">
+          <div class="box solid" style="position:relative;margin:4px 0;display:flex;gap:10px;align-items:center;">
+            <span class="pill">CMD</span>
+            <span style="color:#1a1a1a;">switch model → claude-haiku-4.5</span>
+            <span style="margin-left:auto;font:11px var(--font-mono);color:#888;">↵</span>
+          </div>
+          <div class="box" style="position:relative;margin:4px 0;display:flex;gap:10px;align-items:center;">
+            <span class="pill">SESSION</span>
+            <span>fork from current with new model</span>
+          </div>
+          <div class="box" style="position:relative;margin:4px 0;display:flex;gap:10px;align-items:center;">
+            <span class="pill">DOC</span>
+            <span>"how do I switch models" — guide</span>
+          </div>
+          <div class="box" style="position:relative;margin:4px 0;display:flex;gap:10px;align-items:center;">
+            <span class="pill">FILE</span>
+            <span>~/.conduit/models.toml</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Trigger: <code>⌘K</code></span>
+      <span>Width: <code>580px</code></span>
+      <span>Backdrop: <code>blur 8px, 55% black</code></span>
+      <span>Result kinds: <code>cmd · session · doc · file · workflow</code></span>
+    </div>
+  </div>
+
+  <!-- F. Session tree browser -->
+  <div class="section-title" style="margin-top:32px"><div class="num">F</div><h2>Session tree browser</h2><div class="desc">fork / replay / branching tree</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Session Tree</span></div>
+      <div class="sub">14 sessions · 5 branches · HEAD highlighted</div>
+    </div>
+    <div class="canvas short">
+      <div class="box" style="top:14px;left:14px;width:340px;bottom:14px;">
+        <span class="label">TREE</span>
+        <div class="desc" style="font-family:var(--font-mono);line-height:1.7;">
+          ● <b>main</b> · "implement #44" · HEAD<br>
+          ├─ ● fix-typo (3 msgs)<br>
+          ├─ ● try-tabs (12 msgs)<br>
+          │  └─ ● try-tabs-rev2<br>
+          ├─ ● refactor-shell (28 msgs)<br>
+          │  ├─ ● grayscale-only<br>
+          │  └─ ● color-locked<br>
+          └─ ● spike-canvas (6 msgs)
+        </div>
+      </div>
+      <div class="box" style="top:14px;left:368px;right:14px;bottom:14px;">
+        <span class="label">SESSION DETAIL</span>
+        <div class="desc">
+          ◉ refactor-shell<br>
+          forked from main @ msg 14<br>
+          28 messages · 4 tool calls · $0.18<br><br>
+          last: "rename ContextPanel → ContextRail"<br><br>
+          [open] [diff vs parent] [merge] [delete]
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Node: <code>● = session, branch glyph = fork</code></span>
+      <span>HEAD: <code>highlighted, current cursor</code></span>
+      <span>Detail: <code>right pane, actions row</code></span>
+    </div>
+  </div>
+
+  <!-- G. SOUL.md / USER.md editor -->
+  <div class="section-title" style="margin-top:32px"><div class="num">G</div><h2>SOUL.md / USER.md editor</h2><div class="desc">split markdown editor · live preview · file tabs</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Memory Editor</span></div>
+      <div class="sub">two memory layers · split panes</div>
+    </div>
+    <div class="canvas">
+      <div class="box solid" style="top:8px;left:8px;right:8px;height:36px;display:flex;align-items:center;gap:8px;">
+        <span class="pill">SOUL.md</span>
+        <span style="color:#888;">·</span>
+        <span class="pill">USER.md</span>
+        <span style="margin-left:auto;font:11px var(--font-mono);color:#666;">unsaved · ⌘S to save</span>
+      </div>
+      <div class="box" style="top:52px;left:8px;width:calc(50% - 12px);bottom:8px;">
+        <span class="label">SOURCE (markdown)</span>
+        <div class="desc" style="font-family:var(--font-mono);line-height:1.7;">
+          # SOUL.md<br><br>
+          ## Identity<br>
+          You are Conduit, an agent that ………<br><br>
+          ## Behaviors<br>
+          - Speak concisely<br>
+          - Cite tool calls inline<br>
+          - Never delete without confirmation
+        </div>
+      </div>
+      <div class="box" style="top:52px;right:8px;width:calc(50% - 12px);bottom:8px;">
+        <span class="label">LIVE PREVIEW</span>
+        <div class="desc">
+          <b style="font-size:18px;color:#1a1a1a;">SOUL.md</b><br><br>
+          <b>Identity</b><br>
+          <span class="ph">You are Conduit, an agent that ………</span><br><br>
+          <b>Behaviors</b><br>
+          • Speak concisely<br>
+          • Cite tool calls inline<br>
+          • Never delete without confirmation
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Layout: <code>50/50 split, drag-resizable</code></span>
+      <span>Tabs: <code>SOUL.md, USER.md, +new</code></span>
+      <span>Save: <code>⌘S, autosave 30s</code></span>
+    </div>
+  </div>
+
+  <!-- H. Diff view -->
+  <div class="section-title" style="margin-top:32px"><div class="num">H</div><h2>GitHub-style diff view</h2><div class="desc">two columns · red/green highlights · file tree</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Diff — patch preview</span></div>
+      <div class="sub">2 files · +47 −12 · before applying</div>
+    </div>
+    <div class="canvas">
+      <div class="box solid" style="top:8px;left:8px;right:8px;height:40px;display:flex;align-items:center;gap:14px;">
+        <span class="label">FILE TREE</span>
+        <span class="ph">src/router.py · src/handlers/auth.py</span>
+        <span style="margin-left:auto;display:flex;gap:8px;">
+          <span class="btn">Discard</span>
+          <span class="btn">Apply</span>
+        </span>
+      </div>
+      <div class="box" style="top:56px;left:8px;width:calc(50% - 12px);bottom:8px;">
+        <span class="label">BEFORE</span>
+        <div class="desc" style="font-family:var(--font-mono);line-height:1.7;">
+          <span style="color:#888;">12 │</span> def handle(req):<br>
+          <span style="color:#888;">13 │</span> &nbsp;&nbsp;&nbsp;&nbsp;return route(req)<br>
+          <span style="color:#888;">14 │</span><br>
+          <span class="ph">─ removed ─</span><br>
+          <span style="color:#888;">15 │</span> &nbsp;&nbsp;&nbsp;&nbsp;<span style="text-decoration:line-through;">log.debug(req)</span>
+        </div>
+      </div>
+      <div class="box" style="top:56px;right:8px;width:calc(50% - 12px);bottom:8px;">
+        <span class="label">AFTER</span>
+        <div class="desc" style="font-family:var(--font-mono);line-height:1.7;">
+          <span style="color:#888;">12 │</span> def handle(req: Request) -> Response:<br>
+          <span style="color:#888;">13 │</span> &nbsp;&nbsp;&nbsp;&nbsp;tracer.start(req.id)<br>
+          <span style="color:#888;">14 │</span> &nbsp;&nbsp;&nbsp;&nbsp;return route(req)<br>
+          <span class="ph">─ added ─</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Layout: <code>side-by-side, 50/50</code></span>
+      <span>Add: <code>+ green band</code></span>
+      <span>Del: <code>− red band</code></span>
+      <span>Action: <code>discard / apply</code></span>
+    </div>
+  </div>
+
+</section>
+
+<!-- ============================================================
+     PANE: GRAYSCALE
+     ============================================================ -->
+<section class="pane gs" id="gs" data-active="false" role="tabpanel" aria-label="Grayscale fidelity">
+
+  <div class="intro">
+    <b>What to look for.</b> Visual hierarchy, weight distribution, what your eye lands on first. Color is muted to ensure the layout works without it. If you can find every primary action and read every label without color, the structure is right.
+  </div>
+
+  <!-- A. Three-column shell -->
+  <div class="section-title"><div class="num">A</div><h2>Three-column layout — primary shell</h2><div class="desc">conversation · context panel · sidebar · top + status bars</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Conduit — Three-Column Shell</span></div>
+      <div class="sub">conversation surface, default state</div>
+    </div>
+    <div class="canvas">
+      <div class="shell">
+        <div class="top text-body">
+          <span class="badge">⌘O</span>
+          <span class="accent">conduit / playground</span>
+          <span class="text-muted">·</span>
+          <span class="text-muted">claude-sonnet-4.6</span>
+          <span class="pill">$0.42 · 18.4k tok</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Share</span>
+            <span class="btn">New session</span>
+          </div>
+        </div>
+        <div class="side">
+          <div class="side-section">Sessions</div>
+          <div class="side-item active">▸ implement #44</div>
+          <div class="side-item">refactor router</div>
+          <div class="side-item">debug ingest</div>
+          <div class="side-item">try-tabs-rev2</div>
+          <div class="side-section" style="margin-top:14px">Workflows</div>
+          <div class="side-item">nightly-eval</div>
+          <div class="side-item">release notes</div>
+          <div class="side-section" style="margin-top:14px">Memory</div>
+          <div class="side-item">SOUL.md</div>
+          <div class="side-item">USER.md</div>
+        </div>
+        <div class="main">
+          <div class="conv">
+            <div class="msg user">
+              <div class="role">You · 2:14 PM</div>
+              <div class="body">Implement multi-fidelity GUI mockups for issue #44. Eight surfaces, three fidelities each.</div>
+            </div>
+            <div class="msg agent">
+              <div class="role">Agent · claude-sonnet-4.6</div>
+              <div class="body">I'll create <span class="accent">docs/mockups/gui-mockups.html</span> mirroring the TUI version. Reading the existing file first.</div>
+              <div class="toolblock">
+                <div class="head"><span>▼ read_file(path="docs/mockups/tui-mockups.html")</span><span>✓ 0.2s</span></div>
+                <div class="body">→ 1184 lines · structure: header, tab nav, 3 panes (wf, gs, clr), 6 sections each</div>
+              </div>
+              <div class="toolblock">
+                <div class="head"><span>▶ read_file(path="design/tokens.yaml")</span><span>✓ 0.1s</span></div>
+              </div>
+              <div class="body" style="margin-top:10px;">Token system uses indigo/saffron/cyan with semantic mode mappings. Will reuse for color pass.</div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="field">
+              <span class="text-muted">▌</span>
+              <span class="grow">Reply, or type / for commands</span>
+              <span class="badge">⏎</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctx">
+          <div class="row" style="gap:6px;margin-bottom:10px;">
+            <span class="pill">Workflow</span>
+            <span class="pill">Memory</span>
+            <span class="pill">Hooks</span>
+            <span class="pill">Tree</span>
+          </div>
+          <div class="text-muted" style="font:11px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;">Active workflow</div>
+          <div class="accent" style="font-size:13px;margin-top:2px;">implement-feature</div>
+          <div style="margin-top:14px;font-size:12.5px;line-height:1.7;">
+            <div>1. ◉ understand spec — done</div>
+            <div>2. ◉ scaffold file — done</div>
+            <div class="accent">3. ▶ build wireframe — running</div>
+            <div class="text-muted">4. ○ build grayscale — queued</div>
+            <div class="text-muted">5. ○ build color — queued</div>
+            <div class="text-muted">6. ○ commit + PR — queued</div>
+          </div>
+        </div>
+        <div class="status">
+          <span>● ready</span>
+          <span>·</span>
+          <span>200k ctx · 18.4k used</span>
+          <span>·</span>
+          <span>turn cost $0.0042</span>
+          <span style="margin-left:auto">⌘K palette  ·  ⌘P toggle context  ·  ⌘/ commands</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Eye-path: <code>top bar → sidebar active → conversation HEAD → context panel</code></span>
+      <span>Weight: <code>active items 600, body 400, muted 400+lower contrast</code></span>
+    </div>
+  </div>
+  <div class="note">In grayscale, "active" reads as <b>weight + contrast</b>, not hue. The color pass replaces white-on-elevated with saffron-on-saffron-800 for the active sidebar item. If the layout works here, the color pass is decoration, not load-bearing.</div>
+
+  <!-- B. Computer-use stream -->
+  <div class="section-title" style="margin-top:32px"><div class="num">B</div><h2>Computer-use screenshot stream</h2><div class="desc">full-bleed · overlay HUD · cursor ring · take-over</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Computer-Use Stream — claude-3.5-sonnet</span></div>
+      <div class="sub">step 4/9 · agent controlling sandbox</div>
+    </div>
+    <div class="canvas">
+      <div class="vidframe">
+        <div class="toolbar">
+          <span class="pill">▶ playing</span>
+          <span class="text-muted">action:</span>
+          <span class="accent">click(842, 318)</span>
+          <span class="text-muted">target:</span>
+          <span>"Run" button</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Pause</span>
+            <span class="btn ghost">Take over</span>
+            <span class="btn">Approve next</span>
+          </div>
+        </div>
+        <div class="stream">
+          <!-- mock screenshot content -->
+          <div style="position:absolute;top:0;left:0;right:0;height:48px;background:#1a1d22;display:flex;align-items:center;padding:0 14px;color:#8d9199;font:12px var(--font-sans);">
+            ◀ ▶ ↻ &nbsp; <span style="margin-left:14px;">https://eval.example.com/runs/142</span>
+          </div>
+          <div style="position:absolute;top:64px;left:24px;right:24px;color:#cfd2d6;font-family:var(--font-sans);">
+            <div style="font:600 22px var(--font-display);color:#fff;">Eval run #142</div>
+            <div class="text-muted" style="margin-top:6px;font-size:13px;">Run on 14 fixtures · 3 models · 2.1k turns</div>
+            <div style="margin-top:24px;display:flex;gap:12px;">
+              <span class="btn">Run</span>
+              <span class="btn ghost">Configure</span>
+              <span class="btn ghost">History</span>
+            </div>
+          </div>
+          <div class="overlay-hud">
+            <span class="pill">step 4 / 9</span>
+            <span class="pill">queue: 5 actions</span>
+            <span class="pill">latency: 0.6s</span>
+          </div>
+          <div class="cursor" style="top:160px;left:140px;"></div>
+          <div class="overlay-actions">
+            <span class="btn ghost">⏸ pause</span>
+            <span class="btn">approve</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Stream framerate: <code>2 fps default, 8 fps on focus</code></span>
+      <span>Cursor ring: <code>follows agent click target</code></span>
+      <span>HUD: <code>top-left, semi-transparent</code></span>
+    </div>
+  </div>
+
+  <!-- C. Canvas panel -->
+  <div class="section-title" style="margin-top:32px"><div class="num">C</div><h2>Canvas panel — WKWebView area</h2><div class="desc">agent-rendered HTML · charts · interactive widgets</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Canvas — Quarterly Spend Report</span></div>
+      <div class="sub">rendered from agent HTML · 28 KB · sandboxed</div>
+    </div>
+    <div class="canvas">
+      <div class="canvasview">
+        <div class="toolbar">
+          <span class="badge">⌘←</span>
+          <span class="badge">⌘→</span>
+          <span class="badge">↻</span>
+          <span class="text-muted">·</span>
+          <span class="text-muted">artifact: spend-q4.html</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Open externally</span>
+            <span class="btn">Export</span>
+          </div>
+        </div>
+        <div class="web">
+          <h1>Quarterly Spend Report</h1>
+          <p class="subtitle">Q4 2026 · 4 categories · automated breakdown</p>
+          <div class="chart">
+            <div class="line"></div>
+          </div>
+          <table>
+            <tr><th>Category</th><th>Amount</th><th>Δ vs Q3</th><th>Share</th></tr>
+            <tr><td>Compute</td><td>$184,210</td><td>+12.4%</td><td>62%</td></tr>
+            <tr><td>Storage</td><td>$48,118</td><td>−2.1%</td><td>16%</td></tr>
+            <tr><td>Network</td><td>$31,002</td><td>+4.8%</td><td>10%</td></tr>
+            <tr><td>Misc</td><td>$34,990</td><td>+1.0%</td><td>12%</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Renderer: <code>WKWebView, sandboxed, no network</code></span>
+      <span>Resize: <code>full viewport in canvas, drag-split</code></span>
+      <span>Cap: <code>5 MB, agent-postable via JSON bridge</code></span>
+    </div>
+  </div>
+
+  <!-- D. Workflow DAG -->
+  <div class="section-title" style="margin-top:32px"><div class="num">D</div><h2>Workflow DAG</h2><div class="desc">running · done · failed · queued</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Workflow — nightly-eval</span></div>
+      <div class="sub">9 steps · 3 done · 1 running · 1 failed · 4 queued</div>
+    </div>
+    <div class="canvas tall">
+      <div class="dag">
+        <div class="dag-node done"   style="top:40px;  left:40px;">  <div class="step-num">01</div><div class="step-name">load fixtures</div><div class="step-meta">✓ done · 1.2s</div></div>
+        <div class="dag-node done"   style="top:40px;  left:240px;"> <div class="step-num">02</div><div class="step-name">run model A</div><div class="step-meta">✓ done · 4m 02s</div></div>
+        <div class="dag-node active" style="top:40px;  left:440px;"> <div class="step-num">03</div><div class="step-name">run model B</div><div class="step-meta">▶ running · 4m 12s / ~5m</div></div>
+        <div class="dag-node queued" style="top:40px;  left:640px;"> <div class="step-num">04</div><div class="step-name">compare outputs</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-node queued" style="top:40px;  left:840px;"> <div class="step-num">05</div><div class="step-name">summarize</div><div class="step-meta">○ queued</div></div>
+
+        <div class="dag-edge" style="top:70px; left:200px; width:40px;"></div>
+        <div class="dag-edge" style="top:70px; left:400px; width:40px;"></div>
+        <div class="dag-edge" style="top:70px; left:600px; width:40px;"></div>
+        <div class="dag-edge" style="top:70px; left:800px; width:40px;"></div>
+
+        <div class="dag-node queued" style="top:180px; left:440px;"> <div class="step-num">06</div><div class="step-name">post to slack</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-node queued" style="top:180px; left:640px;"> <div class="step-num">07</div><div class="step-name">archive</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-edge" style="top:100px; left:520px; width:2px; height:80px;"></div>
+        <div class="dag-edge" style="top:210px; left:600px; width:40px;"></div>
+
+        <div class="dag-node error"  style="top:320px; left:440px;"> <div class="step-num">08</div><div class="step-name">notify owners</div><div class="step-meta">✗ failed · timeout</div></div>
+        <div class="dag-edge" style="top:240px; left:520px; width:2px; height:80px;"></div>
+
+        <div class="dag-node queued" style="top:320px; left:240px;"> <div class="step-num">09</div><div class="step-name">retry handler</div><div class="step-meta">○ on-failure</div></div>
+        <div class="dag-edge" style="top:350px; left:400px; width:40px;"></div>
+
+        <div class="dag-node" style="top:40px; right:24px; width:240px; height:auto;">
+          <div class="step-num">INSPECTOR</div>
+          <div class="step-name">step 03 — run model B</div>
+          <div style="margin-top:10px;font-size:11.5px;line-height:1.6;color:#8d9199;">
+            input · /eval/fixtures/q4.json<br>
+            agent · claude-haiku-4.5<br>
+            duration · 4m 12s / ~5m<br>
+            cost · $0.42<br>
+            tokens · 18,402
+          </div>
+          <div style="margin-top:12px;display:flex;gap:6px;">
+            <span class="btn ghost">retry</span>
+            <span class="btn ghost">skip</span>
+            <span class="btn">edit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Layout: <code>top-down auto-DAG, lane per parallel branch</code></span>
+      <span>State: <code>weight + border, no hue (color tab adds saffron/green/red)</code></span>
+      <span>Inspector: <code>right rail 240px, action footer</code></span>
+    </div>
+  </div>
+
+  <!-- E. Spotlight -->
+  <div class="section-title" style="margin-top:32px"><div class="num">E</div><h2>Spotlight UI overlay</h2><div class="desc">⌘K · centered floating panel · Raycast aesthetic</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Spotlight — switch model</span></div>
+      <div class="sub">⌘K · 580px · keyboard-first</div>
+    </div>
+    <div class="canvas">
+      <!-- dim parent -->
+      <div class="surface" style="position:absolute;inset:0;opacity:0.4;">
+        <div class="shell">
+          <div class="top"><span class="text-muted">conduit · sonnet-4.6</span></div>
+          <div class="side"></div>
+          <div class="main"></div>
+          <div class="ctx"></div>
+          <div class="status"></div>
+        </div>
+      </div>
+      <div class="spotlight-bg"></div>
+      <div class="spotlight">
+        <div class="input">
+          <span class="text-muted">⌘K</span>
+          <span class="grow accent">switch model</span>
+          <span class="text-muted" style="font:11px var(--font-mono);">esc to close</span>
+        </div>
+        <div class="results">
+          <div class="result sel">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-haiku-4.5</span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-sonnet-4.6 <span class="text-muted">(current)</span></span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-opus-4.7</span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">session</span>
+            <span class="name">Fork current session with new model</span>
+            <span class="hint">⇧↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">doc</span>
+            <span class="name">"How do I switch models?" — guide</span>
+            <span class="hint">⌘↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">file</span>
+            <span class="name">~/.conduit/models.toml</span>
+            <span class="hint">⌘O</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Trigger: <code>⌘K (system-wide)</code></span>
+      <span>Width: <code>580px, fixed</code></span>
+      <span>Position: <code>top-center, 80px from top</code></span>
+      <span>Fuzzy match: <code>command + payload + arguments</code></span>
+    </div>
+  </div>
+
+  <!-- F. Session tree -->
+  <div class="section-title" style="margin-top:32px"><div class="num">F</div><h2>Session tree browser</h2><div class="desc">fork · replay · branching · merge</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Session Tree — implement-#44</span></div>
+      <div class="sub">14 sessions · 6 branches · HEAD on color-locked</div>
+    </div>
+    <div class="canvas">
+      <div class="tree">
+        <div class="tree-node head">
+          <span class="branch-glyph">●</span>
+          <span class="name">main · "implement #44"</span>
+          <span class="meta">42 msgs · $1.18 · HEAD</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph">├─</span>
+          <span class="name">fix-typo</span>
+          <span class="meta">3 msgs · $0.02</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph">├─</span>
+          <span class="name">try-tabs</span>
+          <span class="meta">12 msgs · $0.21</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">└─</span>
+          <span class="name">try-tabs-rev2</span>
+          <span class="meta">8 msgs · $0.14</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph">├─</span>
+          <span class="name">refactor-shell</span>
+          <span class="meta">28 msgs · $0.62</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">├─</span>
+          <span class="name">grayscale-only</span>
+          <span class="meta">6 msgs · $0.18</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">└─</span>
+          <span class="name">color-locked</span>
+          <span class="meta">11 msgs · $0.31</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph">└─</span>
+          <span class="name">spike-canvas</span>
+          <span class="meta">6 msgs · $0.09</span>
+        </div>
+        <div style="position:absolute;right:18px;top:18px;width:300px;padding:14px;background:#1f2329;border:1px solid #353a42;border-radius:var(--r-md);">
+          <div class="text-muted" style="font:600 11px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;">Detail</div>
+          <div class="accent" style="font-size:14px;margin-top:4px;">refactor-shell</div>
+          <div class="text-muted" style="font-size:12px;margin-top:8px;line-height:1.6;">
+            forked from main @ msg 14<br>
+            28 messages · 4 tool calls<br>
+            $0.62 · 8.4k tok<br><br>
+            last action:<br>
+            <span class="text-body">"rename ContextPanel → ContextRail"</span>
+          </div>
+          <div class="row mt12">
+            <span class="btn ghost">open</span>
+            <span class="btn ghost">diff vs parent</span>
+            <span class="btn">merge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Glyph: <code>● session, ├─/└─ branches</code></span>
+      <span>HEAD: <code>highlighted, weight 600</code></span>
+      <span>Detail: <code>right rail 300px, action row</code></span>
+    </div>
+  </div>
+
+  <!-- G. SOUL.md editor -->
+  <div class="section-title" style="margin-top:32px"><div class="num">G</div><h2>SOUL.md / USER.md editor</h2><div class="desc">split source + preview · live render</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Memory Editor — SOUL.md</span></div>
+      <div class="sub">unsaved · ⌘S · autosave 30s</div>
+    </div>
+    <div class="canvas">
+      <div class="editor">
+        <div class="tabs-row">
+          <div class="file-tab active">SOUL.md</div>
+          <div class="file-tab">USER.md</div>
+          <div class="file-tab">PROJECT.md</div>
+          <span style="margin-left:auto;font:11px var(--font-mono);color:#8d9199;">unsaved · ⌘S</span>
+        </div>
+        <div class="src">
+          <span class="h"># SOUL.md</span><br><br>
+          <span class="h">## Identity</span><br>
+          You are <span class="key">Conduit</span>, an agent that bridges<br>
+          natural-language intent and concrete tooling.<br>
+          You are <span class="key">honest</span>, <span class="key">terse</span>, and <span class="key">deliberate</span>.<br><br>
+          <span class="h">## Behaviors</span><br>
+          - Speak concisely. Never repeat what the user said.<br>
+          - Cite tool calls inline with <span class="str">"file:line"</span> refs.<br>
+          - Never delete without confirmation.<br>
+          - Default to questions if intent is ambiguous.<br><br>
+          <span class="h">## Voice</span><br>
+          - First person rare. <span class="co">// "I'll do X" → "Doing X"</span><br>
+          - No filler. No "great question."<br>
+          - Always ground claims in observation.<br><br>
+          <span class="h">## Failure modes</span><br>
+          - When stuck, say so. Don't loop silently.<br>
+          - When uncertain, name the uncertainty.
+        </div>
+        <div class="preview">
+          <div class="md-h1">SOUL.md</div>
+          <div class="md-h2">Identity</div>
+          <p class="md-p">You are <b>Conduit</b>, an agent that bridges natural-language intent and concrete tooling. You are honest, terse, and deliberate.</p>
+          <div class="md-h2">Behaviors</div>
+          <p class="md-p">
+            • Speak concisely. Never repeat what the user said.<br>
+            • Cite tool calls inline with <code style="font-family:var(--font-mono);font-size:12px;">file:line</code> refs.<br>
+            • Never delete without confirmation.<br>
+            • Default to questions if intent is ambiguous.
+          </p>
+          <div class="md-h2">Voice</div>
+          <p class="md-p">First person rare. No filler. Always ground claims in observation.</p>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Layout: <code>50/50, drag-resizable, sync scroll</code></span>
+      <span>Tabs: <code>SOUL · USER · PROJECT, +new</code></span>
+      <span>Save: <code>⌘S, autosave 30s</code></span>
+    </div>
+  </div>
+
+  <!-- H. Diff view -->
+  <div class="section-title" style="margin-top:32px"><div class="num">H</div><h2>GitHub-style diff view</h2><div class="desc">side-by-side · ± highlights · file tree</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Diff — patch preview</span></div>
+      <div class="sub">2 files · +47 −12 · review before applying</div>
+    </div>
+    <div class="canvas">
+      <div class="diff">
+        <div class="head">
+          <span class="badge">M</span>
+          <span class="accent">src/router.py</span>
+          <span class="text-muted">+12 −4</span>
+          <span class="text-muted" style="margin-left:14px">·</span>
+          <span class="text-muted">src/handlers/auth.py</span>
+          <span class="text-muted">+35 −8</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Discard</span>
+            <span class="btn">Apply patch</span>
+          </div>
+        </div>
+        <div class="left">
+          <div class="col-head">BEFORE — src/router.py</div>
+          <div class="lines">
+            <div class="ln ctx"><span class="num">10</span><span class="gut"></span><span class="code">from .types import Request, Response</span></div>
+            <div class="ln ctx"><span class="num">11</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">12</span><span class="gut"></span><span class="code">def handle(req):</span></div>
+            <div class="ln del" ><span class="num">13</span><span class="gut">−</span><span class="code">    log.debug(req)</span></div>
+            <div class="ln del" ><span class="num">14</span><span class="gut">−</span><span class="code">    if req.path is None:</span></div>
+            <div class="ln del" ><span class="num">15</span><span class="gut">−</span><span class="code">        return error()</span></div>
+            <div class="ln del" ><span class="num">16</span><span class="gut">−</span><span class="code">    return route(req)</span></div>
+            <div class="ln ctx"><span class="num">17</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">18</span><span class="gut"></span><span class="code">def route(req):</span></div>
+            <div class="ln ctx"><span class="num">19</span><span class="gut"></span><span class="code">    return registry[req.path](req)</span></div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="col-head">AFTER — src/router.py</div>
+          <div class="lines">
+            <div class="ln ctx"><span class="num">10</span><span class="gut"></span><span class="code">from .types import Request, Response</span></div>
+            <div class="ln ctx"><span class="num">11</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln add" ><span class="num">12</span><span class="gut">+</span><span class="code">def handle(req: Request) -> Response:</span></div>
+            <div class="ln add" ><span class="num">13</span><span class="gut">+</span><span class="code">    tracer.start(req.id)</span></div>
+            <div class="ln add" ><span class="num">14</span><span class="gut">+</span><span class="code">    if req.path is None:</span></div>
+            <div class="ln add" ><span class="num">15</span><span class="gut">+</span><span class="code">        return Response.bad_request()</span></div>
+            <div class="ln add" ><span class="num">16</span><span class="gut">+</span><span class="code">    return route(req)</span></div>
+            <div class="ln ctx"><span class="num">17</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">18</span><span class="gut"></span><span class="code">def route(req):</span></div>
+            <div class="ln ctx"><span class="num">19</span><span class="gut"></span><span class="code">    return registry[req.path](req)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Layout: <code>side-by-side 50/50</code></span>
+      <span>Add: <code>+ band, brighter weight</code></span>
+      <span>Del: <code>− band, struck-through</code></span>
+      <span>Action: <code>discard / apply, top-right</code></span>
+    </div>
+  </div>
+
+</section>
+
+<!-- ============================================================
+     PANE: COLOR (locked spec)
+     ============================================================ -->
+<section class="pane clr" id="clr" data-active="true" role="tabpanel" aria-label="Color fidelity">
+
+  <div class="intro">
+    <b>What to look for.</b> Token application, color hierarchy, and brand voice. This is the locked spec — every color references <code style="font-family:var(--font-mono);font-size:11.5px;background:var(--surface-elevated);color:var(--text-body);padding:1px 5px;border-radius:3px;">design/tokens.yaml</code>. Saffron is reserved for brand and active-agent state. Cyan handles info, links, and "thinking." Indigo carries surfaces and text. Status hues (green / red) appear only on outcomes.
+  </div>
+
+  <!-- A. Three-column shell -->
+  <div class="section-title"><div class="num">A</div><h2>Three-column layout — primary shell</h2><div class="desc">conversation surface · the home view</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Conduit — Three-Column Shell</span></div>
+      <div class="sub">conversation · ⌘P toggles right panel</div>
+    </div>
+    <div class="canvas">
+      <div class="shell">
+        <div class="top text-body">
+          <span class="badge">⌘O</span>
+          <span class="accent">conduit / playground</span>
+          <span class="text-muted">·</span>
+          <span class="pill brand">claude-sonnet-4.6</span>
+          <span class="pill info">$0.42 · 18.4k tok</span>
+          <span class="pill muted">tier: standard</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Share</span>
+            <span class="btn">New session</span>
+          </div>
+        </div>
+        <div class="side">
+          <div class="side-section">Sessions</div>
+          <div class="side-item active"><span class="dot active"></span>implement #44</div>
+          <div class="side-item"><span class="dot idle"></span>refactor router</div>
+          <div class="side-item"><span class="dot idle"></span>debug ingest</div>
+          <div class="side-item"><span class="dot idle"></span>try-tabs-rev2</div>
+          <div class="side-section" style="margin-top:14px">Workflows</div>
+          <div class="side-item">▸ nightly-eval</div>
+          <div class="side-item">▸ release notes</div>
+          <div class="side-section" style="margin-top:14px">Memory</div>
+          <div class="side-item">▣ SOUL.md</div>
+          <div class="side-item">▣ USER.md</div>
+        </div>
+        <div class="main">
+          <div class="conv">
+            <div class="msg user">
+              <div class="role">You · 2:14 PM</div>
+              <div class="body">Implement multi-fidelity GUI mockups for issue #44. Eight surfaces, three fidelities each.</div>
+            </div>
+            <div class="msg agent">
+              <div class="role"><span class="dot active"></span>Agent · claude-sonnet-4.6</div>
+              <div class="body">I'll create <span class="text-link">docs/mockups/gui-mockups.html</span> mirroring the TUI version. Reading the existing file first.</div>
+              <div class="toolblock">
+                <div class="head"><span>▼ read_file(path="docs/mockups/tui-mockups.html")</span><span class="accent-cyan">✓ 0.2s</span></div>
+                <div class="body">→ 1184 lines · structure: header, tab nav, 3 panes, 6 sections each</div>
+              </div>
+              <div class="toolblock">
+                <div class="head"><span>▶ read_file(path="design/tokens.yaml")</span><span class="accent-cyan">✓ 0.1s</span></div>
+              </div>
+              <div class="body" style="margin-top:10px;">Token system uses <span style="color:var(--saffron-300)">indigo</span> / <span style="color:var(--saffron-300)">saffron</span> / <span style="color:var(--cyan-300)">cyan</span> with semantic mode mappings. Reusing for color pass.</div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="field">
+              <span class="text-muted">▌</span>
+              <span class="grow text-muted">Reply, or type / for commands</span>
+              <span class="badge">⏎</span>
+            </div>
+          </div>
+        </div>
+        <div class="ctx">
+          <div class="row" style="gap:6px;margin-bottom:10px;">
+            <span class="pill brand">Workflow</span>
+            <span class="pill muted">Memory</span>
+            <span class="pill muted">Hooks</span>
+            <span class="pill muted">Tree</span>
+          </div>
+          <div class="text-subtle" style="font:11px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;">Active workflow</div>
+          <div class="accent" style="font-size:13px;margin-top:2px;">implement-feature</div>
+          <div style="margin-top:14px;font-size:12.5px;line-height:1.7;">
+            <div><span class="dot success"></span>understand spec — done</div>
+            <div><span class="dot success"></span>scaffold file — done</div>
+            <div class="accent"><span class="dot active"></span>build wireframe — running</div>
+            <div class="text-muted"><span class="dot idle"></span>build grayscale — queued</div>
+            <div class="text-muted"><span class="dot idle"></span>build color — queued</div>
+            <div class="text-muted"><span class="dot idle"></span>commit + PR — queued</div>
+          </div>
+        </div>
+        <div class="status">
+          <span><span class="dot success"></span>ready</span>
+          <span>·</span>
+          <span>200k ctx · 18.4k used</span>
+          <span>·</span>
+          <span class="accent-cyan">turn cost $0.0042</span>
+          <span style="margin-left:auto"><span class="badge">⌘K</span> palette  ·  <span class="badge">⌘P</span> toggle context  ·  <span class="badge">⌘/</span> commands</span>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Brand: <code>saffron-300 only on agent-active + active sidebar</code></span>
+      <span>Info: <code>cyan-300 on links, costs, thinking</code></span>
+      <span>Surface: <code>indigo-900 canvas, 800 panels, 700 elevated</code></span>
+    </div>
+  </div>
+  <div class="note">Saffron is the most expensive paint here — it should always mean "this is the agent acting" or "this is your active focus." If you see saffron on more than one element at a time, the design is leaking.</div>
+
+  <!-- B. Computer-use stream -->
+  <div class="section-title" style="margin-top:32px"><div class="num">B</div><h2>Computer-use screenshot stream</h2><div class="desc">live screencast · saffron cursor · cyan HUD</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Computer-Use Stream — claude-3.5-sonnet</span></div>
+      <div class="sub">step 4/9 · agent controlling sandbox</div>
+    </div>
+    <div class="canvas">
+      <div class="vidframe">
+        <div class="toolbar">
+          <span class="pill brand"><span class="dot active"></span>playing</span>
+          <span class="text-muted">action:</span>
+          <span class="accent-cyan">click(842, 318)</span>
+          <span class="text-muted">target:</span>
+          <span>"Run" button</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Pause</span>
+            <span class="btn ghost">Take over</span>
+            <span class="btn">Approve next</span>
+          </div>
+        </div>
+        <div class="stream">
+          <div style="position:absolute;top:0;left:0;right:0;height:48px;background:var(--surface-primary);display:flex;align-items:center;padding:0 14px;color:var(--text-muted);font:12px var(--font-sans);border-bottom:1px solid var(--border-subtle);">
+            ◀ ▶ ↻ &nbsp; <span style="margin-left:14px;color:var(--cyan-300);">https://eval.example.com/runs/142</span>
+          </div>
+          <div style="position:absolute;top:64px;left:24px;right:24px;color:var(--text-body);font-family:var(--font-sans);">
+            <div style="font:600 22px var(--font-display);color:#fff;">Eval run #142</div>
+            <div class="text-muted" style="margin-top:6px;font-size:13px;">Run on 14 fixtures · 3 models · 2.1k turns</div>
+            <div style="margin-top:24px;display:flex;gap:12px;">
+              <span class="btn">Run</span>
+              <span class="btn ghost">Configure</span>
+              <span class="btn ghost">History</span>
+            </div>
+          </div>
+          <div class="overlay-hud">
+            <span class="pill info">step 4 / 9</span>
+            <span class="pill info">queue: 5 actions</span>
+            <span class="pill info">latency: 0.6s</span>
+          </div>
+          <div class="cursor" style="top:160px;left:140px;"></div>
+          <div class="overlay-actions">
+            <span class="btn ghost">⏸ pause</span>
+            <span class="btn">approve</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Cursor ring: <code>saffron — agent click target</code></span>
+      <span>HUD pills: <code>cyan-800 bg, cyan-200 fg</code></span>
+      <span>Approve: <code>saffron primary CTA</code></span>
+    </div>
+  </div>
+
+  <!-- C. Canvas panel -->
+  <div class="section-title" style="margin-top:32px"><div class="num">C</div><h2>Canvas panel — WKWebView area</h2><div class="desc">agent HTML · saffron chart accent</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Canvas — Quarterly Spend Report</span></div>
+      <div class="sub">artifact: spend-q4.html · sandboxed · 28 KB</div>
+    </div>
+    <div class="canvas">
+      <div class="canvasview">
+        <div class="toolbar">
+          <span class="badge">⌘←</span>
+          <span class="badge">⌘→</span>
+          <span class="badge">↻</span>
+          <span class="text-muted">·</span>
+          <span class="text-link">artifact: spend-q4.html</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Open externally</span>
+            <span class="btn">Export</span>
+          </div>
+        </div>
+        <div class="web">
+          <h1 style="color:var(--indigo-900);">Quarterly Spend Report</h1>
+          <p class="subtitle">Q4 2026 · 4 categories · automated breakdown</p>
+          <div class="chart">
+            <div class="line"></div>
+          </div>
+          <table>
+            <tr><th>Category</th><th>Amount</th><th>Δ vs Q3</th><th>Share</th></tr>
+            <tr><td>Compute</td><td>$184,210</td><td style="color:#155F2C;">+12.4%</td><td>62%</td></tr>
+            <tr><td>Storage</td><td>$48,118</td><td style="color:#8C1414;">−2.1%</td><td>16%</td></tr>
+            <tr><td>Network</td><td>$31,002</td><td style="color:#155F2C;">+4.8%</td><td>10%</td></tr>
+            <tr><td>Misc</td><td>$34,990</td><td style="color:#155F2C;">+1.0%</td><td>12%</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Web area: <code>uses brand tokens for chart accents</code></span>
+      <span>Body: <code>renders against pure white (artifact context)</code></span>
+      <span>Tone: <code>green/red ONLY on quantitative deltas</code></span>
+    </div>
+  </div>
+
+  <!-- D. Workflow DAG -->
+  <div class="section-title" style="margin-top:32px"><div class="num">D</div><h2>Workflow DAG</h2><div class="desc">saffron active · green done · red failed · indigo queued</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Workflow — nightly-eval</span></div>
+      <div class="sub">9 steps · 3 done · 1 running · 1 failed · 4 queued</div>
+    </div>
+    <div class="canvas tall">
+      <div class="dag">
+        <div class="dag-node done"   style="top:40px;  left:40px;">  <div class="step-num">01</div><div class="step-name">load fixtures</div><div class="step-meta">✓ done · 1.2s</div></div>
+        <div class="dag-node done"   style="top:40px;  left:240px;"> <div class="step-num">02</div><div class="step-name">run model A</div><div class="step-meta">✓ done · 4m 02s</div></div>
+        <div class="dag-node active" style="top:40px;  left:440px;"> <div class="step-num">03</div><div class="step-name">run model B</div><div class="step-meta">▶ running · 4m 12s / ~5m</div></div>
+        <div class="dag-node queued" style="top:40px;  left:640px;"> <div class="step-num">04</div><div class="step-name">compare outputs</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-node queued" style="top:40px;  left:840px;"> <div class="step-num">05</div><div class="step-name">summarize</div><div class="step-meta">○ queued</div></div>
+
+        <div class="dag-edge active" style="top:70px; left:200px; width:40px;"></div>
+        <div class="dag-edge active" style="top:70px; left:400px; width:40px;"></div>
+        <div class="dag-edge"        style="top:70px; left:600px; width:40px;"></div>
+        <div class="dag-edge"        style="top:70px; left:800px; width:40px;"></div>
+
+        <div class="dag-node queued" style="top:180px; left:440px;"> <div class="step-num">06</div><div class="step-name">post to slack</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-node queued" style="top:180px; left:640px;"> <div class="step-num">07</div><div class="step-name">archive</div><div class="step-meta">○ queued</div></div>
+        <div class="dag-edge" style="top:100px; left:520px; width:2px; height:80px;"></div>
+        <div class="dag-edge" style="top:210px; left:600px; width:40px;"></div>
+
+        <div class="dag-node error"  style="top:320px; left:440px;"> <div class="step-num">08</div><div class="step-name">notify owners</div><div class="step-meta">✗ failed · timeout</div></div>
+        <div class="dag-edge" style="top:240px; left:520px; width:2px; height:80px;"></div>
+
+        <div class="dag-node queued" style="top:320px; left:240px;"> <div class="step-num">09</div><div class="step-name">retry handler</div><div class="step-meta">○ on-failure</div></div>
+        <div class="dag-edge" style="top:350px; left:400px; width:40px;"></div>
+
+        <div class="dag-node" style="top:40px; right:24px; width:240px; height:auto;background:var(--surface-elevated);border-color:var(--border-default);">
+          <div class="step-num text-subtle">INSPECTOR</div>
+          <div class="step-name accent">step 03 — run model B</div>
+          <div style="margin-top:10px;font-size:11.5px;line-height:1.6;color:var(--text-muted);">
+            input · <span class="text-link">/eval/fixtures/q4.json</span><br>
+            agent · <span class="pill brand" style="font-size:10px;">claude-haiku-4.5</span><br>
+            duration · 4m 12s / ~5m<br>
+            cost · <span class="accent-cyan">$0.42</span><br>
+            tokens · 18,402
+          </div>
+          <div style="margin-top:12px;display:flex;gap:6px;">
+            <span class="btn ghost">retry</span>
+            <span class="btn ghost">skip</span>
+            <span class="btn">edit</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Active: <code>saffron-800 bg + saffron-300 border + glow</code></span>
+      <span>Done: <code>green-700 border</code></span>
+      <span>Failed: <code>red-700 border</code></span>
+      <span>Edges: <code>indigo-500, saffron when on active path</code></span>
+    </div>
+  </div>
+
+  <!-- E. Spotlight -->
+  <div class="section-title" style="margin-top:32px"><div class="num">E</div><h2>Spotlight UI overlay</h2><div class="desc">⌘K · saffron selection · Raycast aesthetic</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Spotlight — switch model</span></div>
+      <div class="sub">⌘K · centered · keyboard-first</div>
+    </div>
+    <div class="canvas">
+      <!-- dimmed parent -->
+      <div class="surface" style="position:absolute;inset:0;opacity:0.55;">
+        <div class="shell">
+          <div class="top"><span class="text-muted">conduit · sonnet-4.6</span></div>
+          <div class="side"></div>
+          <div class="main"></div>
+          <div class="ctx"></div>
+          <div class="status"></div>
+        </div>
+      </div>
+      <div class="spotlight-bg"></div>
+      <div class="spotlight">
+        <div class="input">
+          <span class="accent-cyan" style="font-family:var(--font-mono);font-size:13px;">⌘K</span>
+          <span class="grow accent">switch model</span>
+          <span class="text-muted" style="font:11px var(--font-mono);">esc to close</span>
+        </div>
+        <div class="results">
+          <div class="result sel">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-haiku-4.5</span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-sonnet-4.6 <span class="text-muted">(current)</span></span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">cmd</span>
+            <span class="name">Switch model → claude-opus-4.7</span>
+            <span class="hint">↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">session</span>
+            <span class="name">Fork current session with new model</span>
+            <span class="hint">⇧↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">doc</span>
+            <span class="name">"How do I switch models?" — guide</span>
+            <span class="hint">⌘↵</span>
+          </div>
+          <div class="result">
+            <span class="kind">file</span>
+            <span class="name">~/.conduit/models.toml</span>
+            <span class="hint">⌘O</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Selected row: <code>saffron-800 bg, saffron-100 fg</code></span>
+      <span>Kind label: <code>indigo-300, mono, uppercase</code></span>
+      <span>Width: <code>580px fixed, 80px from top</code></span>
+    </div>
+  </div>
+
+  <!-- F. Session tree -->
+  <div class="section-title" style="margin-top:32px"><div class="num">F</div><h2>Session tree browser</h2><div class="desc">HEAD on saffron · branches in indigo</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Session Tree — implement-#44</span></div>
+      <div class="sub">14 sessions · 6 branches</div>
+    </div>
+    <div class="canvas">
+      <div class="tree">
+        <div class="tree-node head">
+          <span class="branch-glyph">●</span>
+          <span class="name">main · "implement #44"</span>
+          <span class="meta">42 msgs · $1.18 · HEAD</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph text-muted">├─</span>
+          <span class="name">fix-typo</span>
+          <span class="meta">3 msgs · $0.02</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph text-muted">├─</span>
+          <span class="name">try-tabs</span>
+          <span class="meta">12 msgs · $0.21</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">└─</span>
+          <span class="name">try-tabs-rev2</span>
+          <span class="meta">8 msgs · $0.14</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph text-muted">├─</span>
+          <span class="name">refactor-shell</span>
+          <span class="meta">28 msgs · $0.62</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">├─</span>
+          <span class="name">grayscale-only</span>
+          <span class="meta">6 msgs · $0.18</span>
+        </div>
+        <div class="tree-node muted" style="padding-left:32px;">
+          <span class="branch-glyph">└─</span>
+          <span class="name">color-locked</span>
+          <span class="meta">11 msgs · $0.31</span>
+        </div>
+        <div class="tree-node">
+          <span class="branch-glyph text-muted">└─</span>
+          <span class="name">spike-canvas</span>
+          <span class="meta">6 msgs · $0.09</span>
+        </div>
+        <div style="position:absolute;right:18px;top:18px;width:300px;padding:14px;background:var(--surface-elevated);border:1px solid var(--border-subtle);border-radius:var(--r-md);">
+          <div class="text-subtle" style="font:600 11px var(--font-mono);text-transform:uppercase;letter-spacing:0.05em;">Detail</div>
+          <div class="accent" style="font-size:14px;margin-top:4px;">refactor-shell</div>
+          <div class="text-muted" style="font-size:12px;margin-top:8px;line-height:1.6;">
+            forked from <span class="text-link">main @ msg 14</span><br>
+            28 messages · 4 tool calls<br>
+            <span class="accent-cyan">$0.62 · 8.4k tok</span><br><br>
+            last action:<br>
+            <span class="text-body">"rename ContextPanel → ContextRail"</span>
+          </div>
+          <div class="row mt12">
+            <span class="btn ghost">open</span>
+            <span class="btn ghost">diff vs parent</span>
+            <span class="btn">merge</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>HEAD: <code>saffron-800 bg, saffron-200 fg</code></span>
+      <span>Active branch: <code>indigo-100 fg</code></span>
+      <span>Sub-branches: <code>indigo-300 (muted)</code></span>
+    </div>
+  </div>
+
+  <!-- G. SOUL.md editor -->
+  <div class="section-title" style="margin-top:32px"><div class="num">G</div><h2>SOUL.md / USER.md editor</h2><div class="desc">syntax-highlighted source · rendered preview</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Memory Editor — SOUL.md</span></div>
+      <div class="sub">unsaved · ⌘S · autosave 30s</div>
+    </div>
+    <div class="canvas">
+      <div class="editor">
+        <div class="tabs-row">
+          <div class="file-tab active">SOUL.md</div>
+          <div class="file-tab">USER.md</div>
+          <div class="file-tab">PROJECT.md</div>
+          <span style="margin-left:auto;font:11px var(--font-mono);color:var(--saffron-300);">● unsaved · ⌘S</span>
+        </div>
+        <div class="src">
+          <span class="h"># SOUL.md</span><br><br>
+          <span class="h">## Identity</span><br>
+          You are <span class="key">Conduit</span>, an agent that bridges<br>
+          natural-language intent and concrete tooling.<br>
+          You are <span class="key">honest</span>, <span class="key">terse</span>, and <span class="key">deliberate</span>.<br><br>
+          <span class="h">## Behaviors</span><br>
+          - Speak concisely. Never repeat what the user said.<br>
+          - Cite tool calls inline with <span class="str">"file:line"</span> refs.<br>
+          - Never delete without confirmation.<br>
+          - Default to questions if intent is ambiguous.<br><br>
+          <span class="h">## Voice</span><br>
+          - First person rare. <span class="co">// "I'll do X" → "Doing X"</span><br>
+          - No filler. No "great question."<br>
+          - Always ground claims in observation.<br><br>
+          <span class="h">## Failure modes</span><br>
+          - When stuck, say so. Don't loop silently.<br>
+          - When uncertain, name the uncertainty.
+        </div>
+        <div class="preview">
+          <div class="md-h1">SOUL.md</div>
+          <div class="md-h2">Identity</div>
+          <p class="md-p">You are <b style="color:var(--saffron-300)">Conduit</b>, an agent that bridges natural-language intent and concrete tooling. You are honest, terse, and deliberate.</p>
+          <div class="md-h2">Behaviors</div>
+          <p class="md-p">
+            • Speak concisely. Never repeat what the user said.<br>
+            • Cite tool calls inline with <code style="font-family:var(--font-mono);font-size:12px;color:var(--cyan-300);background:var(--surface-elevated);padding:1px 5px;border-radius:3px;">file:line</code> refs.<br>
+            • Never delete without confirmation.<br>
+            • Default to questions if intent is ambiguous.
+          </p>
+          <div class="md-h2">Voice</div>
+          <p class="md-p">First person rare. No filler. Always ground claims in observation.</p>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Source: <code>cyan keys, green strings, saffron headings</code></span>
+      <span>Preview: <code>saffron h2, indigo body, brand-bold inline</code></span>
+      <span>Status: <code>saffron dot when unsaved</code></span>
+    </div>
+  </div>
+
+  <!-- H. Diff view -->
+  <div class="section-title" style="margin-top:32px"><div class="num">H</div><h2>GitHub-style diff view</h2><div class="desc">green add · red delete · cyan filename</div></div>
+  <div class="mockup">
+    <div class="mockup-head">
+      <div><span class="dots"><i></i><i></i><i></i></span><span class="title">Diff — patch preview</span></div>
+      <div class="sub">2 files · +47 −12 · review before applying</div>
+    </div>
+    <div class="canvas">
+      <div class="diff">
+        <div class="head">
+          <span class="badge">M</span>
+          <span class="text-link">src/router.py</span>
+          <span class="pill success">+12</span><span class="pill error">−4</span>
+          <span class="text-muted" style="margin-left:14px">·</span>
+          <span class="text-link">src/handlers/auth.py</span>
+          <span class="pill success">+35</span><span class="pill error">−8</span>
+          <div style="margin-left:auto;display:flex;gap:8px;">
+            <span class="btn ghost">Discard</span>
+            <span class="btn">Apply patch</span>
+          </div>
+        </div>
+        <div class="left">
+          <div class="col-head">BEFORE — src/router.py</div>
+          <div class="lines">
+            <div class="ln ctx"><span class="num">10</span><span class="gut"></span><span class="code">from .types import Request, Response</span></div>
+            <div class="ln ctx"><span class="num">11</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">12</span><span class="gut"></span><span class="code">def handle(req):</span></div>
+            <div class="ln del" ><span class="num">13</span><span class="gut">−</span><span class="code">    log.debug(req)</span></div>
+            <div class="ln del" ><span class="num">14</span><span class="gut">−</span><span class="code">    if req.path is None:</span></div>
+            <div class="ln del" ><span class="num">15</span><span class="gut">−</span><span class="code">        return error()</span></div>
+            <div class="ln del" ><span class="num">16</span><span class="gut">−</span><span class="code">    return route(req)</span></div>
+            <div class="ln ctx"><span class="num">17</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">18</span><span class="gut"></span><span class="code">def route(req):</span></div>
+            <div class="ln ctx"><span class="num">19</span><span class="gut"></span><span class="code">    return registry[req.path](req)</span></div>
+          </div>
+        </div>
+        <div class="right">
+          <div class="col-head">AFTER — src/router.py</div>
+          <div class="lines">
+            <div class="ln ctx"><span class="num">10</span><span class="gut"></span><span class="code">from .types import Request, Response</span></div>
+            <div class="ln ctx"><span class="num">11</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln add" ><span class="num">12</span><span class="gut">+</span><span class="code">def handle(req: Request) -> Response:</span></div>
+            <div class="ln add" ><span class="num">13</span><span class="gut">+</span><span class="code">    tracer.start(req.id)</span></div>
+            <div class="ln add" ><span class="num">14</span><span class="gut">+</span><span class="code">    if req.path is None:</span></div>
+            <div class="ln add" ><span class="num">15</span><span class="gut">+</span><span class="code">        return Response.bad_request()</span></div>
+            <div class="ln add" ><span class="num">16</span><span class="gut">+</span><span class="code">    return route(req)</span></div>
+            <div class="ln ctx"><span class="num">17</span><span class="gut"></span><span class="code"></span></div>
+            <div class="ln ctx"><span class="num">18</span><span class="gut"></span><span class="code">def route(req):</span></div>
+            <div class="ln ctx"><span class="num">19</span><span class="gut"></span><span class="code">    return registry[req.path](req)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="legend">
+      <span>Add: <code>green-300 fg, 10% green bg</code></span>
+      <span>Del: <code>red-300 fg, 10% red bg</code></span>
+      <span>Filename: <code>cyan-300 (link role)</code></span>
+      <span>Apply CTA: <code>saffron primary, top-right</code></span>
+    </div>
+  </div>
+
+</section>
+
+<script>
+  // Tab switcher — same pattern as tui-mockups.html
+  const tabs = document.querySelectorAll('.tabs .tab');
+  const panes = document.querySelectorAll('.pane');
+  function activate(target) {
+    tabs.forEach(t => t.setAttribute('aria-selected', String(t.dataset.target === target)));
+    panes.forEach(p => p.setAttribute('data-active', String(p.id === target)));
+    try { history.replaceState(null, '', '#' + target); } catch (e) { /* noop */ }
+  }
+  tabs.forEach(t => t.addEventListener('click', () => activate(t.dataset.target)));
+  // Honor #wf / #gs / #clr deep-links, default to color (locked spec).
+  const initial = (location.hash || '').replace('#', '');
+  activate(['wf', 'gs', 'clr'].includes(initial) ? initial : 'clr');
+</script>
+
+</body>
+</html>
