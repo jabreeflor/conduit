@@ -1,0 +1,1594 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Conduit Design — Component Library (Issue #101 / PRD §12.2)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --bg: #07090c;
+    --bg-2: #0b0d10;
+    --panel: #11151a;
+    --panel-2: #161b22;
+    --panel-3: #1b212a;
+    --border: #232a33;
+    --border-strong: #2f3742;
+
+    --text: #e3e8ef;
+    --text-2: #c1c8d2;
+    --muted: #8a94a3;
+    --dim: #5b6573;
+    --hush: #404a58;
+
+    --copper: #e8c547;
+    --copper-soft: #f3d56b;
+    --copper-hot: #b89829;
+    --amber: #f5c87a;
+    --teal: #5ee2cf;
+
+    --good: #6dd58c;
+    --warn: #f5c87a;
+    --bad: #ff7a7a;
+    --info: #7cc4ff;
+    --magenta: #c084fc;
+
+    --provider-claude: #e8c547;
+    --provider-openai: #10a37f;
+    --provider-ollama: #7d8aa8;
+    --provider-local: #f5c87a;
+    --provider-custom: #a78bfa;
+
+    --font-sans: ui-sans-serif, -apple-system, "SF Pro Text", Inter, system-ui, sans-serif;
+    --font-mono: ui-monospace, "JetBrains Mono", "SF Mono", Menlo, Consolas, monospace;
+
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 16px;
+    --space-lg: 24px;
+    --space-xl: 32px;
+    --space-2xl: 48px;
+
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 9999px;
+
+    --shadow-sm: 0 1px 2px rgba(0,0,0,0.45);
+    --shadow-md: 0 4px 12px rgba(0,0,0,0.45);
+    --shadow-lg: 0 18px 48px rgba(0,0,0,0.55);
+    --ring: 0 0 0 2px rgba(232,197,71,0.45);
+
+    --dur-fast: 100ms;
+    --dur: 200ms;
+    --dur-slow: 400ms;
+    --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    line-height: 1.5;
+  }
+  ::selection { background: rgba(232,197,71,0.35); }
+
+  .app {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+  }
+  aside.nav {
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    border-right: 1px solid var(--border);
+    background: linear-gradient(180deg, #090b0e 0%, #07090c 100%);
+    padding: 22px 18px;
+    overflow-y: auto;
+  }
+  aside.nav .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 4px 6px 18px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  aside.nav .mark {
+    width: 22px; height: 22px;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--copper) 0%, var(--copper-hot) 100%);
+    display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 12px; font-weight: 700;
+    color: #1a1208;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+  }
+  aside.nav .brand-name { font-weight: 600; letter-spacing: -0.01em; font-size: 14px; }
+  aside.nav .brand-sub { color: var(--dim); font-size: 11px; font-family: var(--font-mono); }
+  aside.nav h6 {
+    margin: 18px 6px 6px;
+    font-size: 10.5px; font-weight: 600;
+    color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase;
+  }
+  aside.nav a {
+    display: block;
+    padding: 6px 10px;
+    margin: 1px 0;
+    color: var(--text-2);
+    font-size: 13px;
+    text-decoration: none;
+    border-radius: 6px;
+    transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  aside.nav a:hover { background: var(--panel); color: var(--text); }
+  aside.nav a.active {
+    background: rgba(232,197,71,0.08);
+    color: var(--copper-soft);
+    box-shadow: inset 2px 0 0 var(--copper);
+  }
+
+  main { padding: 0 0 64px; min-width: 0; }
+  header.page {
+    padding: 36px 48px 28px;
+    border-bottom: 1px solid var(--border);
+    background: radial-gradient(ellipse at top right, rgba(232,197,71,0.08), transparent 60%);
+  }
+  header.page .eyebrow {
+    color: var(--copper-soft);
+    font-family: var(--font-mono);
+    font-size: 11.5px; letter-spacing: 0.1em; text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  header.page h1 { margin: 0 0 10px; font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+  header.page p { margin: 0; color: var(--muted); max-width: 760px; font-size: 14px; }
+  header.page .meta {
+    margin-top: 16px;
+    display: flex; gap: 16px; flex-wrap: wrap;
+    color: var(--dim); font-size: 11.5px; font-family: var(--font-mono);
+  }
+  header.page .meta span { display: inline-flex; gap: 6px; align-items: center; }
+  header.page .meta .dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--good); box-shadow: 0 0 10px var(--good);
+  }
+
+  section.cmp {
+    padding: 40px 48px 8px;
+    border-bottom: 1px solid var(--border);
+    scroll-margin-top: 12px;
+  }
+  section.cmp h2 { margin: 0 0 4px; font-size: 18px; font-weight: 600; letter-spacing: -0.01em; }
+  section.cmp .sub { color: var(--muted); font-size: 13px; margin-bottom: 22px; max-width: 700px; }
+  section.cmp .api { color: var(--dim); font-family: var(--font-mono); font-size: 11px; margin-bottom: 22px; }
+  section.cmp .api code {
+    background: var(--panel); border: 1px solid var(--border);
+    padding: 2px 6px; border-radius: var(--radius-sm); color: var(--text-2);
+  }
+
+  .showcase { display: grid; gap: 16px; margin-bottom: 16px; }
+  .showcase.row { grid-auto-flow: column; grid-auto-columns: max-content; align-items: center; }
+  .showcase.col-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .showcase.col-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+  .panel {
+    background: linear-gradient(180deg, var(--panel) 0%, var(--bg-2) 100%);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 20px;
+  }
+  .panel .label {
+    color: var(--dim); font-family: var(--font-mono);
+    font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .row-flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .col-flex { display: flex; flex-direction: column; gap: 10px; }
+
+  /* Button */
+  .btn {
+    appearance: none;
+    border: 1px solid transparent;
+    background: var(--copper);
+    color: #1a1208;
+    font: 500 13px var(--font-sans);
+    padding: 8px 14px;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+    display: inline-flex; align-items: center; gap: 8px; line-height: 1;
+  }
+  .btn:hover { background: var(--copper-soft); }
+  .btn:active { transform: translateY(1px); }
+  .btn:focus-visible { outline: none; box-shadow: var(--ring); }
+  .btn[disabled] { opacity: 0.4; cursor: not-allowed; pointer-events: none; }
+  .btn--secondary { background: var(--panel-2); color: var(--text); border-color: var(--border-strong); }
+  .btn--secondary:hover { background: var(--panel-3); border-color: #3a4452; }
+  .btn--ghost { background: transparent; color: var(--text-2); border-color: transparent; }
+  .btn--ghost:hover { background: var(--panel); color: var(--text); }
+  .btn--destructive { background: rgba(255,122,122,0.12); color: var(--bad); border-color: rgba(255,122,122,0.35); }
+  .btn--destructive:hover { background: rgba(255,122,122,0.18); border-color: rgba(255,122,122,0.55); }
+  .btn--sm { padding: 5px 10px; font-size: 12px; border-radius: var(--radius-sm); }
+  .btn--lg { padding: 11px 18px; font-size: 14px; border-radius: var(--radius-md); }
+  .btn--loading { pointer-events: none; opacity: 0.85; }
+  .btn--loading::before {
+    content: "";
+    width: 12px; height: 12px;
+    border: 1.5px solid currentColor; border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 700ms linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .icon { width: 14px; height: 14px; flex-shrink: 0; }
+  .icon--lg { width: 16px; height: 16px; }
+
+  /* Input */
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-size: 12px; color: var(--text-2); font-weight: 500; }
+  .field .hint { font-size: 11.5px; color: var(--dim); }
+  .field .err { font-size: 11.5px; color: var(--bad); }
+  .input {
+    appearance: none;
+    background: var(--bg-2);
+    border: 1px solid var(--border-strong);
+    color: var(--text);
+    padding: 8px 12px;
+    border-radius: var(--radius-md);
+    font: 400 13px var(--font-sans);
+    transition: border-color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+    width: 100%;
+  }
+  .input::placeholder { color: var(--dim); }
+  .input:hover { border-color: #3a4452; }
+  .input:focus { outline: none; border-color: var(--copper); box-shadow: var(--ring); }
+  .input--error { border-color: var(--bad); }
+  .input--error:focus { box-shadow: 0 0 0 2px rgba(255,122,122,0.3); }
+  .input[disabled] { opacity: 0.5; cursor: not-allowed; background: var(--panel); }
+
+  .input-group { position: relative; }
+  .input-group .input { padding-left: 34px; }
+  .input-group .input--with-end { padding-right: 38px; }
+  .input-group .leading,
+  .input-group .trailing {
+    position: absolute; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none;
+    display: flex; align-items: center;
+  }
+  .input-group .leading { left: 11px; }
+  .input-group .trailing { right: 10px; pointer-events: auto; }
+  .input-group .voice-btn {
+    appearance: none;
+    background: rgba(232,197,71,0.1);
+    border: 1px solid rgba(232,197,71,0.35);
+    color: var(--copper-soft);
+    width: 24px; height: 24px;
+    border-radius: var(--radius-sm);
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .input-group .voice-btn:hover { background: rgba(232,197,71,0.18); }
+
+  textarea.input { min-height: 88px; resize: vertical; line-height: 1.5; }
+
+  /* Card */
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: border-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+  }
+  .card:hover { border-color: var(--border-strong); }
+  .card--interactive { cursor: pointer; }
+  .card--interactive:hover { transform: translateY(-1px); }
+  .card__header {
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  }
+  .card__title { font-size: 13px; font-weight: 600; }
+  .card__body { padding: 14px 16px; color: var(--text-2); font-size: 13px; flex: 1; }
+  .card__footer {
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    display: flex; gap: 8px; justify-content: flex-end;
+  }
+  .card__meta { color: var(--dim); font-size: 11px; font-family: var(--font-mono); }
+
+  /* Modal */
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(4, 6, 9, 0.7);
+    backdrop-filter: blur(6px);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 1000;
+    animation: fadeIn var(--dur) var(--ease);
+  }
+  .modal-overlay.is-open { display: flex; }
+  .modal {
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: min(440px, calc(100vw - 32px));
+    animation: scaleIn 150ms var(--ease);
+    overflow: hidden;
+  }
+  .modal__header { padding: 18px 20px 4px; }
+  .modal__title { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .modal__sub { font-size: 13px; color: var(--muted); }
+  .modal__body { padding: 14px 20px 6px; color: var(--text-2); font-size: 13px; }
+  .modal__footer {
+    padding: 14px 20px;
+    display: flex; justify-content: flex-end; gap: 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 12px;
+  }
+  .modal--destructive .modal__title::before {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--bad);
+    margin-right: 8px;
+    vertical-align: middle;
+    box-shadow: 0 0 12px var(--bad);
+  }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes scaleIn { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+
+  /* Toast */
+  .toast-stack {
+    position: fixed; top: 16px; right: 16px;
+    display: flex; flex-direction: column; gap: 8px;
+    z-index: 900; pointer-events: none;
+  }
+  .toast {
+    background: var(--panel-2);
+    border: 1px solid var(--border-strong);
+    border-left: 3px solid var(--info);
+    border-radius: var(--radius-md);
+    padding: 10px 14px 10px 12px;
+    min-width: 280px; max-width: 360px;
+    box-shadow: var(--shadow-md);
+    display: flex; align-items: flex-start; gap: 10px;
+    pointer-events: auto;
+    animation: slideIn var(--dur) var(--ease);
+  }
+  .toast.is-leaving { animation: slideOut 200ms var(--ease) forwards; }
+  .toast--success { border-left-color: var(--good); }
+  .toast--error { border-left-color: var(--bad); }
+  .toast--warn { border-left-color: var(--warn); }
+  .toast--info { border-left-color: var(--info); }
+  .toast__icon {
+    width: 16px; height: 16px;
+    flex-shrink: 0; margin-top: 1px;
+    color: var(--info);
+  }
+  .toast--success .toast__icon { color: var(--good); }
+  .toast--error .toast__icon { color: var(--bad); }
+  .toast--warn .toast__icon { color: var(--warn); }
+  .toast__title { font-size: 13px; font-weight: 600; }
+  .toast__msg { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .toast__close {
+    appearance: none; background: transparent; border: none;
+    color: var(--dim); cursor: pointer;
+    padding: 2px; margin-left: auto;
+  }
+  .toast__close:hover { color: var(--text); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+  @keyframes slideOut { to { opacity: 0; transform: translateX(20px); } }
+
+  /* Navigation */
+  .nav-sidebar {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 8px;
+    width: 220px;
+  }
+  .nav-sidebar__group { padding: 4px 6px 8px; }
+  .nav-sidebar__group-title { font-size: 10.5px; color: var(--dim); letter-spacing: 0.08em; text-transform: uppercase; margin: 6px 0; }
+  .nav-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 6px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 13px;
+    cursor: pointer;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .nav-item:hover { background: var(--panel-2); color: var(--text); }
+  .nav-item.is-active {
+    background: rgba(232,197,71,0.1);
+    color: var(--copper-soft);
+    box-shadow: inset 2px 0 0 var(--copper);
+  }
+  .nav-item__count {
+    margin-left: auto;
+    font-size: 10.5px; font-family: var(--font-mono);
+    color: var(--dim);
+    background: var(--panel-3);
+    padding: 1px 6px;
+    border-radius: var(--radius-full);
+  }
+
+  .tabbar {
+    display: flex;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 4px; gap: 2px;
+    width: max-content;
+  }
+  .tab {
+    appearance: none; background: transparent; border: none;
+    color: var(--muted);
+    font: 500 12.5px var(--font-sans);
+    padding: 6px 14px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+  }
+  .tab.is-active { background: var(--panel-3); color: var(--text); box-shadow: var(--shadow-sm); }
+  .tab:hover:not(.is-active) { color: var(--text); }
+
+  .breadcrumb {
+    display: flex; align-items: center; gap: 6px;
+    color: var(--muted); font-size: 12.5px;
+    font-family: var(--font-mono);
+  }
+  .breadcrumb a { color: var(--text-2); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--copper-soft); }
+  .breadcrumb .sep { color: var(--hush); }
+  .breadcrumb .current { color: var(--text); }
+
+  /* Badges */
+  .badge {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px;
+    font: 500 11.5px var(--font-mono);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--border-strong);
+    background: var(--panel);
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+  .badge .pulse { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+  .badge--idle { color: var(--muted); }
+  .badge--running { color: var(--info); border-color: rgba(124,196,255,0.35); background: rgba(124,196,255,0.07); }
+  .badge--running .pulse { animation: softPulse 1.4s ease-in-out infinite; box-shadow: 0 0 8px currentColor; }
+  .badge--error { color: var(--bad); border-color: rgba(255,122,122,0.35); background: rgba(255,122,122,0.07); }
+  .badge--paused { color: var(--warn); border-color: rgba(245,200,122,0.35); background: rgba(245,200,122,0.07); }
+  .badge--done { color: var(--good); border-color: rgba(109,213,140,0.35); background: rgba(109,213,140,0.07); }
+  @keyframes softPulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+
+  .badge--model { padding: 3px 8px 3px 5px; font-size: 11px; }
+  .badge--model .swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+  .swatch--claude { background: var(--provider-claude); }
+  .swatch--openai { background: var(--provider-openai); }
+  .swatch--ollama { background: var(--provider-ollama); }
+  .swatch--local { background: var(--provider-local); }
+  .swatch--custom { background: var(--provider-custom); }
+
+  /* Activity */
+  .activity {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 6px 12px 6px 8px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    font-size: 12.5px; color: var(--text-2);
+  }
+  .activity .orb {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, var(--copper-soft) 0%, var(--copper) 60%, var(--copper-hot) 100%);
+    box-shadow: 0 0 12px rgba(232,197,71,0.6);
+    position: relative;
+  }
+  .activity--thinking .orb { animation: orbPulse 1.6s ease-in-out infinite; }
+  .activity--acting .orb { animation: orbExpand 1.2s ease-out infinite; }
+  .activity--waiting .orb {
+    background: var(--dim); box-shadow: none;
+    animation: orbBlink 2s ease-in-out infinite;
+  }
+  .activity--error .orb {
+    background: radial-gradient(circle at 35% 30%, #ffaaaa 0%, var(--bad) 60%, #aa3a3a 100%);
+    box-shadow: 0 0 12px rgba(255,122,122,0.6);
+    animation: orbErrorPulse 800ms ease-in-out infinite;
+  }
+  @keyframes orbPulse {
+    0%, 100% { transform: scale(0.92); box-shadow: 0 0 8px rgba(232,197,71,0.4); }
+    50% { transform: scale(1.08); box-shadow: 0 0 18px rgba(232,197,71,0.8); }
+  }
+  @keyframes orbExpand {
+    0% { box-shadow: 0 0 0 0 rgba(232,197,71,0.6); }
+    70% { box-shadow: 0 0 0 14px rgba(232,197,71,0); }
+    100% { box-shadow: 0 0 0 0 rgba(232,197,71,0); }
+  }
+  @keyframes orbBlink { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
+  @keyframes orbErrorPulse {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.15); }
+  }
+
+  /* Code Block */
+  .code-block {
+    background: #0a0d12;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+  }
+  .code-block__head {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-2);
+    border-bottom: 1px solid var(--border);
+    color: var(--dim); font-size: 11px;
+  }
+  .code-block__lang { display: inline-flex; align-items: center; gap: 8px; }
+  .code-block__lang::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--copper);
+  }
+  .code-copy {
+    appearance: none;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font: 500 10.5px var(--font-mono);
+    cursor: pointer;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .code-copy:hover { color: var(--text); border-color: var(--border-strong); }
+  .code-block pre {
+    margin: 0; padding: 12px 14px;
+    overflow-x: auto; line-height: 1.55;
+    color: var(--text-2);
+  }
+  .tok-k { color: var(--magenta); }
+  .tok-s { color: var(--good); }
+  .tok-c { color: var(--dim); font-style: italic; }
+  .tok-f { color: var(--info); }
+  .tok-n { color: var(--copper-soft); }
+  .tok-p { color: var(--text); }
+
+  .code-block--diff pre .add { background: rgba(109,213,140,0.10); display: block; padding-left: 14px; margin: 0 -14px; box-shadow: inset 3px 0 0 var(--good); padding-right: 14px; }
+  .code-block--diff pre .del { background: rgba(255,122,122,0.10); display: block; padding-left: 14px; margin: 0 -14px; box-shadow: inset 3px 0 0 var(--bad); padding-right: 14px; text-decoration: line-through; opacity: 0.85; }
+  .code-block--diff pre .add::before { content: "+ "; color: var(--good); }
+  .code-block--diff pre .del::before { content: "− "; color: var(--bad); }
+
+  /* Tool Call */
+  .toolcall {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 12px;
+  }
+  .toolcall__head {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer; user-select: none;
+    transition: background var(--dur-fast) var(--ease);
+  }
+  .toolcall__head:hover { background: var(--panel-2); }
+  .toolcall__chev {
+    width: 10px; height: 10px;
+    transition: transform var(--dur-fast) var(--ease);
+    flex-shrink: 0;
+    color: var(--dim);
+  }
+  .toolcall.is-open .toolcall__chev { transform: rotate(90deg); }
+  .toolcall__name { color: var(--copper-soft); font-weight: 600; }
+  .toolcall__arg { color: var(--muted); margin-left: 4px; }
+  .toolcall__status {
+    margin-left: auto;
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--dim);
+  }
+  .toolcall__status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); }
+  .toolcall--running .toolcall__status .dot { background: var(--info); animation: softPulse 1.4s ease-in-out infinite; }
+  .toolcall--error .toolcall__status .dot { background: var(--bad); }
+  .toolcall__body {
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    background: var(--bg-2);
+    display: none;
+    color: var(--text-2);
+  }
+  .toolcall.is-open .toolcall__body { display: block; }
+  .toolcall__io { display: grid; gap: 6px; }
+  .toolcall__io-label { color: var(--dim); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; margin-top: 6px; }
+  .toolcall__io pre { margin: 0; white-space: pre-wrap; word-break: break-word; line-height: 1.55; }
+
+  /* Progress */
+  .progress {
+    height: 6px;
+    background: var(--panel-2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+    position: relative;
+  }
+  .progress__bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--copper) 0%, var(--copper-soft) 100%);
+    border-radius: var(--radius-full);
+    transition: width 200ms linear;
+  }
+  .progress--indeterminate .progress__bar {
+    width: 35% !important;
+    animation: indet 1.4s var(--ease) infinite;
+  }
+  @keyframes indet {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(285%); }
+  }
+  .progress-row {
+    display: flex; align-items: center; gap: 12px;
+    font-family: var(--font-mono); font-size: 11.5px;
+    color: var(--muted);
+  }
+  .progress-row .progress { flex: 1; }
+  .progress-row .pct { color: var(--text); width: 40px; text-align: right; }
+
+  /* Command Palette */
+  .palette-overlay {
+    position: fixed; inset: 0;
+    background: rgba(4, 6, 9, 0.62);
+    backdrop-filter: blur(6px);
+    display: none;
+    justify-content: center;
+    z-index: 1000;
+    padding-top: 14vh;
+    animation: fadeIn 150ms var(--ease);
+  }
+  .palette-overlay.is-open { display: flex; }
+  .palette {
+    background: var(--panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-lg);
+    width: min(560px, calc(100vw - 32px));
+    height: max-content;
+    overflow: hidden;
+    animation: scaleIn 150ms var(--ease);
+  }
+  .palette__input-wrap {
+    display: flex; align-items: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
+    gap: 10px;
+  }
+  .palette__input-wrap svg { color: var(--muted); flex-shrink: 0; }
+  .palette__input {
+    flex: 1;
+    appearance: none; background: transparent; border: none; outline: none;
+    color: var(--text);
+    font: 400 14px var(--font-sans);
+  }
+  .palette__input::placeholder { color: var(--dim); }
+  .palette__hint {
+    font-family: var(--font-mono);
+    font-size: 10.5px; color: var(--dim);
+    border: 1px solid var(--border);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+  }
+  .palette__list { padding: 6px; max-height: 360px; overflow-y: auto; }
+  .palette__group-title { color: var(--dim); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; padding: 8px 10px 4px; }
+  .palette__item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    color: var(--text-2); font-size: 13px;
+    cursor: pointer;
+  }
+  .palette__item:hover, .palette__item.is-active {
+    background: rgba(232,197,71,0.08);
+    color: var(--text);
+  }
+  .palette__item .icon { color: var(--muted); }
+  .palette__item .shortcut {
+    margin-left: auto;
+    font-family: var(--font-mono);
+    font-size: 10.5px; color: var(--dim);
+  }
+  .palette__footer {
+    display: flex; align-items: center; gap: 14px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
+    background: var(--bg-2);
+    font-family: var(--font-mono);
+    font-size: 10.5px; color: var(--dim);
+  }
+  .palette__footer kbd {
+    background: var(--panel-3);
+    border: 1px solid var(--border-strong);
+    padding: 1px 5px;
+    border-radius: 3px;
+    margin-right: 4px;
+    font-family: inherit;
+    color: var(--text-2);
+  }
+
+  /* Voice Waveform */
+  .waveform {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 10px 14px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    font-size: 12px;
+    color: var(--text-2);
+  }
+  .waveform__bars {
+    display: inline-flex; align-items: center; gap: 2px;
+    height: 24px;
+  }
+  .waveform__bars span {
+    display: inline-block;
+    width: 3px;
+    background: linear-gradient(180deg, var(--copper-soft), var(--copper));
+    border-radius: 2px;
+    animation: wave 1s ease-in-out infinite;
+  }
+  .waveform__bars span:nth-child(1)  { animation-delay: 0.05s; }
+  .waveform__bars span:nth-child(2)  { animation-delay: 0.15s; }
+  .waveform__bars span:nth-child(3)  { animation-delay: 0.25s; }
+  .waveform__bars span:nth-child(4)  { animation-delay: 0.10s; }
+  .waveform__bars span:nth-child(5)  { animation-delay: 0.20s; }
+  .waveform__bars span:nth-child(6)  { animation-delay: 0.30s; }
+  .waveform__bars span:nth-child(7)  { animation-delay: 0.05s; }
+  .waveform__bars span:nth-child(8)  { animation-delay: 0.18s; }
+  .waveform__bars span:nth-child(9)  { animation-delay: 0.22s; }
+  .waveform__bars span:nth-child(10) { animation-delay: 0.08s; }
+  .waveform__bars span:nth-child(11) { animation-delay: 0.16s; }
+  .waveform__bars span:nth-child(12) { animation-delay: 0.28s; }
+  .waveform__bars span:nth-child(13) { animation-delay: 0.12s; }
+  .waveform__bars span:nth-child(14) { animation-delay: 0.20s; }
+  .waveform__bars span:nth-child(15) { animation-delay: 0.06s; }
+  @keyframes wave {
+    0%, 100% { height: 4px; }
+    50% { height: 22px; }
+  }
+  .waveform--idle .waveform__bars span {
+    animation: none;
+    height: 4px;
+    background: var(--dim);
+  }
+  .waveform__rec-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--bad);
+    box-shadow: 0 0 8px var(--bad);
+    animation: softPulse 1.2s ease-in-out infinite;
+  }
+  .waveform__time { font-family: var(--font-mono); color: var(--muted); }
+
+  /* Token swatches */
+  .tokens-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+  }
+  .swatch-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    padding: 10px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+  }
+  .swatch-card .chip {
+    width: 100%; height: 28px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .swatch-card .name { color: var(--text); font-size: 11.5px; }
+  .swatch-card .hex { color: var(--dim); margin-top: 2px; }
+
+  footer.foot {
+    padding: 28px 48px;
+    color: var(--dim);
+    font-size: 12px;
+    font-family: var(--font-mono);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  footer.foot a { color: var(--text-2); text-decoration: none; }
+  footer.foot a:hover { color: var(--copper-soft); }
+
+  @media (max-width: 880px) {
+    .app { grid-template-columns: 1fr; }
+    aside.nav { position: relative; height: auto; }
+    header.page, section.cmp, footer.foot { padding-left: 24px; padding-right: 24px; }
+  }
+
+  code.inline {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    background: var(--panel);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-2);
+  }
+  kbd.kbd {
+    font-family: var(--font-mono);
+    background: var(--panel-3);
+    padding: 1px 5px;
+    border-radius: 3px;
+    border: 1px solid var(--border-strong);
+    font-size: 10.5px;
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>
+    </symbol>
+    <symbol id="i-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/>
+    </symbol>
+    <symbol id="i-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m9 6 6 6-6 6"/>
+    </symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M12 5v14M5 12h14"/>
+    </symbol>
+    <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M20 6 9 17l-5-5"/>
+    </symbol>
+    <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <path d="M18 6 6 18M6 6l12 12"/>
+    </symbol>
+    <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>
+    </symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 3 2 21h20Z"/><path d="M12 10v5M12 18h.01"/>
+    </symbol>
+    <symbol id="i-folder" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>
+    </symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M13 2 4 14h7l-1 8 9-12h-7Z"/>
+    </symbol>
+    <symbol id="i-msg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/>
+    </symbol>
+    <symbol id="i-cog" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="3"/>
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09A1.65 1.65 0 0 0 15 4.6a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c0 .66.39 1.26 1 1.51H21a2 2 0 1 1 0 4h-.09c-.61.25-1 .85-1 1.51Z"/>
+    </symbol>
+    <symbol id="i-mem" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 4v16M16 4v16M4 8h16M4 16h16"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div class="app">
+
+<aside class="nav">
+  <div class="brand">
+    <div class="mark">C</div>
+    <div>
+      <div class="brand-name">Conduit Design</div>
+      <div class="brand-sub">v0.1 · 2026.05</div>
+    </div>
+  </div>
+  <h6>Foundations</h6>
+  <a href="#tokens">Design Tokens</a>
+  <h6>Components · §12.2</h6>
+  <a href="#button">Button</a>
+  <a href="#input">Input</a>
+  <a href="#card">Card</a>
+  <a href="#modal">Modal</a>
+  <a href="#toast">Toast</a>
+  <a href="#navigation">Navigation</a>
+  <a href="#status-badge">Status Badge</a>
+  <a href="#model-badge">Model Badge</a>
+  <a href="#activity">Agent Activity</a>
+  <a href="#code-block">Code Block</a>
+  <a href="#tool-call">Tool Call Block</a>
+  <a href="#progress">Progress Bar</a>
+  <a href="#palette">Command Palette</a>
+  <a href="#waveform">Voice Waveform</a>
+</aside>
+
+<main>
+
+<header class="page">
+  <div class="eyebrow">Issue #101 · PRD §12.2 · Wave-2</div>
+  <h1>Component Library across Surfaces</h1>
+  <p>Reusable UI primitives for every Conduit surface — TUI, GUI, iOS, Watch, Web. Each component exposes a consistent prop API (<code class="inline">variant</code>, <code class="inline">size</code>, <code class="inline">state</code>, <code class="inline">aria-label</code>) and is documented with all variants, interactive states, and accessibility notes.</p>
+  <div class="meta">
+    <span><span class="dot"></span> Dark theme · default</span>
+    <span>14 / 14 components</span>
+    <span>WCAG AA verified</span>
+    <span>tokens · spacing · motion</span>
+  </div>
+</header>
+
+<section class="cmp" id="tokens">
+  <h2>Design Tokens</h2>
+  <p class="sub">Atomic visual properties shared across SwiftUI, Textual, and web. The full set lives in <code class="inline">tokens/colors.json</code> — this gallery shows the surface palette and brand accents.</p>
+  <div class="panel">
+    <div class="label">Surface · neutrals</div>
+    <div class="tokens-grid">
+      <div class="swatch-card"><div class="chip" style="background:#07090c"></div><div class="name">bg</div><div class="hex">#07090c</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#0b0d10"></div><div class="name">bg-2</div><div class="hex">#0b0d10</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#11151a"></div><div class="name">panel</div><div class="hex">#11151a</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#161b22"></div><div class="name">panel-2</div><div class="hex">#161b22</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#232a33"></div><div class="name">border</div><div class="hex">#232a33</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#e3e8ef"></div><div class="name">text</div><div class="hex">#e3e8ef</div></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:12px">
+    <div class="label">Brand · semantic · provider</div>
+    <div class="tokens-grid">
+      <div class="swatch-card"><div class="chip" style="background:#e8c547"></div><div class="name">copper</div><div class="hex">#e8c547 · primary</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#f5c87a"></div><div class="name">amber</div><div class="hex">#f5c87a</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#5ee2cf"></div><div class="name">teal</div><div class="hex">#5ee2cf</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#6dd58c"></div><div class="name">good</div><div class="hex">#6dd58c</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#ff7a7a"></div><div class="name">bad</div><div class="hex">#ff7a7a</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#7cc4ff"></div><div class="name">info</div><div class="hex">#7cc4ff</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#e8c547"></div><div class="name">claude</div><div class="hex">#e8c547</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#10a37f"></div><div class="name">openai</div><div class="hex">#10a37f</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#7d8aa8"></div><div class="name">ollama</div><div class="hex">#7d8aa8</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#f5c87a"></div><div class="name">local</div><div class="hex">#f5c87a</div></div>
+      <div class="swatch-card"><div class="chip" style="background:#a78bfa"></div><div class="name">custom</div><div class="hex">#a78bfa</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="button">
+  <h2>Button</h2>
+  <p class="sub">Action triggers. Four variants for visual hierarchy, three sizes, and loading / disabled states. Always pair destructive actions with a confirmation modal.</p>
+  <div class="api"><code>variant</code> primary · secondary · ghost · destructive · &nbsp;<code>size</code> sm · md · lg · &nbsp;<code>state</code> default · loading · disabled</div>
+  <div class="showcase col-3">
+    <div class="panel">
+      <div class="label">Variants</div>
+      <div class="row-flex">
+        <button class="btn">Primary</button>
+        <button class="btn btn--secondary">Secondary</button>
+        <button class="btn btn--ghost">Ghost</button>
+        <button class="btn btn--destructive">Delete session</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Sizes</div>
+      <div class="row-flex">
+        <button class="btn btn--sm">Small</button>
+        <button class="btn">Medium</button>
+        <button class="btn btn--lg">Large</button>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">States</div>
+      <div class="row-flex">
+        <button class="btn btn--loading">Running</button>
+        <button class="btn" disabled>Disabled</button>
+        <button class="btn btn--secondary"><svg class="icon"><use href="#i-plus"/></svg> With icon</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="input">
+  <h2>Input</h2>
+  <p class="sub">Text entry primitives — text input, search, textarea, and voice-input-enabled. Focus ring uses the copper accent at 45% opacity.</p>
+  <div class="api"><code>type</code> text · search · textarea · voice · &nbsp;<code>state</code> default · focus · error · disabled</div>
+  <div class="showcase col-2">
+    <div class="panel">
+      <div class="label">Standard fields</div>
+      <div class="col-flex">
+        <div class="field">
+          <label for="ex-name">API key name</label>
+          <input id="ex-name" class="input" placeholder="claude-personal" />
+          <div class="hint">Used as the identifier in <code class="inline">~/.conduit/credentials/</code></div>
+        </div>
+        <div class="field">
+          <label for="ex-error">Bind port</label>
+          <input id="ex-error" class="input input--error" value="abc" />
+          <div class="err">Must be a number between 1024 and 65535.</div>
+        </div>
+        <div class="field">
+          <label for="ex-disabled">Provider (read-only)</label>
+          <input id="ex-disabled" class="input" value="anthropic" disabled />
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">Search · voice · textarea</div>
+      <div class="col-flex">
+        <div class="input-group">
+          <span class="leading"><svg class="icon"><use href="#i-search"/></svg></span>
+          <input class="input" placeholder="Search memory…" />
+        </div>
+        <div class="input-group">
+          <span class="leading"><svg class="icon"><use href="#i-msg"/></svg></span>
+          <input class="input input--with-end" placeholder="Ask Conduit anything…" />
+          <span class="trailing"><button class="voice-btn" aria-label="Start voice input"><svg class="icon"><use href="#i-mic"/></svg></button></span>
+        </div>
+        <div class="field">
+          <label>Workflow description</label>
+          <textarea class="input" placeholder="What should this workflow do?"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="card">
+  <h2>Card</h2>
+  <p class="sub">Content container used for session cards, memory entries, workflow cards, and plugin tiles. Optional header, body, and footer slots.</p>
+  <div class="api"><code>variant</code> static · interactive · &nbsp;<code>slots</code> header · body · footer</div>
+  <div class="showcase col-3">
+    <div class="card card--interactive">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Refactor auth module</div>
+          <div class="card__meta">2h ago · claude-opus-4-7</div>
+        </div>
+        <span class="badge badge--running"><span class="pulse"></span>running</span>
+      </div>
+      <div class="card__body">12 messages, 3 tool calls. Currently editing <code class="inline">internal/auth/session.go</code>.</div>
+      <div class="card__footer">
+        <button class="btn btn--ghost btn--sm">Open</button>
+        <button class="btn btn--secondary btn--sm">Fork</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card__header">
+        <div>
+          <div class="card__title">Morning brief</div>
+          <div class="card__meta">workflow · cron 0 8 * * *</div>
+        </div>
+        <span class="badge badge--paused"><span class="pulse"></span>paused</span>
+      </div>
+      <div class="card__body">Summarises overnight email, GitHub PRs, and Linear changes. Last run 12h ago.</div>
+    </div>
+    <div class="card card--interactive">
+      <div class="card__header">
+        <div class="card__title">Memory · session-trees.md</div>
+      </div>
+      <div class="card__body" style="font-family:var(--font-mono);font-size:12px;">
+        “Conduit forks sessions like Git for chats — every branch keeps its tool history…”
+      </div>
+      <div class="card__footer">
+        <span class="card__meta" style="margin-right:auto">FlatFileProvider</span>
+        <button class="btn btn--ghost btn--sm">Inspect</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="modal">
+  <h2>Modal / Dialog</h2>
+  <p class="sub">Confirmation dialogs, settings panels, and destructive action gates. Backdrop blurs the underlying surface; ESC closes.</p>
+  <div class="api"><code>variant</code> default · destructive · &nbsp;<code>state</code> open · closed · &nbsp;<code>size</code> sm · md · lg</div>
+  <div class="showcase row-flex">
+    <button class="btn btn--secondary" data-open="demo-modal">Show settings modal</button>
+    <button class="btn btn--destructive" data-open="demo-modal-d">Show destructive modal</button>
+    <span class="card__meta" style="font-size:11px">Click backdrop or press <kbd class="kbd">Esc</kbd> to close</span>
+  </div>
+  <div class="showcase col-2" style="margin-top:8px">
+    <div class="panel"><div class="label">Confirmation · default</div>
+      <div class="modal" style="position:relative;animation:none;width:100%">
+        <div class="modal__header">
+          <div class="modal__title">Replace cached credentials?</div>
+          <div class="modal__sub">A new key for <code class="inline">claude-personal</code> already exists in the keychain.</div>
+        </div>
+        <div class="modal__body">If you continue, the previous key will be archived to <code class="inline">~/.conduit/credentials/archive/</code> and removed from the active pool.</div>
+        <div class="modal__footer">
+          <button class="btn btn--ghost">Cancel</button>
+          <button class="btn">Replace</button>
+        </div>
+      </div>
+    </div>
+    <div class="panel"><div class="label">Destructive gate</div>
+      <div class="modal modal--destructive" style="position:relative;animation:none;width:100%">
+        <div class="modal__header">
+          <div class="modal__title">Delete 18 archived sessions</div>
+          <div class="modal__sub">This action is permanent and cannot be undone.</div>
+        </div>
+        <div class="modal__body">Each session's tool history, memory writes, and cost breakdown will be removed from disk. Type <code class="inline" style="color:var(--bad)">DELETE</code> to confirm.</div>
+        <div class="modal__footer">
+          <button class="btn btn--ghost">Cancel</button>
+          <button class="btn btn--destructive">Delete forever</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="toast">
+  <h2>Toast / Notification</h2>
+  <p class="sub">Transient feedback. Auto-dismisses after a configurable duration; persistent for errors that need user action.</p>
+  <div class="api"><code>variant</code> success · error · warning · info · &nbsp;<code>duration</code> ms (0 = sticky)</div>
+  <div class="showcase row-flex">
+    <button class="btn btn--secondary" data-toast="success">Success</button>
+    <button class="btn btn--secondary" data-toast="error">Error</button>
+    <button class="btn btn--secondary" data-toast="warn">Warning</button>
+    <button class="btn btn--secondary" data-toast="info">Info</button>
+  </div>
+  <div class="showcase col-2" style="margin-top:8px">
+    <div class="panel"><div class="label">Static — success</div>
+      <div class="toast toast--success" style="position:relative;animation:none">
+        <svg class="toast__icon"><use href="#i-check"/></svg>
+        <div><div class="toast__title">Session forked</div><div class="toast__msg">Branch fix-auth-2 ready in 0.3s.</div></div>
+        <button class="toast__close" aria-label="Dismiss"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+    <div class="panel"><div class="label">Static — warning</div>
+      <div class="toast toast--warn" style="position:relative;animation:none">
+        <svg class="toast__icon"><use href="#i-warn"/></svg>
+        <div><div class="toast__title">Approaching budget</div><div class="toast__msg">$8.40 / $10 monthly limit on claude-opus.</div></div>
+        <button class="toast__close" aria-label="Dismiss"><svg class="icon"><use href="#i-x"/></svg></button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="navigation">
+  <h2>Navigation</h2>
+  <p class="sub">Per-surface navigation primitives — sidebar nav (desktop), tab bar (mobile/segmented), and breadcrumb (web). All map to the same information architecture.</p>
+  <div class="api"><code>variant</code> sidebar · tabbar · breadcrumb · &nbsp;<code>state</code> active · hover · default</div>
+  <div class="showcase col-3">
+    <div class="panel"><div class="label">Sidebar (desktop)</div>
+      <div class="nav-sidebar">
+        <div class="nav-sidebar__group">
+          <div class="nav-sidebar__group-title">Workspace</div>
+          <div class="nav-item is-active"><svg class="icon"><use href="#i-msg"/></svg> Sessions <span class="nav-item__count">12</span></div>
+          <div class="nav-item"><svg class="icon"><use href="#i-bolt"/></svg> Workflows</div>
+          <div class="nav-item"><svg class="icon"><use href="#i-mem"/></svg> Memory</div>
+          <div class="nav-item"><svg class="icon"><use href="#i-folder"/></svg> Plugins</div>
+        </div>
+        <div class="nav-sidebar__group">
+          <div class="nav-sidebar__group-title">System</div>
+          <div class="nav-item"><svg class="icon"><use href="#i-cog"/></svg> Settings</div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="display:flex;align-items:center;justify-content:center"><div class="col-flex" style="gap:14px">
+      <div class="label" style="margin:0">Tab bar (segmented)</div>
+      <div class="tabbar">
+        <button class="tab is-active">Chat</button>
+        <button class="tab">Tools</button>
+        <button class="tab">Cost</button>
+        <button class="tab">Logs</button>
+      </div>
+    </div></div>
+    <div class="panel" style="display:flex;align-items:center"><div class="col-flex" style="gap:14px;width:100%">
+      <div class="label" style="margin:0">Breadcrumb</div>
+      <nav class="breadcrumb">
+        <a href="#">conduit</a>
+        <span class="sep">/</span>
+        <a href="#">sessions</a>
+        <span class="sep">/</span>
+        <a href="#">refactor-auth</a>
+        <span class="sep">/</span>
+        <span class="current">tool-call-12</span>
+      </nav>
+    </div></div>
+  </div>
+</section>
+
+<section class="cmp" id="status-badge">
+  <h2>Status Badge</h2>
+  <p class="sub">State indicator for sessions, workflows, and tool calls. Color coding is consistent across surfaces — running is always blue, error is always red.</p>
+  <div class="api"><code>state</code> idle · running · paused · error · done</div>
+  <div class="showcase">
+    <div class="panel">
+      <div class="label">All states</div>
+      <div class="row-flex" style="gap:12px">
+        <span class="badge badge--idle"><span class="pulse"></span>idle</span>
+        <span class="badge badge--running"><span class="pulse"></span>running</span>
+        <span class="badge badge--paused"><span class="pulse"></span>paused</span>
+        <span class="badge badge--error"><span class="pulse"></span>error</span>
+        <span class="badge badge--done"><span class="pulse"></span>done</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="model-badge">
+  <h2>Model Badge</h2>
+  <p class="sub">Identifies which model produced a response. Color-coded swatch by provider so you know at a glance whether the answer came from cloud Claude, local Llama, or a custom endpoint.</p>
+  <div class="api"><code>provider</code> claude · openai · ollama · local · custom</div>
+  <div class="showcase">
+    <div class="panel">
+      <div class="label">By provider</div>
+      <div class="row-flex" style="gap:10px">
+        <span class="badge badge--model"><span class="swatch swatch--claude"></span>claude-opus-4-7</span>
+        <span class="badge badge--model"><span class="swatch swatch--claude"></span>claude-sonnet-4-6</span>
+        <span class="badge badge--model"><span class="swatch swatch--openai"></span>gpt-4.1</span>
+        <span class="badge badge--model"><span class="swatch swatch--ollama"></span>llama-3.3-70b</span>
+        <span class="badge badge--model"><span class="swatch swatch--local"></span>qwen-2.5-coder-32b · mlx</span>
+        <span class="badge badge--model"><span class="swatch swatch--custom"></span>internal-router</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="activity">
+  <h2>Agent Activity Indicator</h2>
+  <p class="sub">PRD §12.5: <em>thinking</em> is a pulsing glow, not a spinner — the agent is contemplating, not loading. <em>Acting</em> radiates outward to convey work happening. <em>Waiting</em> blinks softly. <em>Error</em> pulses red.</p>
+  <div class="api"><code>state</code> thinking · acting · waiting · error</div>
+  <div class="showcase col-2">
+    <div class="panel">
+      <div class="label">Inline indicators</div>
+      <div class="col-flex">
+        <span class="activity activity--thinking"><span class="orb"></span> thinking…</span>
+        <span class="activity activity--acting"><span class="orb"></span> running <code class="inline">edit_file(session.go)</code></span>
+        <span class="activity activity--waiting"><span class="orb"></span> waiting for your approval</span>
+        <span class="activity activity--error"><span class="orb"></span> tool failed — <span style="color:var(--bad)">connection timed out</span></span>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="label">In a chat row</div>
+      <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:14px;display:flex;gap:12px;">
+        <div style="width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,var(--copper),var(--copper-hot));flex-shrink:0;display:grid;place-items:center;font-family:var(--font-mono);font-size:11px;font-weight:700;color:#1a1208">C</div>
+        <div style="flex:1">
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px">
+            <span style="font-size:13px;font-weight:600">Conduit</span>
+            <span class="badge badge--model"><span class="swatch swatch--claude"></span>claude-opus-4-7</span>
+          </div>
+          <div style="color:var(--text-2);font-size:13.5px;margin-bottom:10px">Reading <code class="inline">internal/auth/session.go</code> to find the session timeout default…</div>
+          <span class="activity activity--thinking"><span class="orb"></span> thinking…</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="code-block">
+  <h2>Code Block</h2>
+  <p class="sub">Syntax-highlighted code display with copy button and a diff variant for showing AI-proposed edits. Diff is rendered in unified format.</p>
+  <div class="api"><code>variant</code> default · diff · &nbsp;<code>lang</code> any · &nbsp;<code>actions</code> copy · open-in-editor</div>
+  <div class="showcase col-2">
+    <div class="code-block">
+      <div class="code-block__head">
+        <span class="code-block__lang">go · internal/auth/session.go</span>
+        <button class="code-copy">copy</button>
+      </div>
+      <pre><span class="tok-k">func</span> <span class="tok-f">NewSession</span>(<span class="tok-p">user </span><span class="tok-n">User</span>) (*<span class="tok-n">Session</span>, <span class="tok-k">error</span>) {
+    <span class="tok-c">// 30-minute hard timeout per security review.</span>
+    <span class="tok-k">return</span> &<span class="tok-n">Session</span>{
+        ID:        <span class="tok-f">uuid</span>.<span class="tok-f">NewString</span>(),
+        UserID:    user.ID,
+        ExpiresAt: time.<span class="tok-f">Now</span>().<span class="tok-f">Add</span>(<span class="tok-n">30</span> * time.Minute),
+    }, <span class="tok-k">nil</span>
+}</pre>
+    </div>
+    <div class="code-block code-block--diff">
+      <div class="code-block__head">
+        <span class="code-block__lang">diff · session.go (proposed by agent)</span>
+        <button class="code-copy">apply</button>
+      </div>
+      <pre><span class="del">    ExpiresAt: time.Now().Add(30 * time.Minute),</span>
+<span class="add">    ExpiresAt: time.Now().Add(2 * time.Hour),</span>
+<span class="add">    LastActivity: time.Now(),</span></pre>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="tool-call">
+  <h2>Tool Call Block</h2>
+  <p class="sub">Displays an agent-issued tool invocation with input arguments and output preview. Collapsed by default to keep transcripts dense; click the header to expand.</p>
+  <div class="api"><code>state</code> running · done · error · &nbsp;<code>expanded</code> bool</div>
+  <div class="showcase col-flex" style="gap:10px">
+    <div class="toolcall is-open" data-toggle="toolcall">
+      <div class="toolcall__head">
+        <svg class="toolcall__chev"><use href="#i-chev"/></svg>
+        <span class="toolcall__name">read_file</span><span class="toolcall__arg">("internal/auth/session.go")</span>
+        <span class="toolcall__status"><span class="dot"></span>done · 38 lines · 4ms</span>
+      </div>
+      <div class="toolcall__body">
+        <div class="toolcall__io">
+          <div class="toolcall__io-label">arguments</div>
+          <pre>{ "path": "internal/auth/session.go", "limit": 200 }</pre>
+          <div class="toolcall__io-label">output (excerpt)</div>
+          <pre>1  package auth
+2
+3  import (
+4      "time"
+5      "github.com/google/uuid"
+6  )
+…
+24     ExpiresAt: time.Now().Add(30 * time.Minute),</pre>
+        </div>
+      </div>
+    </div>
+    <div class="toolcall toolcall--running" data-toggle="toolcall">
+      <div class="toolcall__head">
+        <svg class="toolcall__chev"><use href="#i-chev"/></svg>
+        <span class="toolcall__name">bash</span><span class="toolcall__arg">("go test ./internal/auth/…")</span>
+        <span class="toolcall__status"><span class="dot"></span>running · 1.4s</span>
+      </div>
+    </div>
+    <div class="toolcall toolcall--error" data-toggle="toolcall">
+      <div class="toolcall__head">
+        <svg class="toolcall__chev"><use href="#i-chev"/></svg>
+        <span class="toolcall__name">edit_file</span><span class="toolcall__arg">("internal/auth/middleware.go")</span>
+        <span class="toolcall__status" style="color:var(--bad)"><span class="dot"></span>error · permission denied</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="progress">
+  <h2>Progress Bar</h2>
+  <p class="sub">Determinate (known total — downloads, model loading) and indeterminate (unknown duration — connecting, sandbox boot).</p>
+  <div class="api"><code>variant</code> determinate · indeterminate · &nbsp;<code>value</code> 0–100</div>
+  <div class="showcase col-2">
+    <div class="panel"><div class="label">Determinate</div>
+      <div class="col-flex" style="gap:14px">
+        <div class="progress-row"><span style="width:120px">qwen-2.5-coder</span><div class="progress"><div class="progress__bar" style="width:18%"></div></div><span class="pct">18%</span></div>
+        <div class="progress-row"><span style="width:120px">whisper-large-v3</span><div class="progress"><div class="progress__bar" style="width:62%"></div></div><span class="pct">62%</span></div>
+        <div class="progress-row"><span style="width:120px">monthly budget</span><div class="progress"><div class="progress__bar" style="width:84%;background:linear-gradient(90deg,var(--warn),var(--copper))"></div></div><span class="pct">84%</span></div>
+        <div class="progress-row"><span style="width:120px">memory index</span><div class="progress"><div class="progress__bar" style="width:100%;background:linear-gradient(90deg,var(--good),var(--teal))"></div></div><span class="pct">100%</span></div>
+      </div>
+    </div>
+    <div class="panel"><div class="label">Indeterminate</div>
+      <div class="col-flex" style="gap:14px">
+        <div class="progress-row"><span style="width:120px">connecting…</span><div class="progress progress--indeterminate"><div class="progress__bar"></div></div></div>
+        <div class="progress-row"><span style="width:120px">sandbox boot</span><div class="progress progress--indeterminate"><div class="progress__bar" style="background:linear-gradient(90deg,var(--info),var(--teal))"></div></div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="palette">
+  <h2>Command Palette</h2>
+  <p class="sub">Spotlight-style overlay with fuzzy search over commands, sessions, and workflows. Summoned with <kbd class="kbd">⌘K</kbd> globally.</p>
+  <div class="api"><code>state</code> open · closed · &nbsp;<code>groups</code> recent · commands · sessions · memory</div>
+  <div class="showcase row-flex">
+    <button class="btn btn--secondary" data-open="demo-palette">Open command palette</button>
+    <span class="card__meta" style="font-size:11px">also try pressing <kbd class="kbd">⌘K</kbd></span>
+  </div>
+  <div class="showcase" style="margin-top:8px">
+    <div class="panel"><div class="label">Static preview</div>
+      <div class="palette" style="position:relative;animation:none;width:100%;max-width:560px">
+        <div class="palette__input-wrap">
+          <svg width="14" height="14"><use href="#i-search"/></svg>
+          <input class="palette__input" value="ref" />
+          <span class="palette__hint">⌘K</span>
+        </div>
+        <div class="palette__list">
+          <div class="palette__group-title">Commands</div>
+          <div class="palette__item is-active"><svg class="icon"><use href="#i-bolt"/></svg> Refactor authentication module<span class="shortcut">⌘⇧R</span></div>
+          <div class="palette__item"><svg class="icon"><use href="#i-cog"/></svg> Reload models &amp; restart router<span class="shortcut">⌘⇧L</span></div>
+          <div class="palette__group-title">Recent sessions</div>
+          <div class="palette__item"><svg class="icon"><use href="#i-msg"/></svg> Refactor auth middleware <span class="card__meta" style="margin-left:auto;font-size:11px">2h ago</span></div>
+          <div class="palette__item"><svg class="icon"><use href="#i-msg"/></svg> Reformat budget tracker output <span class="card__meta" style="margin-left:auto;font-size:11px">yesterday</span></div>
+          <div class="palette__group-title">Memory</div>
+          <div class="palette__item"><svg class="icon"><use href="#i-mem"/></svg> Reference / session-trees.md</div>
+        </div>
+        <div class="palette__footer">
+          <span><kbd>↑</kbd><kbd>↓</kbd>navigate</span>
+          <span><kbd>↵</kbd>select</span>
+          <span><kbd>esc</kbd>close</span>
+          <span style="margin-left:auto">42 results</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="cmp" id="waveform">
+  <h2>Voice Waveform</h2>
+  <p class="sub">Real-time amplitude visualization during voice input. Bars animate live when recording; collapses to flat dim bars when idle.</p>
+  <div class="api"><code>state</code> recording · idle · &nbsp;<code>bars</code> 15 (default)</div>
+  <div class="showcase col-2">
+    <div class="panel"><div class="label">Recording</div>
+      <div class="col-flex" style="align-items:flex-start;gap:14px">
+        <span class="waveform">
+          <span class="waveform__rec-dot"></span>
+          <span class="waveform__bars">
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span><span></span>
+          </span>
+          <span class="waveform__time">0:08</span>
+        </span>
+        <span class="activity activity--acting"><span class="orb"></span> transcribing locally · whisper.cpp</span>
+      </div>
+    </div>
+    <div class="panel"><div class="label">Idle</div>
+      <span class="waveform waveform--idle">
+        <svg class="icon"><use href="#i-mic"/></svg>
+        <span class="waveform__bars">
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+          <span></span><span></span><span></span><span></span><span></span>
+        </span>
+        <span class="waveform__time" style="color:var(--dim)">tap to speak</span>
+      </span>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div>Conduit Design — single source of truth for tokens, components, and motion across all surfaces.</div>
+  <div><a href="../PRD.md#122-component-library">PRD §12.2</a> · <a href="https://github.com/jabreeflor/conduit/issues/101">issue #101</a></div>
+</footer>
+
+</main>
+</div>
+
+<div class="modal-overlay" id="demo-modal">
+  <div class="modal">
+    <div class="modal__header">
+      <div class="modal__title">Replace cached credentials?</div>
+      <div class="modal__sub">A new key for <code class="inline">claude-personal</code> already exists in the keychain.</div>
+    </div>
+    <div class="modal__body">If you continue, the previous key will be archived to <code class="inline">~/.conduit/credentials/archive/</code> and removed from the active pool.</div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" data-close="demo-modal">Cancel</button>
+      <button class="btn" data-close="demo-modal">Replace</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="demo-modal-d">
+  <div class="modal modal--destructive">
+    <div class="modal__header">
+      <div class="modal__title">Delete 18 archived sessions</div>
+      <div class="modal__sub">This action is permanent and cannot be undone.</div>
+    </div>
+    <div class="modal__body">Each session's tool history, memory writes, and cost breakdown will be removed from disk. Type <code class="inline" style="color:var(--bad)">DELETE</code> to confirm.</div>
+    <div class="modal__footer">
+      <button class="btn btn--ghost" data-close="demo-modal-d">Cancel</button>
+      <button class="btn btn--destructive" data-close="demo-modal-d">Delete forever</button>
+    </div>
+  </div>
+</div>
+
+<div class="palette-overlay" id="demo-palette">
+  <div class="palette">
+    <div class="palette__input-wrap">
+      <svg width="14" height="14"><use href="#i-search"/></svg>
+      <input class="palette__input" placeholder="Type a command or search…" />
+      <span class="palette__hint">⌘K</span>
+    </div>
+    <div class="palette__list">
+      <div class="palette__group-title">Commands</div>
+      <div class="palette__item is-active"><svg class="icon"><use href="#i-bolt"/></svg> Run morning brief workflow<span class="shortcut">⌘⇧M</span></div>
+      <div class="palette__item"><svg class="icon"><use href="#i-cog"/></svg> Open settings<span class="shortcut">⌘,</span></div>
+      <div class="palette__item"><svg class="icon"><use href="#i-mic"/></svg> Toggle voice input<span class="shortcut">⌘⇧V</span></div>
+      <div class="palette__group-title">Recent sessions</div>
+      <div class="palette__item"><svg class="icon"><use href="#i-msg"/></svg> Refactor auth middleware</div>
+      <div class="palette__item"><svg class="icon"><use href="#i-msg"/></svg> Reformat budget tracker output</div>
+    </div>
+    <div class="palette__footer">
+      <span><kbd>↑</kbd><kbd>↓</kbd>navigate</span>
+      <span><kbd>↵</kbd>select</span>
+      <span><kbd>esc</kbd>close</span>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toast-stack"></div>
+
+<script>
+  const TOAST_PRESETS = {
+    success: { icon: '#i-check', title: 'Session forked',        msg: 'Branch fix-auth-2 ready in 0.3s.' },
+    error:   { icon: '#i-x',     title: 'Tool call failed',      msg: 'bash: connection timed out after 30s' },
+    warn:    { icon: '#i-warn',  title: 'Approaching budget',    msg: '$8.40 / $10 monthly limit on claude-opus.' },
+    info:    { icon: '#i-info',  title: 'Model switched',        msg: 'Routed to claude-sonnet for short reply.' },
+  };
+
+  function spawnToast(variant) {
+    const preset = TOAST_PRESETS[variant];
+    if (!preset) return;
+    const stack = document.getElementById('toast-stack');
+
+    const toast = document.createElement('div');
+    toast.className = 'toast toast--' + variant;
+
+    const iconSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    iconSvg.setAttribute('class', 'toast__icon');
+    const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    use.setAttribute('href', preset.icon);
+    iconSvg.appendChild(use);
+
+    const body = document.createElement('div');
+    const title = document.createElement('div');
+    title.className = 'toast__title';
+    title.textContent = preset.title;
+    const msg = document.createElement('div');
+    msg.className = 'toast__msg';
+    msg.textContent = preset.msg;
+    body.appendChild(title);
+    body.appendChild(msg);
+
+    const close = document.createElement('button');
+    close.className = 'toast__close';
+    close.setAttribute('aria-label', 'Dismiss');
+    const closeSvg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    closeSvg.setAttribute('class', 'icon');
+    const closeUse = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+    closeUse.setAttribute('href', '#i-x');
+    closeSvg.appendChild(closeUse);
+    close.appendChild(closeSvg);
+
+    toast.appendChild(iconSvg);
+    toast.appendChild(body);
+    toast.appendChild(close);
+    stack.appendChild(toast);
+
+    const dismiss = () => {
+      toast.classList.add('is-leaving');
+      setTimeout(() => toast.remove(), 220);
+    };
+    close.addEventListener('click', dismiss);
+    setTimeout(dismiss, 4000);
+  }
+
+  document.querySelectorAll('[data-toast]').forEach(btn => {
+    btn.addEventListener('click', () => spawnToast(btn.dataset.toast));
+  });
+
+  document.querySelectorAll('[data-open]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.open);
+      if (target) target.classList.add('is-open');
+    });
+  });
+  document.querySelectorAll('[data-close]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = document.getElementById(btn.dataset.close);
+      if (target) target.classList.remove('is-open');
+    });
+  });
+  document.querySelectorAll('.modal-overlay, .palette-overlay').forEach(overlay => {
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) overlay.classList.remove('is-open');
+    });
+  });
+
+  document.querySelectorAll('[data-toggle="toolcall"]').forEach(el => {
+    el.addEventListener('click', () => el.classList.toggle('is-open'));
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.modal-overlay.is-open, .palette-overlay.is-open').forEach(el => el.classList.remove('is-open'));
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      document.getElementById('demo-palette').classList.add('is-open');
+    }
+  });
+
+  const links = document.querySelectorAll('aside.nav a[href^="#"]');
+  const sections = Array.from(links).map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  function syncActive() {
+    const y = window.scrollY + 80;
+    let current = sections[0] && sections[0].id;
+    for (const s of sections) { if (s.offsetTop <= y) current = s.id; }
+    links.forEach(a => a.classList.toggle('active', a.getAttribute('href') === '#' + current));
+  }
+  document.addEventListener('scroll', syncActive, { passive: true });
+  syncActive();
+</script>
+</body>
+</html>
