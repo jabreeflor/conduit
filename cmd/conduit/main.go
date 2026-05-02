@@ -97,6 +97,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "agents", "agents-create", "agents-update", "agents-delete":
+			if err := runAgentsCLI(os.Args[1], os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit %s: %v\n", os.Args[1], err)
+				os.Exit(1)
+			}
+			return
 		}
 	}
 
@@ -414,5 +420,188 @@ func runSessionsCLI(args []string, stdout, stderr *os.File) error {
 		return err
 	}
 	sessions.WriteResult(stdout, res)
+	return nil
+}
+
+// runAgentsCLI handles the four agent-profile commands:
+//
+//	conduit agents                     — list all resolved profiles
+//	conduit agents-create [flags]      — create a new profile
+//	conduit agents-update [flags]      — update an existing profile
+//	conduit agents-delete <name>       — delete a profile
+//
+// Profile directories follow the same two-level hierarchy as config:
+// ~/.conduit/agents/ (user-global) and .conduit/agents/ (project-local).
+// Project profiles override user profiles by name.
+func runAgentsCLI(cmd string, args []string, stdout, stderr *os.File) error {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home dir: %w", err)
+	}
+	workspace, err := os.Getwd()
+	if err != nil {
+		workspace = ""
+	}
+	userDir, projectDir := coding.DefaultAgentProfileDirs(home, workspace)
+
+	switch cmd {
+	case "agents":
+		return runAgentsList(userDir, projectDir, stdout, stderr)
+	case "agents-create":
+		return runAgentsCreate(args, userDir, projectDir, stdout, stderr)
+	case "agents-update":
+		return runAgentsUpdate(args, userDir, projectDir, stdout, stderr)
+	case "agents-delete":
+		return runAgentsDelete(args, userDir, projectDir, stdout, stderr)
+	default:
+		return fmt.Errorf("unknown agents command %q", cmd)
+	}
+}
+
+func runAgentsList(userDir, projectDir string, stdout, stderr *os.File) error {
+	profiles, err := coding.LoadProfiles(userDir, projectDir)
+	if err != nil {
+		return err
+	}
+	if len(profiles) == 0 {
+		fmt.Fprintln(stderr, "no agent profiles found")
+		fmt.Fprintf(stderr, "  user profiles:    %s\n", userDir)
+		fmt.Fprintf(stderr, "  project profiles: %s\n", projectDir)
+		return nil
+	}
+	for _, p := range profiles {
+		fmt.Fprintf(stdout, "%s\t[%s]\t%s\n", p.Name, p.Source, truncate(p.Description, 60))
+	}
+	return nil
+}
+
+func runAgentsCreate(args []string, userDir, projectDir string, stdout, stderr *os.File) error {
+	fs := flag.NewFlagSet("conduit agents-create", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	name := fs.String("name", "", "agent name (required)")
+	description := fs.String("description", "", "what this agent does")
+	model := fs.String("model", "", "model override (e.g. claude-sonnet-4-6)")
+	toolsFlag := fs.String("tools", "", "comma-separated tool allowlist")
+	initialPrompt := fs.String("initial-prompt", "", "system prompt prefix")
+	project := fs.Bool("project", false, "write to project dir (.conduit/agents/) instead of user dir")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return fmt.Errorf("--name is required")
+	}
+
+	targetDir := userDir
+	if *project {
+		targetDir = projectDir
+	}
+
+	var tools []string
+	if *toolsFlag != "" {
+		for _, t := range strings.Split(*toolsFlag, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				tools = append(tools, t)
+			}
+		}
+	}
+
+	p := coding.AgentProfile{
+		Name:          *name,
+		Description:   *description,
+		Model:         *model,
+		Tools:         tools,
+		InitialPrompt: *initialPrompt,
+	}
+	if err := coding.WriteProfile(targetDir, p); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "created agent profile %q in %s\n", p.Name, targetDir)
+	return nil
+}
+
+func runAgentsUpdate(args []string, userDir, projectDir string, stdout, stderr *os.File) error {
+	fs := flag.NewFlagSet("conduit agents-update", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	name := fs.String("name", "", "agent name to update (required)")
+	description := fs.String("description", "", "new description")
+	model := fs.String("model", "", "new model override")
+	toolsFlag := fs.String("tools", "", "new comma-separated tool allowlist")
+	initialPrompt := fs.String("initial-prompt", "", "new system prompt prefix")
+	project := fs.Bool("project", false, "update in project dir; default is user dir")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *name == "" {
+		return fmt.Errorf("--name is required")
+	}
+
+	// Load existing profiles so we can merge rather than overwrite with zeros.
+	profiles, err := coding.LoadProfiles(userDir, projectDir)
+	if err != nil {
+		return err
+	}
+	var existing *coding.AgentProfile
+	for i := range profiles {
+		if profiles[i].Name == *name {
+			existing = &profiles[i]
+			break
+		}
+	}
+	if existing == nil {
+		return fmt.Errorf("agent profile %q not found", *name)
+	}
+
+	if *description != "" {
+		existing.Description = *description
+	}
+	if *model != "" {
+		existing.Model = *model
+	}
+	if *toolsFlag != "" {
+		var tools []string
+		for _, t := range strings.Split(*toolsFlag, ",") {
+			t = strings.TrimSpace(t)
+			if t != "" {
+				tools = append(tools, t)
+			}
+		}
+		existing.Tools = tools
+	}
+	if *initialPrompt != "" {
+		existing.InitialPrompt = *initialPrompt
+	}
+
+	targetDir := userDir
+	if *project {
+		targetDir = projectDir
+	}
+	if err := coding.WriteProfile(targetDir, *existing); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "updated agent profile %q in %s\n", *name, targetDir)
+	return nil
+}
+
+func runAgentsDelete(args []string, userDir, projectDir string, stdout, stderr *os.File) error {
+	fs := flag.NewFlagSet("conduit agents-delete", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	project := fs.Bool("project", false, "delete from project dir; default is user dir")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if len(fs.Args()) == 0 {
+		return fmt.Errorf("usage: conduit agents-delete [--project] <name>")
+	}
+	name := fs.Args()[0]
+
+	targetDir := userDir
+	if *project {
+		targetDir = projectDir
+	}
+	if err := coding.DeleteProfile(targetDir, name); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "deleted agent profile %q from %s\n", name, targetDir)
 	return nil
 }
