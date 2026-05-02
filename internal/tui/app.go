@@ -101,11 +101,12 @@ func RunInteractive() error {
 	}
 	setKeys(km)
 
-	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI)
-	// Best-effort sessions wiring: a missing home dir is non-fatal and just
-	// disables /sessions until a store is reachable. The Responder is left
-	// nil because the live provider client lands in a follow-up; replay
-	// surfaces a friendly error in the meantime.
+	m := newModel(modelStatus.SelectedModel, setup, engine.SetupLocalAI).
+		WithMemoryController(engine)
+	// Best-effort sessions wiring (PRD §6.13): a missing home dir is
+	// non-fatal and just disables /sessions until a store is reachable.
+	// The Responder is left nil because the live provider client lands in
+	// a follow-up; replay surfaces a friendly error in the meantime.
 	if store, err := sessions.NewStore(""); err == nil {
 		m = m.AttachSessions(&sessions.Dispatcher{Store: store})
 	}

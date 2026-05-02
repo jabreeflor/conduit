@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -146,6 +147,13 @@ func (m Model) View() string {
 		return lipgloss.JoinVertical(lipgloss.Left, statusBar, browserPanel, inputRow)
 	}
 
+	// When the memory inspector is open it takes over the main row entirely;
+	// the input row is hidden so its keystrokes don't bleed into the chat.
+	if m.inspectorOpen && m.inspector != nil {
+		body := styleActivePanel.Render(m.inspector.Render())
+		return lipgloss.JoinVertical(lipgloss.Left, statusBar, body)
+	}
+
 	mainRow := m.renderMainRow()
 	inputRow := m.renderInputRow()
 
@@ -171,9 +179,11 @@ func (m Model) renderMainRow() string {
 }
 
 func (m Model) renderInputRow() string {
-	help := " enter:send  ctrl+p:panel  ctrl+b:sessions  x:expand  esc:quit"
+	memKey := firstKey(keys.MemoryInspector, "ctrl+m")
+	sessKey := firstKey(keys.SessionBrowser, "ctrl+b")
+	help := fmt.Sprintf(" enter:send  ctrl+p:panel  %s:memory  %s:sessions  x:expand  esc:quit", memKey, sessKey)
 	if m.setup.Phase == "welcome" {
-		help = " l:local setup  a:external api  enter:send  ctrl+p:panel  ctrl+b:sessions  esc:quit"
+		help = fmt.Sprintf(" l:local setup  a:external api  enter:send  ctrl+p:panel  %s:sessions  esc:quit", sessKey)
 	}
 	help = styleDim.Render(help)
 	inputBox := stylePanel.Render(m.input.View())
@@ -210,4 +220,15 @@ func max(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// firstKey returns the first key registered on b, or fallback when none is
+// bound. Used by the input-row help text so it always reflects the resolved
+// keybindings (default or user-overridden).
+func firstKey(b key.Binding, fallback string) string {
+	keys := b.Keys()
+	if len(keys) == 0 {
+		return fallback
+	}
+	return keys[0]
 }

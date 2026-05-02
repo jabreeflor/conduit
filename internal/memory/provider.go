@@ -26,6 +26,10 @@ type Entry struct {
 	Tags      []string
 	CreatedAt time.Time
 	UpdatedAt time.Time
+	// Pinned marks an entry as protected from automatic pruning. The memory
+	// inspector lets users toggle this manually (PRD §19 "Memory pruning /
+	// manual override"); any future automatic compactor must skip pinned entries.
+	Pinned bool
 }
 
 // Provider is the abstract memory layer. Only one external provider may be
@@ -39,6 +43,14 @@ type Provider interface {
 	Write(ctx context.Context, entry Entry) error
 	// Search returns entries whose title, body, or tags contain the query.
 	Search(ctx context.Context, query string) ([]Entry, error)
+	// Delete removes the entry with the given ID. Returns nil if no entry
+	// matches (idempotent). Pinned entries are still deleted — Delete is the
+	// explicit user-driven path; pruners must check Pinned themselves.
+	Delete(ctx context.Context, id string) error
+	// Prune removes every entry matched by query (same matching rules as
+	// Search) except those with Pinned=true. Returns the IDs that were removed.
+	// An empty query prunes everything not pinned.
+	Prune(ctx context.Context, query string) ([]string, error)
 	// Compress merges or prunes stale entries to keep the store lean.
 	Compress(ctx context.Context) error
 	// Shutdown flushes any pending writes and releases resources.
