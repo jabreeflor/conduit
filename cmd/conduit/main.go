@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/jabreeflor/conduit/internal/coding"
 	"github.com/jabreeflor/conduit/internal/computeruse"
 	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
@@ -16,6 +17,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/skills"
+	"github.com/jabreeflor/conduit/internal/tools"
 	"github.com/jabreeflor/conduit/internal/tui"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -79,6 +81,12 @@ func main() {
 		case "skills":
 			if err := runSkillsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit skills: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "code":
+			if err := runCodeCLI(context.Background(), os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit code: %v\n", err)
 				os.Exit(1)
 			}
 			return
@@ -215,6 +223,66 @@ func (r providerResponder) Replay(ctx context.Context, req evalpkg.ReplayRequest
 		InputTokens:  resp.Usage.InputTokens,
 		OutputTokens: resp.Usage.OutputTokens,
 	}, nil
+}
+
+// runCodeCLI wires the `conduit code` REPL with tier-filtered tools, a
+// budget tracker, and a fresh session journal. The provider streamer is
+// stubbed to echo input until a real client lands; that swap is the only
+// dependency between this entry point and the live coding agent.
+func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.File) error {
+	fs := flag.NewFlagSet("conduit code", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	allowWrite := fs.Bool("allow-write", false, "allow filesystem write tools (write_file, edit_file, notebook_edit)")
+	allowShell := fs.Bool("allow-shell", false, "allow shell tools (bash)")
+	maxInputTokens := fs.Int("max-input-tokens", 200_000, "model input window for context budgeting")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	perms := contracts.CodingPermissions{
+		AllowWrite: *allowWrite,
+		AllowShell: *allowShell,
+	}
+	codingTools := coding.RegisterCodingTools(coding.DefaultCodingTools(), perms)
+	// Pipeline is built so the REPL can resolve calls when real runners
+	// arrive; PolicyConfig{} defers policy work to PR #62.
+	_ = tools.NewPipeline(codingTools, tools.PolicyConfig{})
+
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("resolve home dir: %w", err)
+	}
+	session, err := coding.NewSession(home)
+	if err != nil {
+		return err
+	}
+	budget := coding.NewBudget(*maxInputTokens)
+
+	repl := &coding.REPL{
+		Session:   session,
+		Budget:    budget,
+		Tools:     codingTools,
+		Streamer:  echoStreamer{},
+		Continuer: coding.DefaultContinuer{},
+		In:        stdin,
+		Out:       stdout,
+	}
+	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell)
+	return repl.Run(ctx)
+}
+
+// echoStreamer is the placeholder Streamer: it echoes the user's prompt
+// back as the assistant turn with a natural finishReason so the REPL skips
+// auto-continuation. Replaced by a real provider client in the follow-up
+// streaming PR.
+type echoStreamer struct{}
+
+func (echoStreamer) Stream(_ context.Context, prompt string, onDelta func(string)) (string, string, error) {
+	out := "echo: " + prompt
+	if onDelta != nil {
+		onDelta(out)
+	}
+	return out, "stop", nil
 }
 
 func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
