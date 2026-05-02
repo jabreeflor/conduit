@@ -24,6 +24,35 @@ type Config struct {
 	Budgets     BudgetsConfig                  `yaml:"budgets"`
 	Costs       CostConfig                     `yaml:"costs"`
 	Credentials map[string]ProviderCredentials `yaml:"credentials"`
+	ComputerUse ComputerUseConfig              `yaml:"computer_use"`
+}
+
+// ComputerUseConfig controls the open-codex-computer-use MCP integration
+// (PRD §6.8). The full schema lives in internal/computeruse so the runtime
+// gating logic stays close to its consumers; this struct mirrors the
+// subset that lands in the root YAML config.
+type ComputerUseConfig struct {
+	// Enabled gates the integration. Defaults to false (off).
+	Enabled bool `yaml:"enabled"`
+
+	// Command overrides the binary path. Empty means the upstream default
+	// (`open-computer-use`, installed via `npm i -g open-computer-use`).
+	Command string `yaml:"command,omitempty"`
+
+	// Args overrides the launch args. Nil means the upstream default
+	// (["mcp"] — stdio transport).
+	Args []string `yaml:"args,omitempty"`
+
+	// Env is forwarded to the subprocess as "KEY=value" pairs.
+	Env []string `yaml:"env,omitempty"`
+
+	// Allowlist restricts which tools the upstream server may expose.
+	// Empty means all upstream tools are allowed.
+	Allowlist []string `yaml:"allowlist,omitempty"`
+
+	// ForceNonDarwin allows enabling the integration on non-macOS hosts
+	// (advanced; v1 permission flow is macOS-first — see PRD §6.8).
+	ForceNonDarwin bool `yaml:"force_non_darwin,omitempty"`
 }
 
 // ModelsConfig is the model-routing section.

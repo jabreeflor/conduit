@@ -80,7 +80,9 @@ func projectConfigPath() (string, error) {
 	return filepath.Join(cwd, ".conduit", "mcp.yaml"), nil
 }
 
-// LoadConfig reads and merges user-global + project-scoped MCP configs.
+// LoadConfig reads and merges user-global + project-scoped MCP configs,
+// then layers any process-registered built-in entries on top (lowest
+// precedence — user config always wins on a name collision).
 // Missing files are silently skipped; parse errors are returned.
 func LoadConfig() (Config, error) {
 	global, err := globalConfigPath()
@@ -91,7 +93,57 @@ func LoadConfig() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	return loadAndMerge(global, project)
+	cfg, err := loadAndMerge(global, project)
+	if err != nil {
+		return Config{}, err
+	}
+	return applyBuiltins(cfg), nil
+}
+
+// builtinServers is a process-wide registry of MCP server entries
+// contributed by Conduit subsystems (currently: computer-use, PRD §6.8).
+// Entries here are merged into LoadConfig's output as a base layer —
+// user-supplied entries with the same name always win.
+//
+// Registration is idempotent on Name. Intended caller: cmd/conduit at
+// startup. Tests can use ResetBuiltins to clean up.
+var builtinServers []ServerEntry
+
+// RegisterBuiltinServer adds (or replaces by Name) an entry that
+// LoadConfig should include unless the user has already configured a
+// server with the same name.
+func RegisterBuiltinServer(entry ServerEntry) {
+	for i, existing := range builtinServers {
+		if existing.Name == entry.Name {
+			builtinServers[i] = entry
+			return
+		}
+	}
+	builtinServers = append(builtinServers, entry)
+}
+
+// ResetBuiltins clears the built-in server registry. For tests.
+func ResetBuiltins() {
+	builtinServers = nil
+}
+
+// applyBuiltins merges builtinServers into cfg. User entries with the
+// same Name win.
+func applyBuiltins(cfg Config) Config {
+	if len(builtinServers) == 0 {
+		return cfg
+	}
+	existing := make(map[string]bool, len(cfg.Servers))
+	for _, s := range cfg.Servers {
+		existing[s.Name] = true
+	}
+	for _, b := range builtinServers {
+		if existing[b.Name] {
+			continue
+		}
+		cfg.Servers = append(cfg.Servers, b)
+	}
+	return cfg
 }
 
 func loadAndMerge(globalPath, projectPath string) (Config, error) {
