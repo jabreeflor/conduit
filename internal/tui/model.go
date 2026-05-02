@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/keybindings"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
@@ -73,6 +74,9 @@ type message struct {
 
 // ── key bindings ─────────────────────────────────────────────────────────────
 
+// keyMap groups the bubbles/key.Binding values used by Update. Bindings are
+// derived at runtime from a keybindings.Keymap so users can override every
+// shortcut via ~/.conduit/keybindings.json (PRD §6.15).
 type keyMap struct {
 	TogglePanel key.Binding
 	Quit        key.Binding
@@ -82,32 +86,36 @@ type keyMap struct {
 	ExternalAPI key.Binding
 }
 
-var keys = keyMap{
-	TogglePanel: key.NewBinding(
-		key.WithKeys("ctrl+p"),
-		key.WithHelp("ctrl+p", "toggle context panel"),
-	),
-	Quit: key.NewBinding(
-		key.WithKeys("esc", "ctrl+c"),
-		key.WithHelp("esc", "quit"),
-	),
-	Submit: key.NewBinding(
-		key.WithKeys("enter"),
-		key.WithHelp("enter", "send"),
-	),
-	ExpandTool: key.NewBinding(
-		key.WithKeys("x"),
-		key.WithHelp("x", "expand/collapse last tool call"),
-	),
-	SetupLocal: key.NewBinding(
-		key.WithKeys("l"),
-		key.WithHelp("l", "set up local ai"),
-	),
-	ExternalAPI: key.NewBinding(
-		key.WithKeys("a"),
-		key.WithHelp("a", "external api"),
-	),
+// buildKeyMap turns a resolved keybindings.Keymap into the bubbles/key bindings
+// the Update loop matches against. Unbound commands produce a key.Binding with
+// no keys; key.Matches will simply never fire for them, which is the desired
+// "shortcut disabled" behaviour.
+func buildKeyMap(km *keybindings.Keymap) keyMap {
+	binding := func(cmd keybindings.Command, help string) key.Binding {
+		keys := km.KeysFor(cmd)
+		display := help
+		if len(keys) > 0 {
+			display = fmt.Sprintf("%s — %s", keys[0], help)
+		}
+		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(help, display))
+	}
+	return keyMap{
+		TogglePanel: binding(keybindings.CommandTUITogglePanel, "toggle context panel"),
+		Quit:        binding(keybindings.CommandConduitQuit, "quit"),
+		Submit:      binding(keybindings.CommandTUISubmit, "send"),
+		ExpandTool:  binding(keybindings.CommandTUIExpandTool, "expand/collapse last tool call"),
+		SetupLocal:  binding(keybindings.CommandTUISetupLocal, "set up local ai"),
+		ExternalAPI: binding(keybindings.CommandTUISetupAPI, "external api"),
+	}
 }
+
+// keys is the package-level resolved keymap. RunInteractive replaces it with a
+// user-overridden version at boot via setKeys; tests may rely on the defaults.
+var keys = buildKeyMap(keybindings.Default())
+
+// setKeys swaps the global keymap. Called by the TUI entry point after
+// loading ~/.conduit/keybindings.json.
+func setKeys(km *keybindings.Keymap) { keys = buildKeyMap(km) }
 
 // ── model ─────────────────────────────────────────────────────────────────────
 
