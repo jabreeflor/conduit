@@ -14,6 +14,7 @@ func TestDefaultKeymapBindsAllPRDCommands(t *testing.T) {
 	// must have at least one default binding so the TUI ships usable.
 	required := []Command{
 		CommandChatNew,
+		CommandChatNewLocal,
 		CommandChatFork,
 		CommandSessionLoad,
 		CommandSessionFork,

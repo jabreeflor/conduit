@@ -45,6 +45,7 @@ type Command string
 
 const (
 	CommandChatNew              Command = "chat.new"
+	CommandChatNewLocal         Command = "chat.newLocal"
 	CommandChatFork             Command = "chat.fork"
 	CommandSessionLoad          Command = "session.load"
 	CommandSessionFork          Command = "session.fork"
@@ -71,6 +72,7 @@ const (
 // rendering help screens and for deterministic test output.
 var AllCommands = []Command{
 	CommandChatNew,
+	CommandChatNewLocal,
 	CommandChatFork,
 	CommandSessionLoad,
 	CommandSessionFork,
@@ -116,6 +118,7 @@ func Defaults() []Binding {
 	return []Binding{
 		{Key: "alt+space", Command: CommandConduitSummon},
 		{Key: "mod+n", Command: CommandChatNew},
+		{Key: "mod+shift+n", Command: CommandChatNewLocal},
 		{Key: "mod+k", Command: CommandCommandPaletteToggle},
 		{Key: "mod+j", Command: CommandTerminalToggle},
 		{Key: "mod+r", Command: CommandWorkflowRun, When: "workflowSelected"},

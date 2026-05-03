@@ -477,6 +477,10 @@ type SandboxArchitecture struct {
 	MaxMemoryOverheadMB       int
 	Shells                    []string
 	PreinstalledRuntimes      []string
+	RuntimeVersions           map[string]string
+	PackageManagers           []string
+	PreinstalledTools         []string
+	AllowlistedRegistries     []string
 	NetworkPolicy             SandboxNetworkPolicy
 	Mounts                    []SandboxMount
 	DenyHostFilesystem        bool
@@ -600,6 +604,34 @@ type CodingPermissions struct {
 	AllowShell bool
 }
 
+// CodingWorktreeEvent is one state transition in the coding worktree runtime.
+// It is surfaced in the GUI Worktree tab and persisted through coding turns so
+// a resumed session can recover the last known cwd/worktree state.
+type CodingWorktreeEvent struct {
+	At             time.Time `json:"at"`
+	Action         string    `json:"action"`
+	RepositoryRoot string    `json:"repository_root,omitempty"`
+	Path           string    `json:"path,omitempty"`
+	Branch         string    `json:"branch,omitempty"`
+	BaseBranch     string    `json:"base_branch,omitempty"`
+	PreviousCWD    string    `json:"previous_cwd,omitempty"`
+	Kept           bool      `json:"kept,omitempty"`
+	Message        string    `json:"message,omitempty"`
+}
+
+// CodingWorktreeState is the session-level git/worktree snapshot shared by
+// coding sessions, tools, and GUI surfaces.
+type CodingWorktreeState struct {
+	SessionID      string                `json:"session_id"`
+	RepositoryRoot string                `json:"repository_root,omitempty"`
+	CWD            string                `json:"cwd,omitempty"`
+	Branch         string                `json:"branch,omitempty"`
+	WorktreePath   string                `json:"worktree_path,omitempty"`
+	WorktreeBranch string                `json:"worktree_branch,omitempty"`
+	WorktreeActive bool                  `json:"worktree_active"`
+	History        []CodingWorktreeEvent `json:"history,omitempty"`
+}
+
 // CodingSnapshotID is the opaque identifier returned by the session journal
 // after a turn is persisted. Callers treat it as a black box; the journal
 // owns the format (currently "snap-<RFC3339>-<random>").
@@ -609,9 +641,16 @@ type CodingSnapshotID string
 // session journal. Role mirrors the OpenAI-style "user" | "assistant" |
 // "tool" labelling. SnapshotID is empty until the journal has flushed it.
 type CodingTurn struct {
-	Index      int
-	At         time.Time
-	Role       string
-	Content    string
-	SnapshotID CodingSnapshotID
+	Index          int
+	At             time.Time
+	Role           string
+	Content        string
+	SnapshotID     CodingSnapshotID
+	CWD            string
+	GitBranch      string
+	RepositoryRoot string
+	WorktreePath   string
+	WorktreeBranch string
+	WorktreeActive bool
+	WorktreeEvent  *CodingWorktreeEvent
 }
