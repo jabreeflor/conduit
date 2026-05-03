@@ -14,11 +14,11 @@ const (
 type MainView int
 
 const (
-	ViewScreenshot MainView = iota // live computer-use screenshot stream
-	ViewCanvas                     // WKWebView / HTML canvas panel
-	ViewWorkflowDAG                // workflow step graph
-	ViewMemoryBrowser              // memory / SOUL / USER entries
-	ViewDiffEditor                 // GitHub-style diff view (coding mode)
+	ViewScreenshot    MainView = iota // live computer-use screenshot stream
+	ViewCanvas                        // WKWebView / HTML canvas panel
+	ViewWorkflowDAG                   // workflow step graph
+	ViewMemoryBrowser                 // memory / SOUL / USER entries
+	ViewDiffEditor                    // GitHub-style diff view (coding mode)
 )
 
 // defaults for column proportions (fractions of total width).
