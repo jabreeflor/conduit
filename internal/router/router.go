@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/cache"
 	"github.com/jabreeflor/conduit/internal/contextassembler"
 	conduiterrors "github.com/jabreeflor/conduit/internal/errors"
 )
@@ -120,6 +121,7 @@ type Router struct {
 	checkpoints   CheckpointStore
 	usage         UsageSink
 	failovers     FailoverSink
+	responses     *cache.ResponseCache[Response]
 	assembler     ContextAssembler
 	optimizations OptimizationSink
 	now           func() time.Time
@@ -146,6 +148,14 @@ func WithUsageSink(sink UsageSink) Option {
 func WithFailoverSink(sink FailoverSink) Option {
 	return func(r *Router) {
 		r.failovers = sink
+	}
+}
+
+// WithResponseCache enables exact-match response caching for identical
+// inference requests.
+func WithResponseCache(c *cache.ResponseCache[Response]) Option {
+	return func(r *Router) {
+		r.responses = c
 	}
 }
 
@@ -192,6 +202,12 @@ func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
 	if len(chain) == 0 {
 		return Response{}, errors.New("no providers configured")
 	}
+	cacheKey, cacheable := r.responseCacheKey(req, chain)
+	if cacheable {
+		if resp, ok := r.responses.Get(cacheKey); ok {
+			return resp, nil
+		}
+	}
 
 	var failures []error
 	for i, name := range chain {
@@ -232,6 +248,9 @@ func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
 		}
 		resp.Usage.CostUSD = r.costFor(name, resp.Usage)
 		r.recordUsage(ctx, req, resp, totalLatency)
+		if cacheable {
+			r.responses.Put(cacheKey, resp)
+		}
 		return resp, nil
 	}
 
@@ -286,6 +305,20 @@ func routerContextItems(req Request) []contextassembler.Item {
 		items = append(items, item)
 	}
 	return items
+}
+
+func (r *Router) responseCacheKey(req Request, chain []string) (string, bool) {
+	if r.responses == nil {
+		return "", false
+	}
+	key, err := cache.Key("router-response", struct {
+		Request Request
+		Chain   []string
+	}{Request: req, Chain: chain})
+	if err != nil {
+		return "", false
+	}
+	return key, true
 }
 
 func (r *Router) contextForProvider(ctx context.Context, name string) (context.Context, context.CancelFunc) {

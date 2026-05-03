@@ -3,6 +3,7 @@ package core
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
@@ -49,7 +50,11 @@ func DefaultSandboxArchitecture() contracts.SandboxArchitecture {
 		WarmStartBudget:           warmSandboxStartupBudget,
 		MaxMemoryOverheadMB:       sandboxMaxMemoryOverheadMB,
 		Shells:                    []string{"bash", "zsh", "sh"},
-		PreinstalledRuntimes:      []string{"go", "node", "python"},
+		PreinstalledRuntimes:      []string{"go", "node", "python", "rust"},
+		RuntimeVersions:           map[string]string{"go": "1.22", "node": "20", "python": "3.12", "rust": "stable"},
+		PackageManagers:           []string{"pip", "npm", "yarn", "pnpm", "cargo"},
+		PreinstalledTools:         []string{"git", "curl", "jq", "rg", "fd", "vim", "nano", "sqlite3"},
+		AllowlistedRegistries:     []string{"pypi.org", "registry.npmjs.org", "proxy.golang.org", "crates.io"},
 		NetworkPolicy:             contracts.SandboxNetworkPolicyControlledEgress,
 		DenyHostFilesystem:        true,
 		DenyHostNetwork:           true,
@@ -132,6 +137,18 @@ func (m *SandboxManager) Validate() error {
 	}
 	if len(m.architecture.PreinstalledRuntimes) == 0 {
 		problems = append(problems, "at least one runtime must be pre-installed")
+	}
+	if len(m.architecture.RuntimeVersions) == 0 {
+		problems = append(problems, "runtime versions are required")
+	}
+	if len(m.architecture.PackageManagers) == 0 {
+		problems = append(problems, "at least one package manager must be pre-installed")
+	}
+	if len(m.architecture.PreinstalledTools) == 0 {
+		problems = append(problems, "at least one developer tool must be pre-installed")
+	}
+	if len(m.architecture.AllowlistedRegistries) == 0 {
+		problems = append(problems, "at least one package registry must be allowlisted")
 	}
 	if m.architecture.NetworkPolicy == "" {
 		problems = append(problems, "network policy is required")
@@ -283,6 +300,10 @@ func isSupportedMountMode(mode contracts.SandboxMountMode) bool {
 func copySandboxArchitecture(architecture contracts.SandboxArchitecture) contracts.SandboxArchitecture {
 	architecture.Shells = append([]string(nil), architecture.Shells...)
 	architecture.PreinstalledRuntimes = append([]string(nil), architecture.PreinstalledRuntimes...)
+	architecture.RuntimeVersions = maps.Clone(architecture.RuntimeVersions)
+	architecture.PackageManagers = append([]string(nil), architecture.PackageManagers...)
+	architecture.PreinstalledTools = append([]string(nil), architecture.PreinstalledTools...)
+	architecture.AllowlistedRegistries = append([]string(nil), architecture.AllowlistedRegistries...)
 	architecture.Mounts = append([]contracts.SandboxMount(nil), architecture.Mounts...)
 	return architecture
 }
