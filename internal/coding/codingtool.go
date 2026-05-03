@@ -46,6 +46,12 @@ const maxGlobResults = 500
 // Pass nil for reg to disable tool_search (the tool will return an error
 // explaining that no registry was provided).
 func LiveCodingTools(wsCfg websearch.Config, reg []tools.Tool) []TieredTool {
+	return LiveCodingToolsForSession(wsCfg, reg, nil)
+}
+
+// LiveCodingToolsForSession wires session-aware tools such as worktree_enter
+// and worktree_exit in addition to the standard coding tool set.
+func LiveCodingToolsForSession(wsCfg websearch.Config, reg []tools.Tool, session *Session) []TieredTool {
 	return []TieredTool{
 		{Tool: listDirTool(), Tier: contracts.CodingTierAlways},
 		{Tool: readFileTool(), Tier: contracts.CodingTierAlways},
@@ -59,6 +65,98 @@ func LiveCodingTools(wsCfg websearch.Config, reg []tools.Tool) []TieredTool {
 		{Tool: editFileTool(), Tier: contracts.CodingTierRequiresWrite},
 		{Tool: notebookEditTool(), Tier: contracts.CodingTierRequiresWrite},
 		{Tool: bashTool(), Tier: contracts.CodingTierRequiresShell},
+		{Tool: worktreeEnterTool(session), Tier: contracts.CodingTierRequiresShell},
+		{Tool: worktreeExitTool(session), Tier: contracts.CodingTierRequiresShell},
+	}
+}
+
+// ── worktree_enter / worktree_exit ───────────────────────────────────────
+
+func worktreeEnterTool(session *Session) tools.Tool {
+	return tools.Tool{
+		Name:        "worktree_enter",
+		Description: "Create and switch this coding session into a managed git worktree. Subsequent relative file and shell tools run from that worktree.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"repository_root": map[string]any{
+					"type":        "string",
+					"description": "Git repository root. Defaults to the session repository or current working directory.",
+				},
+				"path": map[string]any{
+					"type":        "string",
+					"description": "Worktree path. Defaults to ~/.conduit/worktrees/<session-id>.",
+				},
+				"branch": map[string]any{
+					"type":        "string",
+					"description": "Branch to create for the worktree. Defaults to conduit/<session-id>.",
+				},
+				"base_branch": map[string]any{
+					"type":        "string",
+					"description": "Base branch or commit. Defaults to the session branch.",
+				},
+			},
+		},
+		Run: func(ctx context.Context, raw json.RawMessage) (tools.Result, error) {
+			if session == nil {
+				return tools.Result{IsError: true, Text: "worktree_enter: no coding session attached"}, nil
+			}
+			var p struct {
+				RepositoryRoot string `json:"repository_root"`
+				Path           string `json:"path"`
+				Branch         string `json:"branch"`
+				BaseBranch     string `json:"base_branch"`
+			}
+			if len(raw) > 0 {
+				if err := json.Unmarshal(raw, &p); err != nil {
+					return tools.Result{IsError: true, Text: fmt.Sprintf("worktree_enter: bad args: %v", err)}, nil
+				}
+			}
+			state, err := session.WorktreeEnter(ctx, WorktreeEnterOptions{
+				RepositoryRoot: p.RepositoryRoot,
+				Path:           p.Path,
+				Branch:         p.Branch,
+				BaseBranch:     p.BaseBranch,
+			})
+			if err != nil {
+				return tools.Result{IsError: true, Text: fmt.Sprintf("worktree_enter: %v", err)}, nil
+			}
+			return tools.Result{Text: fmt.Sprintf("entered worktree %s on %s", state.WorktreePath, state.WorktreeBranch)}, nil
+		},
+	}
+}
+
+func worktreeExitTool(session *Session) tools.Tool {
+	return tools.Tool{
+		Name:        "worktree_exit",
+		Description: "Exit the active managed git worktree and optionally keep it on disk.",
+		Schema: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"keep": map[string]any{
+					"type":        "boolean",
+					"description": "Keep the worktree instead of removing it. Defaults to false.",
+				},
+			},
+		},
+		Run: func(ctx context.Context, raw json.RawMessage) (tools.Result, error) {
+			if session == nil {
+				return tools.Result{IsError: true, Text: "worktree_exit: no coding session attached"}, nil
+			}
+			var p struct {
+				Keep bool `json:"keep"`
+			}
+			if len(raw) > 0 {
+				if err := json.Unmarshal(raw, &p); err != nil {
+					return tools.Result{IsError: true, Text: fmt.Sprintf("worktree_exit: bad args: %v", err)}, nil
+				}
+			}
+			state, err := session.WorktreeExit(ctx, WorktreeExitOptions{Keep: p.Keep})
+			if err != nil {
+				return tools.Result{IsError: true, Text: fmt.Sprintf("worktree_exit: %v", err)}, nil
+			}
+			return tools.Result{Text: fmt.Sprintf("exited worktree; cwd=%s", state.CWD)}, nil
+		},
 	}
 }
 

@@ -25,8 +25,8 @@ func mustJSON(v any) json.RawMessage {
 
 func TestLiveCodingTools_Count(t *testing.T) {
 	live := LiveCodingTools(websearch.DefaultConfig(), nil)
-	if len(live) != 12 {
-		t.Errorf("expected 12 tools, got %d", len(live))
+	if len(live) != 14 {
+		t.Errorf("expected 14 tools, got %d", len(live))
 	}
 }
 
@@ -34,12 +34,12 @@ func TestLiveCodingTools_Tiers(t *testing.T) {
 	live := LiveCodingTools(websearch.DefaultConfig(), nil)
 	perms := contracts.CodingPermissions{AllowWrite: true, AllowShell: true}
 	got := RegisterCodingTools(live, perms)
-	if len(got) != 12 {
+	if len(got) != 14 {
 		names := make([]string, len(got))
 		for i, t := range got {
 			names[i] = t.Name
 		}
-		t.Errorf("all-perms: expected 12 tools, got %d: %v", len(got), names)
+		t.Errorf("all-perms: expected 14 tools, got %d: %v", len(got), names)
 	}
 
 	// read-only: 8 always tools
