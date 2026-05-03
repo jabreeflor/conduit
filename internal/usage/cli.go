@@ -27,10 +27,12 @@ func RunCLI(ctx context.Context, args []string, stdout, stderr io.Writer) error 
 		return runReport(args[1:], stdout, stderr, dir)
 	case "dashboard":
 		return runDashboard(args[1:], stdout, stderr, dir)
+	case "plugins":
+		return runPluginsCLI(args[1:], stdout, stderr, dir)
 	case "-h", "--help", "help":
 		return printUsage(stdout)
 	default:
-		return fmt.Errorf("unknown usage subcommand %q; try: purge, export, report, dashboard", args[0])
+		return fmt.Errorf("unknown usage subcommand %q; try: purge, export, report, dashboard, plugins", args[0])
 	}
 }
 
@@ -42,6 +44,8 @@ Commands:
   export     write raw entries as csv or json (--format, --from, --to, --out)
   report     aggregate-only report (--group day|month|model|provider, --json)
   dashboard  render self-contained HTML report (--out)
+  plugins    per-plugin usage rollups (--plugin, --from, --to, --json)
+             plugins anomalies — detect spikes vs rolling baseline
 
 All commands operate on ~/.conduit/logs/usage. No data leaves the machine.
 `)
