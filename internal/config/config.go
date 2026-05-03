@@ -133,10 +133,24 @@ type PolicyConfig struct {
 
 // SandboxConfig controls the agent code-execution isolation layer.
 type SandboxConfig struct {
-	Backend              string   `yaml:"backend"`
-	BaseImage            string   `yaml:"base_image"`
-	NetworkPolicy        string   `yaml:"network_policy"`
-	PreinstalledRuntimes []string `yaml:"preinstalled_runtimes"`
+	Backend               string                   `yaml:"backend"`
+	BaseImage             string                   `yaml:"base_image"`
+	NetworkPolicy         string                   `yaml:"network_policy"`
+	PreinstalledRuntimes  []string                 `yaml:"preinstalled_runtimes"`
+	RuntimeVersions       map[string]string        `yaml:"runtime_versions"`
+	PackageManagers       []string                 `yaml:"package_managers"`
+	PreinstalledTools     []string                 `yaml:"preinstalled_tools"`
+	AllowlistedRegistries []string                 `yaml:"allowlisted_registries"`
+	CustomBaseImages      []SandboxBaseImageConfig `yaml:"custom_base_images"`
+}
+
+// SandboxBaseImageConfig is a reusable custom sandbox image entry.
+type SandboxBaseImageConfig struct {
+	Name        string `yaml:"name"`
+	Image       string `yaml:"image"`
+	Digest      string `yaml:"digest"`
+	Description string `yaml:"description"`
+	Shared      bool   `yaml:"shared"`
 }
 
 // BudgetsConfig sets spending limits by provider, feature, and plugin.

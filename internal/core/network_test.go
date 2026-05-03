@@ -129,6 +129,28 @@ func TestEngineExposesDefaultNetworkSandbox(t *testing.T) {
 	}
 }
 
+func TestDefaultNetworkSandboxAllowsPackageRegistries(t *testing.T) {
+	sandbox := NewNetworkSandbox(DefaultNetworkSandboxConfig())
+
+	for _, host := range []string{
+		"pypi.org",
+		"files.pythonhosted.org",
+		"registry.npmjs.org",
+		"proxy.golang.org",
+		"sum.golang.org",
+		"crates.io",
+		"index.crates.io",
+		"static.crates.io",
+	} {
+		t.Run(host, func(t *testing.T) {
+			decision := sandbox.CheckOutbound(context.Background(), contracts.NetworkRequest{Host: host, Port: 443})
+			if !decision.Allowed {
+				t.Fatalf("decision for %s = %#v, want allowed", host, decision)
+			}
+		})
+	}
+}
+
 func TestNetworkSandboxApprovalErrorsBlockRequest(t *testing.T) {
 	sandbox := NewNetworkSandbox(NetworkSandboxConfig{
 		Mode:     contracts.NetworkModePerRequest,

@@ -30,6 +30,29 @@ func TestDefaultSandboxArchitectureMatchesPRDGuarantees(t *testing.T) {
 	if architecture.NetworkPolicy != contracts.SandboxNetworkPolicyControlledEgress {
 		t.Fatalf("NetworkPolicy = %q, want controlled egress", architecture.NetworkPolicy)
 	}
+	for _, runtime := range []string{"python", "node", "go", "rust"} {
+		if !containsFold(architecture.PreinstalledRuntimes, runtime) {
+			t.Fatalf("PreinstalledRuntimes = %v, want %q", architecture.PreinstalledRuntimes, runtime)
+		}
+	}
+	if architecture.RuntimeVersions["python"] != "3.12" || architecture.RuntimeVersions["node"] != "20" || architecture.RuntimeVersions["go"] != "1.22" {
+		t.Fatalf("RuntimeVersions = %v, want Python 3.12+, Node 20+, Go 1.22+", architecture.RuntimeVersions)
+	}
+	for _, manager := range []string{"pip", "npm", "yarn", "pnpm", "cargo"} {
+		if !containsFold(architecture.PackageManagers, manager) {
+			t.Fatalf("PackageManagers = %v, want %q", architecture.PackageManagers, manager)
+		}
+	}
+	for _, tool := range []string{"git", "curl", "jq", "rg", "fd", "vim", "nano", "sqlite3"} {
+		if !containsFold(architecture.PreinstalledTools, tool) {
+			t.Fatalf("PreinstalledTools = %v, want %q", architecture.PreinstalledTools, tool)
+		}
+	}
+	for _, registry := range []string{"pypi.org", "registry.npmjs.org", "proxy.golang.org", "crates.io"} {
+		if !containsFold(architecture.AllowlistedRegistries, registry) {
+			t.Fatalf("AllowlistedRegistries = %v, want %q", architecture.AllowlistedRegistries, registry)
+		}
+	}
 	if !architecture.DenyHostFilesystem || !architecture.DenyHostNetwork || !architecture.DenyHostProcesses {
 		t.Fatalf("host isolation flags = filesystem:%t network:%t processes:%t, want all true",
 			architecture.DenyHostFilesystem,
@@ -46,21 +69,16 @@ func TestDefaultSandboxArchitectureMatchesPRDGuarantees(t *testing.T) {
 	}
 }
 
-func containsFold(values []string, want string) bool {
-	for _, value := range values {
-		if strings.EqualFold(value, want) {
-			return true
-		}
-	}
-	return false
-}
-
 func TestSandboxArchitectureReturnsCopies(t *testing.T) {
 	engine := New("test")
 
 	first := engine.SandboxArchitecture()
 	first.Shells[0] = "fish"
 	first.PreinstalledRuntimes[0] = "ruby"
+	first.RuntimeVersions["python"] = "2.7"
+	first.PackageManagers[0] = "gem"
+	first.PreinstalledTools[0] = "svn"
+	first.AllowlistedRegistries[0] = "example.com"
 
 	next := engine.SandboxArchitecture()
 	if next.Shells[0] != "bash" {
@@ -68,6 +86,18 @@ func TestSandboxArchitectureReturnsCopies(t *testing.T) {
 	}
 	if next.PreinstalledRuntimes[0] != "go" {
 		t.Fatalf("PreinstalledRuntimes were mutated through Architecture: %v", next.PreinstalledRuntimes)
+	}
+	if next.RuntimeVersions["python"] != "3.12" {
+		t.Fatalf("RuntimeVersions were mutated through Architecture: %v", next.RuntimeVersions)
+	}
+	if next.PackageManagers[0] != "pip" {
+		t.Fatalf("PackageManagers were mutated through Architecture: %v", next.PackageManagers)
+	}
+	if next.PreinstalledTools[0] != "git" {
+		t.Fatalf("PreinstalledTools were mutated through Architecture: %v", next.PreinstalledTools)
+	}
+	if next.AllowlistedRegistries[0] != "pypi.org" {
+		t.Fatalf("AllowlistedRegistries were mutated through Architecture: %v", next.AllowlistedRegistries)
 	}
 }
 
@@ -79,6 +109,11 @@ func TestSandboxValidationRejectsWeakenedHostIsolation(t *testing.T) {
 	architecture.DenyPrivilegeEscalation = false
 	architecture.ImagePrecached = false
 	architecture.WarmStartBudget = 3 * time.Second
+	architecture.PreinstalledRuntimes = []string{"go"}
+	architecture.RuntimeVersions = map[string]string{}
+	architecture.PackageManagers = []string{"pip"}
+	architecture.PreinstalledTools = []string{"git"}
+	architecture.AllowlistedRegistries = []string{"pypi.org"}
 
 	err := NewSandboxManager(architecture).Validate()
 	if err == nil {
@@ -93,10 +128,43 @@ func TestSandboxValidationRejectsWeakenedHostIsolation(t *testing.T) {
 		"host network",
 		"host process",
 		"privilege escalation",
+		"required runtime",
+		"minimum version",
+		"package manager",
+		"required tool",
+		"package registry",
 	} {
 		if !strings.Contains(message, want) {
 			t.Fatalf("Validate error %q does not contain %q", message, want)
 		}
+	}
+}
+
+func TestSandboxValidationAcceptsShareableCustomBaseImages(t *testing.T) {
+	architecture := DefaultSandboxArchitecture()
+	architecture.CustomBaseImages = []contracts.SandboxBaseImage{{
+		Name:        "team-python",
+		Image:       "ghcr.io/acme/conduit-python:2026-05",
+		Digest:      "sha256:abc123",
+		Description: "Team Python image",
+		Shared:      true,
+	}}
+
+	if err := NewSandboxManager(architecture).Validate(); err != nil {
+		t.Fatalf("Validate returned error: %v", err)
+	}
+}
+
+func TestSandboxValidationRejectsIncompleteCustomBaseImages(t *testing.T) {
+	architecture := DefaultSandboxArchitecture()
+	architecture.CustomBaseImages = []contracts.SandboxBaseImage{{Name: "missing-image"}}
+
+	err := NewSandboxManager(architecture).Validate()
+	if err == nil {
+		t.Fatal("Validate returned nil, want custom image error")
+	}
+	if !strings.Contains(err.Error(), "custom base image reference") {
+		t.Fatalf("Validate error %q does not mention custom image reference", err)
 	}
 }
 
