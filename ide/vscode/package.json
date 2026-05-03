@@ -1,0 +1,97 @@
+{
+  "name": "conduit",
+  "displayName": "Conduit",
+  "description": "Connect to a running Conduit instance from VS Code, Cursor, or Windsurf.",
+  "version": "0.1.0",
+  "publisher": "conduit",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "main": "./dist/extension.js",
+  "categories": ["AI", "Other"],
+  "activationEvents": [
+    "onView:conduit.sidebar",
+    "onCommand:conduit.connect"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "conduit",
+          "title": "Conduit",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "conduit": [
+        {
+          "id": "conduit.sidebar",
+          "name": "Conduit",
+          "type": "webview"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "conduit.connect",
+        "title": "Conduit: Connect to running instance"
+      },
+      {
+        "command": "conduit.shareFile",
+        "title": "Conduit: Share current file as context"
+      },
+      {
+        "command": "conduit.shareSelection",
+        "title": "Conduit: Share selection as context"
+      },
+      {
+        "command": "conduit.openSidebar",
+        "title": "Conduit: Open sidebar"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "conduit.openSidebar",
+        "key": "ctrl+alt+c",
+        "mac": "cmd+alt+c"
+      },
+      {
+        "command": "conduit.shareSelection",
+        "key": "ctrl+alt+s",
+        "mac": "cmd+alt+s",
+        "when": "editorHasSelection"
+      },
+      {
+        "command": "conduit.connect",
+        "key": "ctrl+alt+shift+c",
+        "mac": "cmd+alt+shift+c"
+      }
+    ],
+    "configuration": {
+      "title": "Conduit",
+      "properties": {
+        "conduit.endpoint": {
+          "type": "string",
+          "default": "http://127.0.0.1:8923",
+          "description": "Base URL of the running Conduit instance."
+        },
+        "conduit.timeoutMs": {
+          "type": "number",
+          "default": 2000,
+          "description": "Connection probe timeout in milliseconds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "test": "node --test ./test/*.test.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}
