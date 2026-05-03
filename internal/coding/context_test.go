@@ -126,9 +126,9 @@ func TestEstimateTokens(t *testing.T) {
 		want  int
 	}{
 		{"", 0},
-		{"abc", 1},        // 3 chars → (3+3)/4 = 1
-		{"abcd", 1},       // 4 chars → (4+3)/4 = 1
-		{"abcde", 2},      // 5 chars → (5+3)/4 = 2
+		{"abc", 1},                     // 3 chars → (3+3)/4 = 1
+		{"abcd", 1},                    // 4 chars → (4+3)/4 = 1
+		{"abcde", 2},                   // 5 chars → (5+3)/4 = 2
 		{strings.Repeat("a", 100), 25}, // 100 chars → 25
 	}
 	for _, tc := range cases {
@@ -170,10 +170,10 @@ func TestBudgetSnip(t *testing.T) {
 	// Budget with a small window so we can trigger snipping.
 	b := NewBudget(40).WithThreshold(1.0) // limit = 40 tokens
 	turns := []contracts.CodingTurn{
-		{Role: "system", Content: strings.Repeat("a", 4)},    // 1 token (always kept)
-		{Role: "user", Content: strings.Repeat("b", 80)},     // 20 tokens
+		{Role: "system", Content: strings.Repeat("a", 4)},     // 1 token (always kept)
+		{Role: "user", Content: strings.Repeat("b", 80)},      // 20 tokens
 		{Role: "assistant", Content: strings.Repeat("c", 80)}, // 20 tokens
-		{Role: "user", Content: strings.Repeat("d", 80)},     // 20 tokens
+		{Role: "user", Content: strings.Repeat("d", 80)},      // 20 tokens
 	}
 	result := b.Snip(turns, 0)
 	// First turn must always be preserved.
