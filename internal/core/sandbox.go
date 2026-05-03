@@ -21,6 +21,11 @@ const (
 
 var (
 	requiredSandboxShells       = []string{"bash", "sh"}
+	requiredSandboxRuntimes     = []string{"python", "node", "go", "rust"}
+	requiredSandboxRuntimeMins  = map[string]string{"python": "3.12", "node": "20", "go": "1.22"}
+	requiredPackageManagers     = []string{"pip", "npm", "yarn", "pnpm", "cargo"}
+	requiredPreinstalledTools   = []string{"git", "curl", "jq", "rg", "fd", "vim", "nano", "sqlite3"}
+	requiredPackageRegistries   = []string{"pypi.org", "files.pythonhosted.org", "registry.npmjs.org", "proxy.golang.org", "sum.golang.org", "crates.io", "index.crates.io", "static.crates.io"}
 	ErrMountHostPathRequired    = errors.New("sandbox mount requires host path")
 	ErrMountSandboxPathRequired = errors.New("sandbox mount requires sandbox path")
 	ErrMountSandboxPathAbsolute = errors.New("sandbox mount sandbox path must be absolute")
@@ -54,7 +59,7 @@ func DefaultSandboxArchitecture() contracts.SandboxArchitecture {
 		RuntimeVersions:           map[string]string{"go": "1.22", "node": "20", "python": "3.12", "rust": "stable"},
 		PackageManagers:           []string{"pip", "npm", "yarn", "pnpm", "cargo"},
 		PreinstalledTools:         []string{"git", "curl", "jq", "rg", "fd", "vim", "nano", "sqlite3"},
-		AllowlistedRegistries:     []string{"pypi.org", "registry.npmjs.org", "proxy.golang.org", "crates.io"},
+		AllowlistedRegistries:     append([]string(nil), requiredPackageRegistries...),
 		NetworkPolicy:             contracts.SandboxNetworkPolicyControlledEgress,
 		DenyHostFilesystem:        true,
 		DenyHostNetwork:           true,
@@ -135,8 +140,38 @@ func (m *SandboxManager) Validate() error {
 			problems = append(problems, fmt.Sprintf("required shell %q is missing", shell))
 		}
 	}
-	if len(m.architecture.PreinstalledRuntimes) == 0 {
-		problems = append(problems, "at least one runtime must be pre-installed")
+	for _, runtime := range requiredSandboxRuntimes {
+		if !containsFold(m.architecture.PreinstalledRuntimes, runtime) {
+			problems = append(problems, fmt.Sprintf("required runtime %q is missing", runtime))
+		}
+	}
+	for runtime, minVersion := range requiredSandboxRuntimeMins {
+		if strings.TrimSpace(m.architecture.RuntimeVersions[runtime]) == "" {
+			problems = append(problems, fmt.Sprintf("required runtime %q must declare minimum version %s", runtime, minVersion))
+		}
+	}
+	for _, manager := range requiredPackageManagers {
+		if !containsFold(m.architecture.PackageManagers, manager) {
+			problems = append(problems, fmt.Sprintf("required package manager %q is missing", manager))
+		}
+	}
+	for _, tool := range requiredPreinstalledTools {
+		if !containsFold(m.architecture.PreinstalledTools, tool) {
+			problems = append(problems, fmt.Sprintf("required tool %q is missing", tool))
+		}
+	}
+	for _, registry := range requiredPackageRegistries {
+		if !containsFold(m.architecture.AllowlistedRegistries, registry) {
+			problems = append(problems, fmt.Sprintf("required package registry %q is not allowlisted", registry))
+		}
+	}
+	for _, image := range m.architecture.CustomBaseImages {
+		if strings.TrimSpace(image.Name) == "" {
+			problems = append(problems, "custom base image name is required")
+		}
+		if strings.TrimSpace(image.Image) == "" {
+			problems = append(problems, "custom base image reference is required")
+		}
 	}
 	if len(m.architecture.RuntimeVersions) == 0 {
 		problems = append(problems, "runtime versions are required")
@@ -297,6 +332,15 @@ func isSupportedMountMode(mode contracts.SandboxMountMode) bool {
 	}
 }
 
+func containsFold(values []string, want string) bool {
+	for _, value := range values {
+		if strings.EqualFold(strings.TrimSpace(value), want) {
+			return true
+		}
+	}
+	return false
+}
+
 func copySandboxArchitecture(architecture contracts.SandboxArchitecture) contracts.SandboxArchitecture {
 	architecture.Shells = append([]string(nil), architecture.Shells...)
 	architecture.PreinstalledRuntimes = append([]string(nil), architecture.PreinstalledRuntimes...)
@@ -304,6 +348,7 @@ func copySandboxArchitecture(architecture contracts.SandboxArchitecture) contrac
 	architecture.PackageManagers = append([]string(nil), architecture.PackageManagers...)
 	architecture.PreinstalledTools = append([]string(nil), architecture.PreinstalledTools...)
 	architecture.AllowlistedRegistries = append([]string(nil), architecture.AllowlistedRegistries...)
+	architecture.CustomBaseImages = append([]contracts.SandboxBaseImage(nil), architecture.CustomBaseImages...)
 	architecture.Mounts = append([]contracts.SandboxMount(nil), architecture.Mounts...)
 	return architecture
 }

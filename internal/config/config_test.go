@@ -242,6 +242,37 @@ sandbox:
     - go
     - node
     - python
+    - rust
+  runtime_versions:
+    python: "3.12"
+    node: "20"
+    go: "1.22"
+  package_managers:
+    - pip
+    - npm
+    - yarn
+    - pnpm
+    - cargo
+  preinstalled_tools:
+    - git
+    - curl
+    - jq
+    - rg
+    - fd
+    - vim
+    - nano
+    - sqlite3
+  allowlisted_registries:
+    - pypi.org
+    - registry.npmjs.org
+    - proxy.golang.org
+    - crates.io
+  custom_base_images:
+    - name: team-python
+      image: ghcr.io/acme/conduit-python:2026-05
+      digest: sha256:abc123
+      description: Team Python image
+      shared: true
 `)
 	cfg, err := config.LoadFiles(userPath, "/no/such/project.yaml")
 	if err != nil {
@@ -253,7 +284,22 @@ sandbox:
 	if cfg.Sandbox.BaseImage != "ubuntu-24.04" {
 		t.Errorf("sandbox.base_image: got %q", cfg.Sandbox.BaseImage)
 	}
-	if len(cfg.Sandbox.PreinstalledRuntimes) != 3 {
+	if len(cfg.Sandbox.PreinstalledRuntimes) != 4 {
 		t.Errorf("sandbox.preinstalled_runtimes: got %v", cfg.Sandbox.PreinstalledRuntimes)
+	}
+	if cfg.Sandbox.RuntimeVersions["python"] != "3.12" {
+		t.Errorf("sandbox.runtime_versions.python: got %q", cfg.Sandbox.RuntimeVersions["python"])
+	}
+	if len(cfg.Sandbox.PackageManagers) != 5 {
+		t.Errorf("sandbox.package_managers: got %v", cfg.Sandbox.PackageManagers)
+	}
+	if len(cfg.Sandbox.PreinstalledTools) != 8 {
+		t.Errorf("sandbox.preinstalled_tools: got %v", cfg.Sandbox.PreinstalledTools)
+	}
+	if len(cfg.Sandbox.AllowlistedRegistries) != 4 {
+		t.Errorf("sandbox.allowlisted_registries: got %v", cfg.Sandbox.AllowlistedRegistries)
+	}
+	if len(cfg.Sandbox.CustomBaseImages) != 1 || !cfg.Sandbox.CustomBaseImages[0].Shared {
+		t.Errorf("sandbox.custom_base_images: got %+v", cfg.Sandbox.CustomBaseImages)
 	}
 }
