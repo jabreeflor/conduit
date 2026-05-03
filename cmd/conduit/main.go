@@ -308,7 +308,7 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 		Budget:        budget,
 		SessionBudget: sessionBudget,
 		Tools:         codingTools,
-		Streamer:       echoStreamer{},
+		Streamer:      echoStreamer{},
 		Continuer:     coding.DefaultContinuer{},
 		In:            stdin,
 		Out:           stdout,
