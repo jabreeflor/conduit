@@ -38,12 +38,12 @@ func (HermesAdapter) CanHandle(path string) bool {
 }
 
 type hermesFrontmatter struct {
-	Name         string   `yaml:"name"`
-	Description  string   `yaml:"description"`
-	Tags         []string `yaml:"tags"`
-	Platforms    []string `yaml:"platforms"`
-	ToolsFilter  []string `yaml:"tools_filter"`
-	Conditions   []string `yaml:"conditions"`
+	Name        string   `yaml:"name"`
+	Description string   `yaml:"description"`
+	Tags        []string `yaml:"tags"`
+	Platforms   []string `yaml:"platforms"`
+	ToolsFilter []string `yaml:"tools_filter"`
+	Conditions  []string `yaml:"conditions"`
 }
 
 // Parse implements Adapter. It checks for the Hermes-specific `platforms:` field

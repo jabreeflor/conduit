@@ -39,9 +39,9 @@ func NewImporter(registry *Registry, importedTierRoot string) (*Importer, error)
 
 // SourceRecord tracks an imported skill source for later sync.
 type SourceRecord struct {
-	Provider string    `json:"provider"`
-	Source   string    `json:"source"`
-	ImportedAt time.Time `json:"imported_at"`
+	Provider     string    `json:"provider"`
+	Source       string    `json:"source"`
+	ImportedAt   time.Time `json:"imported_at"`
 	LastSyncedAt time.Time `json:"last_synced_at"`
 }
 
