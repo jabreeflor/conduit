@@ -1,0 +1,27 @@
+{
+  "name": "@conduit/design",
+  "version": "0.1.0",
+  "description": "Conduit Design System — tokens, components, and motion specs for web. Generated from design/tokens.yaml.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/jabreeflor/conduit/tree/main/design",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jabreeflor/conduit.git",
+    "directory": "design/dist/web"
+  },
+  "main": "tokens.css",
+  "style": "tokens.css",
+  "files": [
+    "tokens.css",
+    "README.md"
+  ],
+  "keywords": [
+    "design-system",
+    "design-tokens",
+    "conduit",
+    "css-variables"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}

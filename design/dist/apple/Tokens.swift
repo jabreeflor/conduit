@@ -1,4 +1,4 @@
-// Conduit Design Tokens — generated 2026-04-29. Do not edit by hand.
+// Conduit Design Tokens — generated 2026-05-03. Do not edit by hand.
 // Source: design/tokens.yaml. Regenerate with `make tokens`.
 
 import SwiftUI
