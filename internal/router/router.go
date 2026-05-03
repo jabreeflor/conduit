@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 	conduiterrors "github.com/jabreeflor/conduit/internal/errors"
 )
 
@@ -91,6 +92,16 @@ type FailoverSink interface {
 	RecordFailover(context.Context, FailoverEvent) error
 }
 
+// ContextAssembler optimizes raw request context before provider inference.
+type ContextAssembler interface {
+	Assemble(contextassembler.Request) contextassembler.Result
+}
+
+// OptimizationSink receives context assembler transparency reports.
+type OptimizationSink interface {
+	RecordContextOptimization(context.Context, contextassembler.Summary) error
+}
+
 // FailoverEvent describes a failed attempt and the checkpoint used to resume.
 type FailoverEvent struct {
 	SessionID    string
@@ -103,13 +114,15 @@ type FailoverEvent struct {
 
 // Router owns provider selection, failover, and accounting.
 type Router struct {
-	cfg         Config
-	providers   map[string]Provider
-	metadata    map[string]ProviderConfig
-	checkpoints CheckpointStore
-	usage       UsageSink
-	failovers   FailoverSink
-	now         func() time.Time
+	cfg           Config
+	providers     map[string]Provider
+	metadata      map[string]ProviderConfig
+	checkpoints   CheckpointStore
+	usage         UsageSink
+	failovers     FailoverSink
+	assembler     ContextAssembler
+	optimizations OptimizationSink
+	now           func() time.Time
 }
 
 // Option customizes a router.
@@ -133,6 +146,20 @@ func WithUsageSink(sink UsageSink) Option {
 func WithFailoverSink(sink FailoverSink) Option {
 	return func(r *Router) {
 		r.failovers = sink
+	}
+}
+
+// WithContextAssembler configures the first-class pre-call context optimizer.
+func WithContextAssembler(assembler ContextAssembler) Option {
+	return func(r *Router) {
+		r.assembler = assembler
+	}
+}
+
+// WithOptimizationSink records context assembler transparency events.
+func WithOptimizationSink(sink OptimizationSink) Option {
+	return func(r *Router) {
+		r.optimizations = sink
 	}
 }
 
@@ -160,6 +187,7 @@ func New(cfg Config, providers []Provider, opts ...Option) (*Router, error) {
 // Infer routes a request through the preferred provider and configured
 // fallbacks, returning the first successful response.
 func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
+	req = r.assembleContext(ctx, req)
 	chain := r.route(req)
 	if len(chain) == 0 {
 		return Response{}, errors.New("no providers configured")
@@ -208,6 +236,56 @@ func (r *Router) Infer(ctx context.Context, req Request) (Response, error) {
 	}
 
 	return Response{}, fmt.Errorf("all providers failed: %w", errors.Join(failures...))
+}
+
+func (r *Router) assembleContext(ctx context.Context, req Request) Request {
+	if r.assembler == nil {
+		return req
+	}
+	result := r.assembler.Assemble(contextassembler.Request{
+		Query: req.Prompt,
+		Items: routerContextItems(req),
+	})
+	if result.Prompt == "" {
+		return req
+	}
+	req.Prompt = result.Prompt
+	if r.optimizations != nil {
+		_ = r.optimizations.RecordContextOptimization(ctx, result.Summary)
+	}
+	return req
+}
+
+func routerContextItems(req Request) []contextassembler.Item {
+	items := []contextassembler.Item{{
+		ID:       "prompt",
+		Category: contextassembler.CategoryRecent,
+		Content:  req.Prompt,
+		Pinned:   true,
+	}}
+	for i, input := range req.Inputs {
+		item := contextassembler.Item{
+			ID:       fmt.Sprintf("input-%d", i),
+			Category: contextassembler.CategoryMultimodal,
+			Path:     input.Ref,
+			Metadata: map[string]string{
+				"type":       string(input.Type),
+				"media_type": input.MediaType,
+			},
+		}
+		switch {
+		case input.Text != "":
+			item.Content = input.Text
+		case input.Ref != "":
+			item.Content = input.Ref
+		case input.Data != "":
+			item.Content = fmt.Sprintf("[%s data omitted from text prompt]", input.MediaType)
+		default:
+			item.Content = fmt.Sprintf("[%s input]", input.Type)
+		}
+		items = append(items, item)
+	}
+	return items
 }
 
 func (r *Router) contextForProvider(ctx context.Context, name string) (context.Context, context.CancelFunc) {

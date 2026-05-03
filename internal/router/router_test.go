@@ -4,9 +4,52 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 )
+
+func TestRouterAssemblesContextBeforeProviderCall(t *testing.T) {
+	cfg := Config{Models: ModelConfig{
+		Primary: "openai",
+		Providers: []ProviderConfig{
+			{Name: "openai", Model: "gpt-4o"},
+		},
+	}}
+	openai := &fakeProvider{name: "openai", response: Response{Text: "ok"}}
+	sink := &fakeOptimizationSink{}
+
+	r, err := New(
+		cfg,
+		[]Provider{openai},
+		WithContextAssembler(contextassembler.New()),
+		WithOptimizationSink(sink),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = r.Infer(context.Background(), Request{
+		TaskType: TaskGeneral,
+		Prompt:   "hello",
+		Inputs:   []Input{{Type: InputText, Text: "supporting context"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(openai.requests) != 1 {
+		t.Fatalf("provider calls = %d, want 1", len(openai.requests))
+	}
+	if got := openai.requests[0].Prompt; got == "hello" || !strings.Contains(got, "<recent_conversation") {
+		t.Fatalf("provider prompt was not assembled:\n%s", got)
+	}
+	if len(sink.summaries) != 1 {
+		t.Fatalf("optimization summaries = %d, want 1", len(sink.summaries))
+	}
+}
 
 func TestRouterRoutesCodeToPreferredProvider(t *testing.T) {
 	cfg := Config{Models: ModelConfig{
@@ -256,6 +299,15 @@ func (p *fakeProvider) Infer(_ context.Context, req Request) (Response, error) {
 		return Response{}, p.err
 	}
 	return p.response, nil
+}
+
+type fakeOptimizationSink struct {
+	summaries []contextassembler.Summary
+}
+
+func (s *fakeOptimizationSink) RecordContextOptimization(_ context.Context, summary contextassembler.Summary) error {
+	s.summaries = append(s.summaries, summary)
+	return nil
 }
 
 type fakeCheckpoints struct {

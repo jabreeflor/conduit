@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
@@ -43,6 +44,28 @@ func TestRouteModelEscalatesOnConfiguredTriggers(t *testing.T) {
 	}
 	if !strings.Contains(log[0].Message, "model escalated from claude-haiku-4-5 to claude-opus-4-6") {
 		t.Fatalf("log message %q does not describe escalation", log[0].Message)
+	}
+}
+
+func TestRecordContextOptimizationLogsSummary(t *testing.T) {
+	engine := New("test")
+	err := engine.RecordContextOptimization(nil, contextassembler.Summary{
+		OriginalTokens:  1_000,
+		FinalTokens:     400,
+		DroppedItems:    2,
+		SummarizedItems: 1,
+		DiffedItems:     1,
+		ExtractedItems:  1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log := engine.SessionLog()
+	if !slices.ContainsFunc(log, func(entry contracts.SessionLogEntry) bool {
+		return strings.Contains(entry.Message, "context optimized: 1000 -> 400 tokens")
+	}) {
+		t.Fatalf("SessionLog = %#v, want context optimization entry", log)
 	}
 }
 
