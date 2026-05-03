@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jabreeflor/conduit/internal/coding"
@@ -340,8 +341,15 @@ func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
 // integration lives in the agent loop, not here.
 func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search> [args...]")
+		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search|import|sync> [args...]")
 		return flag.ErrHelp
+	}
+
+	switch args[0] {
+	case "import":
+		return runSkillsImport(args[1:], stdout, stderr, false)
+	case "sync":
+		return runSkillsImport(args[1:], stdout, stderr, true)
 	}
 
 	registry, err := newSkillsRegistry()
@@ -373,6 +381,55 @@ func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 	default:
 		return fmt.Errorf("unknown skills command %q", args[0])
 	}
+}
+
+// runSkillsImport handles `conduit skills import` and `conduit skills sync`.
+// Both share the same flag surface; sync additionally reports skills that
+// exist in the target but no longer in the source.
+func runSkillsImport(args []string, stdout, stderr *os.File, sync bool) error {
+	verb := "import"
+	if sync {
+		verb = "sync"
+	}
+	fs := flag.NewFlagSet("conduit skills "+verb, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	source := fs.String("from-dir", "", "source directory to scan (required)")
+	from := fs.String("from", "auto", "source format: auto|claude|hermes|openclaw|cursor|agents|markdown")
+	target := fs.String("to-dir", "", "target directory (defaults to ~/.conduit/skills/imported)")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+	if *source == "" {
+		return fmt.Errorf("--from-dir is required")
+	}
+	if *target == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("resolve home dir: %w", err)
+		}
+		*target = filepath.Join(home, ".conduit", "skills", "imported")
+	}
+	src := skills.ImportSource(*from)
+	var (
+		res skills.ImportResult
+		err error
+	)
+	if sync {
+		res, err = skills.Sync(*source, *target, src)
+	} else {
+		res, err = skills.Import(*source, *target, src)
+	}
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "%s: %d imported, %d skipped (target: %s)\n", verb, len(res.Imported), len(res.Skipped), res.TargetDir)
+	for _, sk := range res.Imported {
+		fmt.Fprintf(stdout, "  + %s\t%s\n", sk.Name, truncate(sk.Description, 60))
+	}
+	for _, sk := range res.Skipped {
+		fmt.Fprintf(stdout, "  - %s\t%s\n", sk.Path, sk.Reason)
+	}
+	return nil
 }
 
 func newSkillsRegistry() (*skills.Registry, error) {
