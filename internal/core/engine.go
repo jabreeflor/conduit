@@ -12,6 +12,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/budget"
 	cupermissions "github.com/jabreeflor/conduit/internal/computeruse/permissions"
 	"github.com/jabreeflor/conduit/internal/config"
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 	"github.com/jabreeflor/conduit/internal/contracts"
 	"github.com/jabreeflor/conduit/internal/hooks"
 	"github.com/jabreeflor/conduit/internal/memory"
@@ -266,6 +267,25 @@ func (e *Engine) RouteModel(req contracts.ModelRouteRequest) contracts.ModelRout
 // area without mutating workflow first-run tracking.
 func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
 	return e.router.Status()
+}
+
+// RecordContextOptimization emits context assembler transparency in the
+// session log. It satisfies router.OptimizationSink without coupling core to
+// router internals.
+func (e *Engine) RecordContextOptimization(_ context.Context, summary contextassembler.Summary) error {
+	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
+		At: time.Now().UTC(),
+		Message: fmt.Sprintf(
+			"context optimized: %d -> %d tokens, dropped=%d summarized=%d diffed=%d extracted=%d",
+			summary.OriginalTokens,
+			summary.FinalTokens,
+			summary.DroppedItems,
+			summary.SummarizedItems,
+			summary.DiffedItems,
+			summary.ExtractedItems,
+		),
+	})
+	return nil
 }
 
 // SandboxArchitecture returns the engine-owned execution sandbox policy.
