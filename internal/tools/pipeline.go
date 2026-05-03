@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jabreeflor/conduit/internal/cache"
 	toolerrors "github.com/jabreeflor/conduit/internal/errors"
 	"github.com/jabreeflor/conduit/internal/hooks"
 	"gopkg.in/yaml.v3"
@@ -111,6 +112,7 @@ type Pipeline struct {
 	hooks     *hooks.Dispatcher
 	sessionID string
 	cwd       string
+	cache     *cache.ToolResultCache[Result]
 }
 
 // NewPipeline creates a policy pipeline from base tools and policy config.
@@ -126,6 +128,13 @@ func (p *Pipeline) WithHooks(d *hooks.Dispatcher, sessionID, cwd string) *Pipeli
 	p.hooks = d
 	p.sessionID = sessionID
 	p.cwd = cwd
+	return p
+}
+
+// WithToolResultCache enables TTL/file-change-aware caching for deterministic
+// tool calls.
+func (p *Pipeline) WithToolResultCache(c *cache.ToolResultCache[Result]) *Pipeline {
+	p.cache = c
 	return p
 }
 
@@ -232,6 +241,12 @@ func (p *Pipeline) Execute(ctx context.Context, call Call, overrides AgentOverri
 	if err != nil {
 		return Result{}, decision, err
 	}
+	cacheKey, cacheable := p.toolCacheKey(call)
+	if cacheable {
+		if result, ok := p.cache.Get(cacheKey); ok {
+			return result, decision, nil
+		}
+	}
 	result, err := p.WrapRunner(decision.Tool.Run)(ctx, input)
 
 	hookInput.Event = hooks.EventPostToolCall
@@ -242,7 +257,38 @@ func (p *Pipeline) Execute(ctx context.Context, call Call, overrides AgentOverri
 		typed := toolerrors.Wrap(classified, err)
 		return Result{Text: err.Error(), IsError: true}, decision, typed
 	}
+	if cacheable && !result.IsError {
+		p.cache.Put(cacheKey, result, fileDependencies(call.Input))
+	}
 	return result, decision, nil
+}
+
+func (p *Pipeline) toolCacheKey(call Call) (string, bool) {
+	if p.cache == nil {
+		return "", false
+	}
+	key, err := cache.Key("tool-result", struct {
+		ToolName string
+		Input    map[string]any
+	}{ToolName: call.ToolName, Input: call.Input})
+	if err != nil {
+		return "", false
+	}
+	return key, true
+}
+
+func fileDependencies(input map[string]any) []cache.FileDependency {
+	var deps []cache.FileDependency
+	for _, name := range []string{"path", "file", "filepath"} {
+		value, ok := input[name].(string)
+		if !ok || value == "" {
+			continue
+		}
+		if dep, ok := cache.SnapshotFile(value); ok {
+			deps = append(deps, dep)
+		}
+	}
+	return deps
 }
 
 // PolicyConfig mirrors ~/.conduit/policies.yaml.

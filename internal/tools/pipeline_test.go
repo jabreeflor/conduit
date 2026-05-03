@@ -5,9 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/cache"
 	toolerrors "github.com/jabreeflor/conduit/internal/errors"
 )
 
@@ -216,5 +218,58 @@ func TestExecuteClassifiesRunnerErrorAndSetsIsError(t *testing.T) {
 	}
 	if te.Recovery() != toolerrors.RecoveryExponentialBackoff {
 		t.Errorf("Recovery = %s, want exponential_backoff", te.Recovery())
+	}
+}
+
+func TestExecuteCachesToolResultAndInvalidatesOnFileChange(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "notes.txt")
+	if err := os.WriteFile(path, []byte("one"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	calls := 0
+	pipeline := NewPipeline([]Tool{
+		{
+			Name: "read_file",
+			Run: func(_ context.Context, input json.RawMessage) (Result, error) {
+				calls++
+				var args struct {
+					Path string `json:"path"`
+				}
+				if err := json.Unmarshal(input, &args); err != nil {
+					return Result{}, err
+				}
+				data, err := os.ReadFile(args.Path)
+				if err != nil {
+					return Result{}, err
+				}
+				return Result{Text: string(data)}, nil
+			},
+		},
+	}, PolicyConfig{}).WithToolResultCache(cache.NewToolResultCache[Result](8, time.Hour))
+
+	call := Call{ToolName: "read_file", Input: map[string]any{"path": path}}
+	first, _, err := pipeline.Execute(context.Background(), call, AgentOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, _, err := pipeline.Execute(context.Background(), call, AgentOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Text != "one" || second.Text != "one" || calls != 1 {
+		t.Fatalf("first=%q second=%q calls=%d, want cached second call", first.Text, second.Text, calls)
+	}
+
+	time.Sleep(time.Millisecond)
+	if err := os.WriteFile(path, []byte("two"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	third, _, err := pipeline.Execute(context.Background(), call, AgentOverrides{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if third.Text != "two" || calls != 2 {
+		t.Fatalf("third=%q calls=%d, want invalidated read", third.Text, calls)
 	}
 }

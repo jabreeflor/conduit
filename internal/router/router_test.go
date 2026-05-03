@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/cache"
 	"github.com/jabreeflor/conduit/internal/contextassembler"
 )
 
@@ -48,6 +49,38 @@ func TestRouterAssemblesContextBeforeProviderCall(t *testing.T) {
 	}
 	if len(sink.summaries) != 1 {
 		t.Fatalf("optimization summaries = %d, want 1", len(sink.summaries))
+	}
+}
+
+func TestRouterReturnsExactResponseCacheHit(t *testing.T) {
+	cfg := Config{Models: ModelConfig{
+		Primary: "openai",
+		Providers: []ProviderConfig{
+			{Name: "openai", Model: "gpt-4o"},
+		},
+	}}
+	openai := &fakeProvider{name: "openai", response: Response{Text: "cached", Usage: Usage{InputTokens: 10}}}
+
+	r, err := New(cfg, []Provider{openai}, WithResponseCache(cache.NewResponseCache[Response](8, time.Hour)))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req := Request{TaskType: TaskGeneral, Prompt: "same prompt"}
+	first, err := r.Infer(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := r.Infer(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if first.Text != second.Text {
+		t.Fatalf("responses differ: %#v vs %#v", first, second)
+	}
+	if len(openai.requests) != 1 {
+		t.Fatalf("provider calls = %d, want 1", len(openai.requests))
 	}
 }
 

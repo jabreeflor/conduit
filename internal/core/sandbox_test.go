@@ -46,6 +46,15 @@ func TestDefaultSandboxArchitectureMatchesPRDGuarantees(t *testing.T) {
 	}
 }
 
+func containsFold(values []string, want string) bool {
+	for _, value := range values {
+		if strings.EqualFold(value, want) {
+			return true
+		}
+	}
+	return false
+}
+
 func TestSandboxArchitectureReturnsCopies(t *testing.T) {
 	engine := New("test")
 
