@@ -9,6 +9,10 @@ __pycache__/
 *.pyc
 dist/
 !design/dist/
+design/dist/apple/.build/
+design/dist/apple/.swiftpm/
+design/dist/tui/build/
+design/dist/tui/*.egg-info/
 build/
 target/
 .conduit/
