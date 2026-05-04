@@ -372,22 +372,25 @@ func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
 // integration lives in the agent loop, not here.
 func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search> [args...]")
+		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search|import|sync> [args...]")
 		return flag.ErrHelp
-	}
-
-	registry, err := newSkillsRegistry()
-	if err != nil {
-		return err
 	}
 
 	switch args[0] {
 	case "list":
+		registry, err := newSkillsRegistry()
+		if err != nil {
+			return err
+		}
 		printSkillRows(stdout, registry.List())
 		return nil
 	case "lookup":
 		if len(args) < 2 {
 			return fmt.Errorf("usage: conduit skills lookup <name>")
+		}
+		registry, err := newSkillsRegistry()
+		if err != nil {
+			return err
 		}
 		skill, ok := registry.Lookup(args[1])
 		if !ok {
@@ -400,18 +403,80 @@ func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: conduit skills search <query>")
 		}
+		registry, err := newSkillsRegistry()
+		if err != nil {
+			return err
+		}
 		printSkillRows(stdout, registry.Search(strings.Join(args[1:], " ")))
 		return nil
+	case "import":
+		return runSkillsImport(args[1:], stdout, stderr)
+	case "sync":
+		return runSkillsSync(stdout, stderr)
 	default:
 		return fmt.Errorf("unknown skills command %q", args[0])
+	}
+}
+
+func runSkillsImport(args []string, stdout, stderr *os.File) error {
+	imp, err := newSkillsImporter()
+	if err != nil {
+		return err
+	}
+
+	// Check for --from flag
+	if len(args) >= 2 && args[0] == "--from" {
+		provider := args[1]
+		fmt.Fprintf(stdout, "importing skills from %s...\n", provider)
+		if err := imp.ImportFrom(provider); err != nil {
+			return err
+		}
+		fmt.Fprintf(stdout, "done\n")
+		return nil
+	}
+
+	if len(args) < 1 {
+		return fmt.Errorf("usage: conduit skills import <path|url> | --from <provider>")
+	}
+
+	source := args[0]
+	fmt.Fprintf(stdout, "importing skills from %s...\n", source)
+	if err := imp.Import(source); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "done\n")
+	return nil
+}
+
+func runSkillsSync(stdout, stderr *os.File) error {
+	imp, err := newSkillsImporter()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "syncing all tracked skill sources...\n")
+	if err := imp.Sync(); err != nil {
+		return err
+	}
+	fmt.Fprintf(stdout, "done\n")
+	return nil
+}
+
+// allAdapters returns the full adapter chain in detection-priority order.
+// Specialized adapters go first so they have a chance to claim their files
+// before the generic MarkdownAdapter swallows everything.
+func allAdapters() []skills.Adapter {
+	return []skills.Adapter{
+		skills.NewHermesAdapter(),
+		skills.NewOpenClawAdapter(),
+		skills.NewCursorRulesAdapter(),
+		skills.NewAgentsMDAdapter(),
+		skills.NewMarkdownAdapter(),
 	}
 }
 
 func newSkillsRegistry() (*skills.Registry, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		// A missing home dir is unusual but should not break the CLI; the
-		// registry will simply have no personal/imported/bundled tiers.
 		home = ""
 	}
 	workspace, err := os.Getwd()
@@ -419,10 +484,24 @@ func newSkillsRegistry() (*skills.Registry, error) {
 		workspace = ""
 	}
 	registry := skills.NewRegistry(skills.DefaultRoots(home, workspace))
-	if err := registry.Load([]skills.Adapter{skills.NewMarkdownAdapter()}); err != nil {
+	if err := registry.Load(allAdapters()); err != nil {
 		return nil, err
 	}
 	return registry, nil
+}
+
+func newSkillsImporter() (*skills.Importer, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return nil, fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	roots := skills.DefaultRoots(home, "")
+	importedRoot := roots[contracts.SkillTierImported]
+	registry := skills.NewRegistry(roots)
+	if err := registry.Load(allAdapters()); err != nil {
+		return nil, err
+	}
+	return skills.NewImporter(registry, importedRoot)
 }
 
 func printSkillRows(out *os.File, list []contracts.Skill) {
