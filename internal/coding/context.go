@@ -1,12 +1,17 @@
 package coding
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
 // defaultCompactThreshold is the input-window utilization fraction at which
@@ -122,14 +127,15 @@ func (b *Budget) Snapshot() BudgetSnapshot {
 	}
 }
 
-// PasteChip is the metadata stored for each collapsed paste. The full text
-// stays accessible via the chip ID so a follow-up tool call can re-expand
-// it; for now only the prefix and first line are retained for surfaces.
+// PasteChip is the metadata stored for each collapsed paste. Text holds the
+// original content so ExpandChips can reverse the substitution; the other
+// fields are for display surfaces that want a lightweight summary.
 type PasteChip struct {
 	ID            string
 	Length        int
 	Sha256Prefix8 string
 	FirstLine     string
+	Text          string
 }
 
 // CollapsePastes replaces blocks of >= threshold characters (split on blank
@@ -232,5 +238,195 @@ func newPasteChip(index int, text string) PasteChip {
 		Length:        len(text),
 		Sha256Prefix8: prefix,
 		FirstLine:     first,
+		Text:          text,
+	}
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Tokenizer-aware accounting
+// ──────────────────────────────────────────────────────────────────────────────
+
+// EstimateTokens returns an approximate BPE token count for text.
+// The heuristic (len+3)/4 rounds up to the nearest whole token and matches the
+// standard GPT-family approximation used throughout the PRD budget tables.
+func EstimateTokens(text string) int {
+	return (len(text) + 3) / 4
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// PasteChip re-expansion
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ExpandChips reverses CollapsePastes: every [paste:chipID] placeholder in s
+// is replaced with the original text stored in the matching chip.
+func ExpandChips(s string, chips []PasteChip) string {
+	for _, chip := range chips {
+		s = strings.ReplaceAll(s, "[paste:"+chip.ID+"]", chip.Text)
+	}
+	return s
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// CLAUDE.md / .conduit/rules/*.md discovery
+// ──────────────────────────────────────────────────────────────────────────────
+
+// ContextFile pairs an on-disk path with the file's contents.
+type ContextFile struct {
+	Path    string
+	Content string
+}
+
+// DiscoverContextFiles walks the directory tree from projectRoot to the
+// filesystem root collecting CLAUDE.md files (project-local first), then reads
+// all *.md files under .conduit/rules/ in both projectRoot and homeDir.
+//
+// Missing files and directories are silently skipped; only genuine I/O errors
+// are returned so callers can operate in repos that have no context files at
+// all.
+func DiscoverContextFiles(projectRoot, homeDir string) ([]ContextFile, error) {
+	var result []ContextFile
+
+	dir := filepath.Clean(projectRoot)
+	for {
+		claudePath := filepath.Join(dir, "CLAUDE.md")
+		if data, err := os.ReadFile(claudePath); err == nil {
+			result = append(result, ContextFile{Path: claudePath, Content: string(data)})
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+
+	for _, root := range []string{projectRoot, homeDir} {
+		rulesDir := filepath.Join(root, ".conduit", "rules")
+		entries, err := os.ReadDir(rulesDir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+				continue
+			}
+			path := filepath.Join(rulesDir, entry.Name())
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return nil, err
+			}
+			result = append(result, ContextFile{Path: path, Content: string(data)})
+		}
+	}
+
+	return result, nil
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Auto-snip
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Snip trims the oldest non-system turns from the conversation so the estimated
+// token total fits within the budget threshold. turns[0] is always preserved as
+// the system-context anchor. maxKeepTurns = 0 disables the hard count cap.
+func (b *Budget) Snip(turns []contracts.CodingTurn, maxKeepTurns int) []contracts.CodingTurn {
+	if len(turns) <= 1 {
+		return turns
+	}
+
+	result := make([]contracts.CodingTurn, len(turns))
+	copy(result, turns)
+
+	if maxKeepTurns > 0 && len(result) > maxKeepTurns {
+		keep := maxKeepTurns - 1
+		tail := result[len(result)-keep:]
+		trimmed := make([]contracts.CodingTurn, 1+len(tail))
+		trimmed[0] = result[0]
+		copy(trimmed[1:], tail)
+		result = trimmed
+	}
+
+	b.mu.Lock()
+	window := b.modelInputWindow
+	thresh := b.threshold
+	b.mu.Unlock()
+
+	if window <= 0 {
+		return result
+	}
+
+	limit := int(float64(window) * thresh)
+	total := 0
+	for _, t := range result {
+		total += EstimateTokens(t.Content)
+	}
+
+	for total > limit && len(result) > 1 {
+		total -= EstimateTokens(result[1].Content)
+		result = append(result[:1:1], result[2:]...)
+	}
+
+	return result
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Compactor interface + RunCompaction
+// ──────────────────────────────────────────────────────────────────────────────
+
+// Compactor condenses a conversation history into a summary string that replaces
+// the full turn list after compaction.
+type Compactor interface {
+	Compact(ctx context.Context, turns []contracts.CodingTurn) (string, error)
+}
+
+// DefaultCompactor is the no-op fallback used when no summarisation model is
+// configured; it acknowledges that compaction occurred without producing a real
+// summary.
+type DefaultCompactor struct{}
+
+// Compact implements Compactor.
+func (DefaultCompactor) Compact(_ context.Context, _ []contracts.CodingTurn) (string, error) {
+	return "Context compacted.", nil
+}
+
+// RunCompaction calls c.Compact to summarise turns, resets the budget, then
+// returns a single-element slice holding the summary as an assistant turn.
+func (b *Budget) RunCompaction(ctx context.Context, turns []contracts.CodingTurn, c Compactor) ([]contracts.CodingTurn, error) {
+	summary, err := c.Compact(ctx, turns)
+	if err != nil {
+		return nil, err
+	}
+	b.Reset()
+	return []contracts.CodingTurn{{Role: "assistant", Content: summary}}, nil
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Preflight
+// ──────────────────────────────────────────────────────────────────────────────
+
+// PreflightResult reports the estimated cost of a prompt against the current
+// budget state before the turn is actually sent.
+type PreflightResult struct {
+	EstimatedTokens int
+	ShouldCompact   bool
+	OverBudget      bool
+	BudgetSnap      BudgetSnapshot
+}
+
+// Preflight estimates the token cost of prompt and checks it against the
+// current budget. OverBudget is true when the prompt would push cumulative
+// input past the model's absolute input window — the compaction threshold is a
+// softer signal captured by ShouldCompact.
+func Preflight(budget *Budget, prompt string) PreflightResult {
+	snap := budget.Snapshot()
+	est := EstimateTokens(prompt)
+	overBudget := snap.ModelInputWindow > 0 && (snap.UsedInput+est) > snap.ModelInputWindow
+	return PreflightResult{
+		EstimatedTokens: est,
+		ShouldCompact:   snap.ShouldCompact,
+		OverBudget:      overBudget,
+		BudgetSnap:      snap,
 	}
 }
