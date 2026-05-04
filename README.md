@@ -11,6 +11,7 @@
 
 <p align="center">
   <a href="./docs/PRD.md">PRD</a> ·
+  <a href="./docs/design-system/figma.md">Design (Figma)</a> ·
   <a href="https://github.com/jabreeflor/conduit/issues">Issues</a> ·
   <a href="https://github.com/jabreeflor/conduit/milestones">Roadmap</a>
 </p>
