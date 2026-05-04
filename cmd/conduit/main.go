@@ -92,6 +92,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "exec":
+			if err := runExecCLI(context.Background(), os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit exec: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		case "sessions":
 			if err := runSessionsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit sessions: %v\n", err)
@@ -289,6 +295,32 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	}
 	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell)
 	return repl.Run(ctx)
+}
+
+// runExecCLI implements `conduit exec` — non-interactive scripted
+// execution intended for CI/CD, pre-commit hooks, and automated
+// changelog/issue-management scripts. Output is structured (text or
+// JSON) and the exit code is the only signal CI cares about.
+func runExecCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.File) error {
+	opts, err := coding.ParseExecArgs(args)
+	if err != nil {
+		fmt.Fprintln(stderr, "usage: conduit exec [--prompt TXT | --prompt-file FILE | <stdin>] [--format text|json] [--max-input-tokens N] [--allow-write] [--allow-shell] [--no-session] [--cwd DIR]")
+		return err
+	}
+	opts.Stdin = stdin
+	opts.Stdout = stdout
+	opts.Stderr = stderr
+	if opts.Streamer == nil {
+		opts.Streamer = echoStreamer{}
+	}
+	res, runErr := coding.RunExec(ctx, opts)
+	if runErr != nil {
+		// Render whatever partial result we have so JSON consumers still
+		// get a parseable record, then propagate the error to set exit 1.
+		_ = coding.RenderExecResult(stderr, res, opts.Format)
+		return runErr
+	}
+	return coding.RenderExecResult(stdout, res, opts.Format)
 }
 
 // echoStreamer is the placeholder Streamer: it echoes the user's prompt
