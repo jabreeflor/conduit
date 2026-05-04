@@ -261,6 +261,17 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	allowWrite := fs.Bool("allow-write", false, "allow filesystem write tools (write_file, edit_file, notebook_edit)")
 	allowShell := fs.Bool("allow-shell", false, "allow shell tools (bash)")
 	maxInputTokens := fs.Int("max-input-tokens", 200_000, "model input window for context budgeting")
+
+	// Fine-grained session budget flags (PRD §6.24.8). Zero / unset means no limit.
+	maxTotalTokens := fs.Int("max-total-tokens", 0, "hard cap on total prompt+completion tokens per run (0 = unlimited)")
+	maxOutputTokens := fs.Int("max-output-tokens", 0, "hard cap on output tokens per model call (0 = unlimited)")
+	maxReasoningTokens := fs.Int("max-reasoning-tokens", 0, "hard cap on reasoning tokens per model call (0 = unlimited)")
+	maxBudgetUSD := fs.Float64("max-budget-usd", 0, "abort run when estimated USD cost exceeds this threshold (0 = unlimited)")
+	maxToolCalls := fs.Int("max-tool-calls", 0, "hard cap on tool invocations per run (0 = unlimited)")
+	maxModelCalls := fs.Int("max-model-calls", 0, "hard cap on model API calls per run (0 = unlimited)")
+	maxSessionTurns := fs.Int("max-session-turns", 0, "cap on total turns across resumed sessions (0 = unlimited)")
+	maxDelegatedTasks := fs.Int("max-delegated-tasks", 0, "limit on nested agent spawning per run (0 = unlimited)")
+
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -284,14 +295,29 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	}
 	budget := coding.NewBudget(*maxInputTokens)
 
+	// Build the fine-grained session budget from the new flags. intPtr / float64Ptr
+	// convert zero to nil (no limit) so the SessionBudget struct stays clean.
+	sessionBudget := coding.NewSessionBudget(coding.SessionLimits{
+		MaxTotalTokens:            coding.IntPtr(*maxTotalTokens),
+		MaxInputTokensPerCall:     coding.IntPtr(*maxInputTokens),
+		MaxOutputTokensPerCall:    coding.IntPtr(*maxOutputTokens),
+		MaxReasoningTokensPerCall: coding.IntPtr(*maxReasoningTokens),
+		MaxBudgetUSD:              coding.Float64Ptr(*maxBudgetUSD),
+		MaxToolCalls:              coding.IntPtr(*maxToolCalls),
+		MaxModelCalls:             coding.IntPtr(*maxModelCalls),
+		MaxSessionTurns:           coding.IntPtr(*maxSessionTurns),
+		MaxDelegatedTasks:         coding.IntPtr(*maxDelegatedTasks),
+	})
+
 	repl := &coding.REPL{
-		Session:   session,
-		Budget:    budget,
-		Tools:     codingTools,
-		Streamer:  echoStreamer{},
-		Continuer: coding.DefaultContinuer{},
-		In:        stdin,
-		Out:       stdout,
+		Session:       session,
+		Budget:        budget,
+		SessionBudget: sessionBudget,
+		Tools:         codingTools,
+		Streamer:      echoStreamer{},
+		Continuer:     coding.DefaultContinuer{},
+		In:            stdin,
+		Out:           stdout,
 	}
 	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell)
 	return repl.Run(ctx)

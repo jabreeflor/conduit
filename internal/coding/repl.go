@@ -57,6 +57,12 @@ type REPL struct {
 	In        io.Reader
 	Out       io.Writer
 
+	// SessionBudget enforces fine-grained per-run limits (PRD §6.24.8): token caps,
+	// cost ceiling, tool-call cap, model-call cap, session-turn cap, and delegated-task
+	// cap. Nil means no enforcement; non-nil limits are checked before each operation
+	// and return ErrBudgetExceeded on violation, aborting the run cleanly.
+	SessionBudget *SessionBudget
+
 	// MaxAutoContinue caps how many follow-up "continue" turns the REPL will
 	// auto-issue per user message. 4 is a pragmatic ceiling that handles
 	// long structured responses without enabling runaway loops on a
@@ -116,6 +122,14 @@ func (r *REPL) Run(ctx context.Context) error {
 			continue
 		}
 
+		// Enforce session-turn budget before processing the turn.
+		if r.SessionBudget != nil {
+			if err := r.SessionBudget.RecordTurn(); err != nil {
+				fmt.Fprintln(r.Out, "budget:", err)
+				return err
+			}
+		}
+
 		userTurn := contracts.CodingTurn{Role: "user", Content: line}
 		if _, err := r.Session.Append(userTurn); err != nil {
 			return err
@@ -159,6 +173,14 @@ func (r *REPL) streamAssistant(ctx context.Context, prompt string, isContinuatio
 			})
 		}
 
+		// Enforce model-call budget before issuing the API call.
+		if r.SessionBudget != nil {
+			if err := r.SessionBudget.RecordModelCall(); err != nil {
+				fmt.Fprintln(r.Out, "budget:", err)
+				return err
+			}
+		}
+
 		full, finish, err := r.Streamer.Stream(ctx, current, func(delta string) {
 			assistantBuf.WriteString(delta)
 			if tagParser != nil {
@@ -186,8 +208,19 @@ func (r *REPL) streamAssistant(ctx context.Context, prompt string, isContinuatio
 		// is wired in alongside the provider client. Marked as a placeholder
 		// so the next PR knows to replace it before any cost-sensitive
 		// routing depends on it.
+		inputEst := estimateTokens(current)
+		outputEst := estimateTokens(full)
 		if r.Budget != nil {
-			r.Budget.Observe(estimateTokens(current), estimateTokens(full))
+			r.Budget.Observe(inputEst, outputEst)
+		}
+		// Record tokens in the fine-grained session budget. Cost is 0 until
+		// a real provider client reports it; the field is additive so it stays
+		// accurate once wired.
+		if r.SessionBudget != nil {
+			if err := r.SessionBudget.RecordTokens(inputEst, outputEst, 0, 0); err != nil {
+				fmt.Fprintln(r.Out, "budget:", err)
+				return err
+			}
 		}
 
 		if !r.Continuer.ShouldContinue(finish) {
