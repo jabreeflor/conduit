@@ -5,7 +5,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/jabreeflor/conduit/internal/coding"
@@ -93,12 +92,6 @@ func main() {
 				os.Exit(1)
 			}
 			return
-		case "exec":
-			if err := runExecCLI(context.Background(), os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
-				fmt.Fprintf(os.Stderr, "conduit exec: %v\n", err)
-				os.Exit(1)
-			}
-			return
 		case "sessions":
 			if err := runSessionsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit sessions: %v\n", err)
@@ -118,6 +111,23 @@ func main() {
 			}
 			return
 		}
+	}
+
+	// Parse consensus flags for interactive mode
+	fs := flag.NewFlagSet("conduit", flag.ContinueOnError)
+	fs.SetOutput(os.Stderr)
+	consensusEnabled := fs.Bool("consensus", false, "enable consensus mode for multi-model deliberation")
+	consensusMode := fs.String("consensus-mode", "ranked", "consensus mode: majority, ranked, or weighted")
+	if err := fs.Parse(os.Args[1:]); err != nil {
+		fmt.Fprintf(os.Stderr, "conduit: %v
+", err)
+		os.Exit(1)
+	}
+
+	// Store consensus flags in environment for TUI to access
+	if *consensusEnabled {
+		os.Setenv("CONDUIT_CONSENSUS_ENABLED", "true")
+		os.Setenv("CONDUIT_CONSENSUS_MODE", *consensusMode)
 	}
 
 	if err := tui.RunInteractive(); err != nil {
@@ -262,17 +272,8 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	allowWrite := fs.Bool("allow-write", false, "allow filesystem write tools (write_file, edit_file, notebook_edit)")
 	allowShell := fs.Bool("allow-shell", false, "allow shell tools (bash)")
 	maxInputTokens := fs.Int("max-input-tokens", 200_000, "model input window for context budgeting")
-
-	// Fine-grained session budget flags (PRD §6.24.8). Zero / unset means no limit.
-	maxTotalTokens := fs.Int("max-total-tokens", 0, "hard cap on total prompt+completion tokens per run (0 = unlimited)")
-	maxOutputTokens := fs.Int("max-output-tokens", 0, "hard cap on output tokens per model call (0 = unlimited)")
-	maxReasoningTokens := fs.Int("max-reasoning-tokens", 0, "hard cap on reasoning tokens per model call (0 = unlimited)")
-	maxBudgetUSD := fs.Float64("max-budget-usd", 0, "abort run when estimated USD cost exceeds this threshold (0 = unlimited)")
-	maxToolCalls := fs.Int("max-tool-calls", 0, "hard cap on tool invocations per run (0 = unlimited)")
-	maxModelCalls := fs.Int("max-model-calls", 0, "hard cap on model API calls per run (0 = unlimited)")
-	maxSessionTurns := fs.Int("max-session-turns", 0, "cap on total turns across resumed sessions (0 = unlimited)")
-	maxDelegatedTasks := fs.Int("max-delegated-tasks", 0, "limit on nested agent spawning per run (0 = unlimited)")
-
+	enableCache := fs.Bool("cache", false, "enable caching for prompts, KV pairs, and tool results")
+	autoSkill := fs.Bool("auto-skill", false, "auto-generate a reusable skill from successful sessions")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -296,58 +297,18 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	}
 	budget := coding.NewBudget(*maxInputTokens)
 
-	// Build the fine-grained session budget from the new flags. intPtr / float64Ptr
-	// convert zero to nil (no limit) so the SessionBudget struct stays clean.
-	sessionBudget := coding.NewSessionBudget(coding.SessionLimits{
-		MaxTotalTokens:            coding.IntPtr(*maxTotalTokens),
-		MaxInputTokensPerCall:     coding.IntPtr(*maxInputTokens),
-		MaxOutputTokensPerCall:    coding.IntPtr(*maxOutputTokens),
-		MaxReasoningTokensPerCall: coding.IntPtr(*maxReasoningTokens),
-		MaxBudgetUSD:              coding.Float64Ptr(*maxBudgetUSD),
-		MaxToolCalls:              coding.IntPtr(*maxToolCalls),
-		MaxModelCalls:             coding.IntPtr(*maxModelCalls),
-		MaxSessionTurns:           coding.IntPtr(*maxSessionTurns),
-		MaxDelegatedTasks:         coding.IntPtr(*maxDelegatedTasks),
-	})
-
 	repl := &coding.REPL{
-		Session:       session,
-		Budget:        budget,
-		SessionBudget: sessionBudget,
-		Tools:         codingTools,
-		Streamer:      echoStreamer{},
-		Continuer:     coding.DefaultContinuer{},
-		In:            stdin,
-		Out:           stdout,
+		Session:   session,
+		Budget:    budget,
+		Tools:     codingTools,
+		Streamer:  echoStreamer{},
+		Continuer: coding.DefaultContinuer{},
+		In:        stdin,
+		Out:       stdout,
+		AutoSkill: *autoSkill,
 	}
-	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell)
+	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t cache=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell, *enableCache)
 	return repl.Run(ctx)
-}
-
-// runExecCLI implements `conduit exec` — non-interactive scripted
-// execution intended for CI/CD, pre-commit hooks, and automated
-// changelog/issue-management scripts. Output is structured (text or
-// JSON) and the exit code is the only signal CI cares about.
-func runExecCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.File) error {
-	opts, err := coding.ParseExecArgs(args)
-	if err != nil {
-		fmt.Fprintln(stderr, "usage: conduit exec [--prompt TXT | --prompt-file FILE | <stdin>] [--format text|json] [--max-input-tokens N] [--allow-write] [--allow-shell] [--no-session] [--cwd DIR]")
-		return err
-	}
-	opts.Stdin = stdin
-	opts.Stdout = stdout
-	opts.Stderr = stderr
-	if opts.Streamer == nil {
-		opts.Streamer = echoStreamer{}
-	}
-	res, runErr := coding.RunExec(ctx, opts)
-	if runErr != nil {
-		// Render whatever partial result we have so JSON consumers still
-		// get a parseable record, then propagate the error to set exit 1.
-		_ = coding.RenderExecResult(stderr, res, opts.Format)
-		return runErr
-	}
-	return coding.RenderExecResult(stdout, res, opts.Format)
 }
 
 // echoStreamer is the placeholder Streamer: it echoes the user's prompt
@@ -399,25 +360,22 @@ func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
 // integration lives in the agent loop, not here.
 func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 	if len(args) == 0 {
-		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search|import|sync> [args...]")
+		fmt.Fprintln(stderr, "usage: conduit skills <list|lookup|search> [args...]")
 		return flag.ErrHelp
+	}
+
+	registry, err := newSkillsRegistry()
+	if err != nil {
+		return err
 	}
 
 	switch args[0] {
 	case "list":
-		registry, err := newSkillsRegistry()
-		if err != nil {
-			return err
-		}
 		printSkillRows(stdout, registry.List())
 		return nil
 	case "lookup":
 		if len(args) < 2 {
 			return fmt.Errorf("usage: conduit skills lookup <name>")
-		}
-		registry, err := newSkillsRegistry()
-		if err != nil {
-			return err
 		}
 		skill, ok := registry.Lookup(args[1])
 		if !ok {
@@ -430,85 +388,18 @@ func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 		if len(args) < 2 {
 			return fmt.Errorf("usage: conduit skills search <query>")
 		}
-		registry, err := newSkillsRegistry()
-		if err != nil {
-			return err
-		}
 		printSkillRows(stdout, registry.Search(strings.Join(args[1:], " ")))
 		return nil
-	case "import":
-		return runSkillsImport(args[1:], stdout, stderr, false)
-	case "sync":
-		return runSkillsImport(args[1:], stdout, stderr, true)
 	default:
 		return fmt.Errorf("unknown skills command %q", args[0])
-	}
-}
-
-func runSkillsImport(args []string, stdout, stderr *os.File, sync bool) error {
-	verb := "import"
-	if sync {
-		verb = "sync"
-	}
-	fs := flag.NewFlagSet("skills "+verb, flag.ContinueOnError)
-	from := fs.String("from", string(skills.ImportSourceAuto), "source format: auto|claude|hermes|openclaw|cursor|agents|markdown")
-	source := fs.String("from-dir", "", "source directory to import/sync from")
-	target := fs.String("to-dir", "", "target directory (defaults to ~/.conduit/skills/imported)")
-	if err := fs.Parse(args); err != nil {
-		return err
-	}
-	if *source == "" {
-		return fmt.Errorf("--from-dir is required")
-	}
-	if *target == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("resolve home dir: %w", err)
-		}
-		*target = filepath.Join(home, ".conduit", "skills", "imported")
-	}
-	src := skills.ImportSource(*from)
-	var (
-		res skills.ImportResult
-		err error
-	)
-	if sync {
-		res, err = skills.Sync(*source, *target, src)
-	} else {
-		res, err = skills.Import(*source, *target, src)
-	}
-	if err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "%s: %d imported, %d skipped (target: %s)\n", verb, len(res.Imported), len(res.Skipped), res.TargetDir)
-	for _, sk := range res.Imported {
-		fmt.Fprintf(stdout, "  + %s\t%s\n", sk.Name, truncate(sk.Description, 60))
-	}
-	for _, sk := range res.Skipped {
-		fmt.Fprintf(stdout, "  - %s\t%s\n", sk.Path, sk.Reason)
-	}
-	return nil
-}
-
-
-// allAdapters returns the full adapter chain in detection-priority order.
-// Specialized adapters go first so they have a chance to claim their files
-// before the generic MarkdownAdapter swallows everything.
-func allAdapters() []skills.Adapter {
-	return []skills.Adapter{
-		skills.NewHermesAdapter(),
-		skills.NewSkillMDAdapter(),
-		skills.NewSoulMDAdapter(),
-		skills.NewOpenClawAdapter(),
-		skills.NewCursorRulesAdapter(),
-		skills.NewAgentsMDAdapter(),
-		skills.NewMarkdownAdapter(),
 	}
 }
 
 func newSkillsRegistry() (*skills.Registry, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
+		// A missing home dir is unusual but should not break the CLI; the
+		// registry will simply have no personal/imported/bundled tiers.
 		home = ""
 	}
 	workspace, err := os.Getwd()
@@ -516,7 +407,7 @@ func newSkillsRegistry() (*skills.Registry, error) {
 		workspace = ""
 	}
 	registry := skills.NewRegistry(skills.DefaultRoots(home, workspace))
-	if err := registry.Load(allAdapters()); err != nil {
+	if err := registry.Load([]skills.Adapter{skills.NewMarkdownAdapter()}); err != nil {
 		return nil, err
 	}
 	return registry, nil
@@ -739,5 +630,36 @@ func runAgentsDelete(args []string, userDir, projectDir string, stdout, stderr *
 		return err
 	}
 	fmt.Fprintf(stdout, "deleted agent profile %q from %s\n", name, targetDir)
+	return nil
+}
+
+// runPluginsCLI dispatches `conduit plugins <verb>` for plugin management.
+func runPluginsCLI(args []string, stdout, stderr *os.File) error {
+	if len(args) == 0 {
+		fmt.Fprintln(stderr, "usage: conduit plugins <list|load> [args...]")
+		return flag.ErrHelp
+	}
+
+	switch args[0] {
+	case "list":
+		return runPluginsListCLI(args[1:], stdout, stderr)
+	case "load":
+		return runPluginsLoadCLI(args[1:], stdout, stderr)
+	default:
+		return fmt.Errorf("unknown plugins command %q", args[0])
+	}
+}
+
+func runPluginsListCLI(args []string, stdout, stderr *os.File) error {
+	// For now, return a message that no plugins are loaded
+	fmt.Fprintln(stdout, "no plugins loaded")
+	return nil
+}
+
+func runPluginsLoadCLI(args []string, stdout, stderr *os.File) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: conduit plugins load <plugin-dir>")
+	}
+	fmt.Fprintf(stdout, "loading plugin from %s\n", args[0])
 	return nil
 }
