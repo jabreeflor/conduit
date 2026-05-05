@@ -1,0 +1,46 @@
+<idea-plugin>
+    <id>ai.conduit.jetbrains</id>
+    <name>Conduit</name>
+    <vendor email="contact@conduit.local" url="https://github.com/jabreeflor/conduit">Conduit</vendor>
+
+    <description><![CDATA[
+        Connect any JetBrains IDE to a locally-running Conduit instance.
+        <br/>
+        This scaffold provides the sidebar tool window, status-bar widget,
+        a connect command, and helpers to share the current file or
+        selection as agent context. The chat surface lands in a follow-up
+        release.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="Conduit"
+                    secondary="true"
+                    anchor="right"
+                    factoryClass="ai.conduit.jetbrains.ConduitToolWindowFactory"/>
+        <applicationService serviceImplementation="ai.conduit.jetbrains.ConduitSettings"/>
+    </extensions>
+
+    <actions>
+        <action id="conduit.Connect"
+                class="ai.conduit.jetbrains.ConnectAction"
+                text="Conduit: Connect to Running Instance"
+                description="Probe the local Conduit daemon and report its status.">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift C"/>
+            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta alt shift C"/>
+        </action>
+        <action id="conduit.ShareFile"
+                class="ai.conduit.jetbrains.ShareFileAction"
+                text="Conduit: Share Current File as Context"
+                description="Send the active file's path to the running Conduit instance.">
+        </action>
+        <action id="conduit.ShareSelection"
+                class="ai.conduit.jetbrains.ShareSelectionAction"
+                text="Conduit: Share Selection as Context"
+                description="Send the current selection range to the running Conduit instance.">
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt S"/>
+            <keyboard-shortcut keymap="Mac OS X 10.5+" first-keystroke="meta alt S"/>
+        </action>
+    </actions>
+</idea-plugin>
