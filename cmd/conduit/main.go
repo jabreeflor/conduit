@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jabreeflor/conduit/internal/coding"
@@ -436,56 +437,59 @@ func runSkillsCLI(args []string, stdout, stderr *os.File) error {
 		printSkillRows(stdout, registry.Search(strings.Join(args[1:], " ")))
 		return nil
 	case "import":
-		return runSkillsImport(args[1:], stdout, stderr)
+		return runSkillsImport(args[1:], stdout, stderr, false)
 	case "sync":
-		return runSkillsSync(stdout, stderr)
+		return runSkillsImport(args[1:], stdout, stderr, true)
 	default:
 		return fmt.Errorf("unknown skills command %q", args[0])
 	}
 }
 
-func runSkillsImport(args []string, stdout, stderr *os.File) error {
-	imp, err := newSkillsImporter()
-	if err != nil {
+func runSkillsImport(args []string, stdout, stderr *os.File, sync bool) error {
+	verb := "import"
+	if sync {
+		verb = "sync"
+	}
+	fs := flag.NewFlagSet("skills "+verb, flag.ContinueOnError)
+	from := fs.String("from", string(skills.ImportSourceAuto), "source format: auto|claude|hermes|openclaw|cursor|agents|markdown")
+	source := fs.String("from-dir", "", "source directory to import/sync from")
+	target := fs.String("to-dir", "", "target directory (defaults to ~/.conduit/skills/imported)")
+	if err := fs.Parse(args); err != nil {
 		return err
 	}
-
-	// Check for --from flag
-	if len(args) >= 2 && args[0] == "--from" {
-		provider := args[1]
-		fmt.Fprintf(stdout, "importing skills from %s...\n", provider)
-		if err := imp.ImportFrom(provider); err != nil {
-			return err
+	if *source == "" {
+		return fmt.Errorf("--from-dir is required")
+	}
+	if *target == "" {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("resolve home dir: %w", err)
 		}
-		fmt.Fprintf(stdout, "done\n")
-		return nil
+		*target = filepath.Join(home, ".conduit", "skills", "imported")
 	}
-
-	if len(args) < 1 {
-		return fmt.Errorf("usage: conduit skills import <path|url> | --from <provider>")
+	src := skills.ImportSource(*from)
+	var (
+		res skills.ImportResult
+		err error
+	)
+	if sync {
+		res, err = skills.Sync(*source, *target, src)
+	} else {
+		res, err = skills.Import(*source, *target, src)
 	}
-
-	source := args[0]
-	fmt.Fprintf(stdout, "importing skills from %s...\n", source)
-	if err := imp.Import(source); err != nil {
-		return err
-	}
-	fmt.Fprintf(stdout, "done\n")
-	return nil
-}
-
-func runSkillsSync(stdout, stderr *os.File) error {
-	imp, err := newSkillsImporter()
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(stdout, "syncing all tracked skill sources...\n")
-	if err := imp.Sync(); err != nil {
-		return err
+	fmt.Fprintf(stdout, "%s: %d imported, %d skipped (target: %s)\n", verb, len(res.Imported), len(res.Skipped), res.TargetDir)
+	for _, sk := range res.Imported {
+		fmt.Fprintf(stdout, "  + %s\t%s\n", sk.Name, truncate(sk.Description, 60))
 	}
-	fmt.Fprintf(stdout, "done\n")
+	for _, sk := range res.Skipped {
+		fmt.Fprintf(stdout, "  - %s\t%s\n", sk.Path, sk.Reason)
+	}
 	return nil
 }
+
 
 // allAdapters returns the full adapter chain in detection-priority order.
 // Specialized adapters go first so they have a chance to claim their files
@@ -493,6 +497,8 @@ func runSkillsSync(stdout, stderr *os.File) error {
 func allAdapters() []skills.Adapter {
 	return []skills.Adapter{
 		skills.NewHermesAdapter(),
+		skills.NewSkillMDAdapter(),
+		skills.NewSoulMDAdapter(),
 		skills.NewOpenClawAdapter(),
 		skills.NewCursorRulesAdapter(),
 		skills.NewAgentsMDAdapter(),
@@ -514,20 +520,6 @@ func newSkillsRegistry() (*skills.Registry, error) {
 		return nil, err
 	}
 	return registry, nil
-}
-
-func newSkillsImporter() (*skills.Importer, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("cannot determine home directory: %w", err)
-	}
-	roots := skills.DefaultRoots(home, "")
-	importedRoot := roots[contracts.SkillTierImported]
-	registry := skills.NewRegistry(roots)
-	if err := registry.Load(allAdapters()); err != nil {
-		return nil, err
-	}
-	return skills.NewImporter(registry, importedRoot)
 }
 
 func printSkillRows(out *os.File, list []contracts.Skill) {
