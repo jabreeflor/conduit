@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { Spotlight } from "./Spotlight";
+import { ChatPanel } from "./components/ChatPanel";
+import { SessionList } from "./components/SessionList";
+import { MemoryView } from "./components/MemoryView";
 
 // SidebarTab mirrors the iota in internal/gui/layout.go.
 type SidebarTab = "sessions" | "workflows" | "memory" | "skills" | "evals";
@@ -46,8 +49,8 @@ export function App() {
   return (
     <div className="app">
       <Sidebar activeTab={activeTab} onSelect={selectTab} />
-      <Main view={mainView} />
-      <AgentPanel />
+      <Main view={mainView} activeTab={activeTab} />
+      <ChatPanel />
       {spotlightOpen && (
         <Spotlight onClose={() => setSpotlightOpen(false)} />
       )}
@@ -76,6 +79,11 @@ function Sidebar({
           </button>
         ))}
       </nav>
+      {activeTab === "sessions" && (
+        <div className="sidebar-section">
+          <SessionList />
+        </div>
+      )}
       <div className="sidebar-footer">
         <kbd>⌥Space</kbd> Spotlight · <kbd>⌘K</kbd> Palette
       </div>
@@ -83,11 +91,11 @@ function Sidebar({
   );
 }
 
-function Main({ view }: { view: MainView }) {
+function Main({ view, activeTab }: { view: MainView; activeTab: SidebarTab }) {
   return (
     <main className="main" aria-label="Main content">
       <div className="main-header">{viewTitle(view)}</div>
-      <div className="main-body">{viewBody(view)}</div>
+      <div className="main-body">{viewBody(view, activeTab)}</div>
     </main>
   );
 }
@@ -109,14 +117,9 @@ function viewTitle(v: MainView): string {
   }
 }
 
-function viewBody(v: MainView) {
+function viewBody(v: MainView, activeTab: SidebarTab) {
   if (v === "memory") {
-    return (
-      <div className="placeholder">
-        <p>SOUL.md / USER.md editor — wired in #SUP-9 follow-up.</p>
-        <p>View-model: <code>internal/gui/memory_editor.go</code></p>
-      </div>
-    );
+    return <MemoryView />;
   }
   if (v === "evals") {
     return (
@@ -133,31 +136,17 @@ function viewBody(v: MainView) {
       </div>
     );
   }
+  if (activeTab === "sessions") {
+    return (
+      <div className="placeholder">
+        <p>Pick a session in the sidebar to view its screenshot stream.</p>
+        <p>View-model: <code>internal/gui/screenshot_stream.go</code></p>
+      </div>
+    );
+  }
   return (
     <div className="placeholder">
       <p>Screenshot stream — already wired in <code>internal/gui/screenshot_stream.go</code>.</p>
     </div>
-  );
-}
-
-function AgentPanel() {
-  return (
-    <section className="agent-panel" aria-label="Agent">
-      <div className="agent-header">Chat</div>
-      <div className="agent-stream">
-        <div className="message agent">
-          Conduit GUI scaffold — three columns up, Spotlight on ⌥Space.
-        </div>
-      </div>
-      <textarea
-        className="agent-input"
-        placeholder="Message Conduit…"
-        rows={3}
-      />
-      <div className="agent-status">
-        <span>model: claude-opus-4-7</span>
-        <span>$0.00</span>
-      </div>
-    </section>
   );
 }

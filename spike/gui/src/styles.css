@@ -317,3 +317,175 @@ kbd {
   font-family: var(--font-mono);
   font-size: 11px;
 }
+
+/* ── chat turns ──────────────────────────────────────────────────────── */
+.turn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+.message.user {
+  background: var(--color-surface-sunken);
+  border: 1px solid var(--color-border-default);
+}
+
+.message.agent {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ── tool calls ──────────────────────────────────────────────────────── */
+.tool-call {
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-sunken);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  overflow: hidden;
+}
+
+.tool-call.error {
+  border-color: #6b2424;
+}
+
+.tool-head {
+  display: grid;
+  grid-template-columns: 14px auto 1fr auto;
+  gap: var(--space-2);
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  font: inherit;
+}
+
+.tool-head:hover {
+  background: var(--color-surface-elevated);
+}
+
+.tool-arrow {
+  color: var(--color-text-subtle);
+}
+
+.tool-name {
+  color: var(--color-action-primary);
+}
+
+.tool-input {
+  color: var(--color-text-subtle);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tool-summary {
+  color: var(--color-text-subtle);
+}
+
+.tool-output {
+  margin: 0;
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-canvas);
+  color: var(--color-text-body);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* ── session list (sidebar) ──────────────────────────────────────────── */
+.sidebar-section {
+  margin-top: var(--space-3);
+  padding: 0 var(--space-2);
+  overflow: auto;
+}
+
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.session-row {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-elevated);
+}
+
+.session-id {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--color-text-link);
+}
+
+.session-summary {
+  color: var(--color-text-body);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.session-time {
+  font-size: 10px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+}
+
+.session-list-empty {
+  padding: var(--space-3);
+  color: var(--color-text-subtle);
+  font-size: 12px;
+}
+
+/* ── memory view ─────────────────────────────────────────────────────── */
+.memory-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  height: 100%;
+}
+
+@media (max-width: 1100px) {
+  .memory-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.memory-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-primary);
+  overflow: hidden;
+}
+
+.memory-card-title {
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.memory-card-body {
+  flex: 1;
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--color-text-body);
+}

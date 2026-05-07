@@ -19,6 +19,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/provider/codex"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/sandbox"
+	"github.com/jabreeflor/conduit/internal/server"
 	"github.com/jabreeflor/conduit/internal/sessions"
 	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tools"
@@ -92,6 +93,12 @@ func main() {
 		case "code":
 			if err := runCodeCLI(context.Background(), os.Args[2:], os.Stdin, os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit code: %v\n", err)
+				os.Exit(1)
+			}
+			return
+		case "serve":
+			if err := runServeCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit serve: %v\n", err)
 				os.Exit(1)
 			}
 			return
@@ -320,6 +327,49 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	fmt.Fprintf(stdout, "conduit code: session %s (provider=%s model=%s allow-write=%t allow-shell=%t cache=%t)\n",
 		session.ID, chosen, chosenModel, perms.AllowWrite, perms.AllowShell, *enableCache)
 	return repl.Run(ctx)
+}
+
+// runServeCLI starts the HTTP+WebSocket server that backs the Conduit
+// GUI. The server reuses selectCodingStreamer for provider/auth logic
+// so `conduit serve` and `conduit code` share the same fallback rules
+// (Anthropic key → codex login → echo). Read-only is the default —
+// allow-write/allow-shell must be opted into explicitly because the
+// server is long-running.
+func runServeCLI(ctx context.Context, args []string, stdout, stderr *os.File) error {
+	fs := flag.NewFlagSet("conduit serve", flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	addr := fs.String("addr", "127.0.0.1:9876", "listen address")
+	provider := fs.String("provider", "auto", "model provider: auto | anthropic | codex | echo")
+	model := fs.String("model", "", "model id (defaults per provider)")
+	allowWrite := fs.Bool("allow-write", false, "allow filesystem write tools")
+	allowShell := fs.Bool("allow-shell", false, "allow shell tools")
+	if err := fs.Parse(args); err != nil {
+		return err
+	}
+
+	perms := contracts.CodingPermissions{AllowWrite: *allowWrite, AllowShell: *allowShell}
+	liveTools := coding.LiveCodingTools(websearch.Config{}, nil)
+	codingTools := coding.RegisterCodingTools(liveTools, perms)
+
+	// Probe the provider once for /api/info; the per-connection factory
+	// re-runs the selection so each WebSocket gets its own streamer
+	// (independent conversation history). Tools are fed in unwrapped
+	// from the cmd layer; the server wraps them with tool-event hooks.
+	_, providerName, modelName := selectCodingStreamer(*provider, *model, codingTools, stderr)
+
+	srv := server.New(server.Config{
+		Factory: func(wrapped []tools.Tool) (coding.Streamer, string, string) {
+			return selectCodingStreamer(*provider, *model, wrapped, stderr)
+		},
+		BaseTools: codingTools,
+		Provider:  providerName,
+		Model:     modelName,
+		Version:   version,
+	})
+
+	fmt.Fprintf(stdout, "conduit serve: listening on %s (provider=%s model=%s allow-write=%t allow-shell=%t)\n",
+		*addr, providerName, modelName, perms.AllowWrite, perms.AllowShell)
+	return srv.Serve(ctx, *addr)
 }
 
 // selectCodingStreamer picks a Streamer based on the provider flag:
