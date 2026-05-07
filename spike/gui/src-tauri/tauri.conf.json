@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Conduit",
+  "version": "0.0.0",
+  "identifier": "dev.conduit.gui-spike",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devUrl": "http://localhost:1420",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Conduit",
+        "width": 1280,
+        "height": 800,
+        "minWidth": 800,
+        "minHeight": 600,
+        "decorations": true,
+        "transparent": false,
+        "fullscreen": false,
+        "resizable": true,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ws://localhost:* wss://localhost:*; img-src 'self' data:; style-src 'self' 'unsafe-inline'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "app",
+    "category": "DeveloperTool",
+    "shortDescription": "Conduit GUI spike",
+    "longDescription": "Scaffold for the Conduit macOS GUI per PRD §11.2 / ADR-003.",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    }
+  }
+}
