@@ -1,0 +1,13 @@
+# Frontend
+node_modules/
+dist/
+*.local
+
+# Tauri / Rust
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# Editor
+.vscode/
+.idea/
+.DS_Store

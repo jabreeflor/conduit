@@ -1,0 +1,319 @@
+/* Conduit GUI scaffold. Color values track design/dist/web/tokens.css —
+   when the design system is published as an npm package this file will be
+   replaced by an @import. Until then, the literals below are mirrored by
+   hand and verified against design/tokens.yaml. */
+
+:root {
+  color-scheme: dark;
+
+  --color-surface-canvas: #0a0c14;
+  --color-surface-primary: #10131e;
+  --color-surface-elevated: #1a1d2c;
+  --color-surface-sunken: #000000;
+
+  --color-border-subtle: #1a1d2c;
+  --color-border-default: #2a2e40;
+  --color-border-strong: #3e4358;
+  --color-border-focus: #f59e1f;
+
+  --color-text-body: #e2e5ee;
+  --color-text-muted: #8c93ab;
+  --color-text-subtle: #5d637a;
+  --color-text-link: #36b3cf;
+
+  --color-action-primary: #f59e1f;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI",
+    Roboto, sans-serif;
+  --font-mono: "SF Mono", Menlo, Monaco, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: var(--color-surface-canvas);
+  color: var(--color-text-body);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── three-column shell ──────────────────────────────────────────────── */
+.app {
+  display: grid;
+  grid-template-columns: 18% 1fr 28%;
+  height: 100vh;
+  gap: 0;
+}
+
+.sidebar {
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-primary);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) 0;
+}
+
+.sidebar-header {
+  padding: 0 var(--space-4) var(--space-4);
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.2px;
+}
+
+.sidebar nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+
+.sidebar-tab {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  font: inherit;
+  cursor: pointer;
+}
+
+.sidebar-tab:hover {
+  background: var(--color-surface-elevated);
+  color: var(--color-text-body);
+}
+
+.sidebar-tab.active {
+  background: var(--color-surface-elevated);
+  color: var(--color-text-body);
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-subtle);
+  font-size: 11px;
+}
+
+/* ── main ────────────────────────────────────────────────────────────── */
+.main {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface-canvas);
+  overflow: hidden;
+}
+
+.main-header {
+  padding: var(--space-3) var(--space-5);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.main-body {
+  flex: 1;
+  padding: var(--space-5);
+  overflow: auto;
+}
+
+.placeholder {
+  border: 1px dashed var(--color-border-default);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  color: var(--color-text-muted);
+}
+
+.placeholder code {
+  background: var(--color-surface-elevated);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
+/* ── agent panel ─────────────────────────────────────────────────────── */
+.agent-panel {
+  border-left: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-primary);
+  display: flex;
+  flex-direction: column;
+}
+
+.agent-header {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.agent-stream {
+  flex: 1;
+  padding: var(--space-4);
+  overflow: auto;
+}
+
+.message {
+  background: var(--color-surface-elevated);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-3);
+}
+
+.agent-input {
+  margin: var(--space-3);
+  padding: var(--space-3);
+  background: var(--color-surface-sunken);
+  color: var(--color-text-body);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-md);
+  font: inherit;
+  resize: none;
+}
+
+.agent-input:focus {
+  outline: 1px solid var(--color-border-focus);
+  border-color: var(--color-border-focus);
+}
+
+.agent-status {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-4);
+  border-top: 1px solid var(--color-border-subtle);
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+/* ── spotlight overlay ───────────────────────────────────────────────── */
+.spotlight-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 12vh;
+  z-index: 100;
+}
+
+.spotlight {
+  width: min(620px, 90%);
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+}
+
+.spotlight-input {
+  width: 100%;
+  padding: var(--space-4) var(--space-5);
+  background: transparent;
+  color: var(--color-text-body);
+  border: none;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-size: 16px;
+  font: inherit;
+  font-size: 16px;
+}
+
+.spotlight-input:focus {
+  outline: none;
+}
+
+.spotlight-results {
+  list-style: none;
+  margin: 0;
+  padding: var(--space-2);
+  max-height: 360px;
+  overflow: auto;
+}
+
+.spotlight-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  align-items: center;
+}
+
+.spotlight-row.active {
+  background: var(--color-surface-primary);
+}
+
+.spotlight-row.empty {
+  display: block;
+  text-align: center;
+  color: var(--color-text-subtle);
+  padding: var(--space-4);
+}
+
+.kind {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-subtle);
+  font-family: var(--font-mono);
+}
+
+.kind-command {
+  color: var(--color-action-primary);
+}
+
+.kind-workflow {
+  color: var(--color-text-link);
+}
+
+.kind-memory {
+  color: var(--color-text-muted);
+}
+
+.kind-recent {
+  color: var(--color-text-subtle);
+}
+
+.kind-session {
+  color: var(--color-text-muted);
+}
+
+.title {
+  color: var(--color-text-body);
+}
+
+.subtitle {
+  color: var(--color-text-subtle);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+kbd {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border-default);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}

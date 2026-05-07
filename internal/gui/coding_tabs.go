@@ -20,7 +20,7 @@ const (
 	TabMCP
 	TabPlugins
 	TabAskQueue
-	TabWorkflows
+	TabCodingWorkflows
 	TabSearch
 	TabTriggers
 	TabTeams
@@ -32,28 +32,28 @@ const (
 var allCodingTabs = []CodingTab{
 	TabTasks, TabPlan, TabCodingMemory, TabHistory, TabBackground, TabWorktree,
 	TabCodingSkills, TabAccounts, TabRemote, TabMCP, TabPlugins, TabAskQueue,
-	TabWorkflows, TabSearch, TabTriggers, TabTeams, TabDiagnostics,
+	TabCodingWorkflows, TabSearch, TabTriggers, TabTeams, TabDiagnostics,
 }
 
 // codingTabTitles maps each tab to its display label.
 var codingTabTitles = map[CodingTab]string{
-	TabTasks:        "Tasks",
-	TabPlan:         "Plan",
-	TabCodingMemory: "Memory",
-	TabHistory:      "History",
-	TabBackground:   "Background",
-	TabWorktree:     "Worktree",
-	TabCodingSkills: "Skills",
-	TabAccounts:     "Accounts",
-	TabRemote:       "Remote",
-	TabMCP:          "MCP",
-	TabPlugins:      "Plugins",
-	TabAskQueue:     "Ask queue",
-	TabWorkflows:    "Workflows",
-	TabSearch:       "Search",
-	TabTriggers:     "Triggers",
-	TabTeams:        "Teams",
-	TabDiagnostics:  "Diagnostics",
+	TabTasks:           "Tasks",
+	TabPlan:            "Plan",
+	TabCodingMemory:    "Memory",
+	TabHistory:         "History",
+	TabBackground:      "Background",
+	TabWorktree:        "Worktree",
+	TabCodingSkills:    "Skills",
+	TabAccounts:        "Accounts",
+	TabRemote:          "Remote",
+	TabMCP:             "MCP",
+	TabPlugins:         "Plugins",
+	TabAskQueue:        "Ask queue",
+	TabCodingWorkflows: "Workflows",
+	TabSearch:          "Search",
+	TabTriggers:        "Triggers",
+	TabTeams:           "Teams",
+	TabDiagnostics:     "Diagnostics",
 }
 
 // Title returns the human-readable label for the tab.
