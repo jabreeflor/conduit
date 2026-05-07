@@ -2,6 +2,7 @@ package skills
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -24,17 +25,21 @@ func NewHermesAdapter() HermesAdapter {
 // Name implements Adapter.
 func (HermesAdapter) Name() string { return "hermes" }
 
-// CanHandle accepts .md files in paths that suggest Hermes origin
-// (e.g., containing "hermes" in the path). This prevents conflicts with
-// the broader MarkdownAdapter by narrowing the scope.
+// CanHandle accepts hermes.json files anywhere, and .md files in paths
+// that suggest Hermes origin (e.g., containing "hermes" in the path). This
+// prevents conflicts with the broader MarkdownAdapter by narrowing the scope.
 func (HermesAdapter) CanHandle(path string) bool {
+	base := strings.ToLower(filepath.Base(path))
+	if base == "hermes.json" {
+		return true
+	}
 	ext := filepath.Ext(path)
 	if !strings.EqualFold(ext, ".md") {
 		return false
 	}
 	// Accept files in hermes-related directories or with hermes in the name
 	return strings.Contains(strings.ToLower(path), "hermes") ||
-		strings.Contains(strings.ToLower(filepath.Base(path)), "hermes")
+		strings.Contains(base, "hermes")
 }
 
 type hermesFrontmatter struct {
@@ -47,8 +52,38 @@ type hermesFrontmatter struct {
 }
 
 // Parse implements Adapter. It checks for the Hermes-specific `platforms:` field
-// to confirm this is a Hermes skill before parsing.
+// to confirm this is a Hermes skill before parsing. As a special case, files
+// named hermes.json are parsed as JSON skill descriptors.
 func (HermesAdapter) Parse(path string, data []byte, tier contracts.SkillTier) (contracts.Skill, error) {
+	if strings.EqualFold(filepath.Base(path), "hermes.json") {
+		var jf struct {
+			Name        string   `json:"name"`
+			Description string   `json:"description"`
+			Body        string   `json:"body"`
+			Tags        []string `json:"tags"`
+		}
+		if err := json.Unmarshal(data, &jf); err != nil {
+			return contracts.Skill{}, fmt.Errorf("skills: parse Hermes JSON %q: %w", path, err)
+		}
+		name := strings.TrimSpace(jf.Name)
+		if name == "" {
+			base := filepath.Base(path)
+			name = strings.TrimSuffix(base, filepath.Ext(base))
+		}
+		if name == "" {
+			return contracts.Skill{}, fmt.Errorf("skills: %q has no usable name", path)
+		}
+		return contracts.Skill{
+			Name:        name,
+			Tier:        tier,
+			Description: strings.TrimSpace(jf.Description),
+			Tags:        normaliseTags(jf.Tags),
+			Path:        path,
+			Body:        strings.TrimSpace(jf.Body),
+			UpdatedAt:   time.Time{},
+		}, nil
+	}
+
 	front, body, err := splitHermesFrontmatter(data)
 	if err != nil {
 		return contracts.Skill{}, fmt.Errorf("skills: parse Hermes frontmatter %q: %w", path, err)

@@ -13,37 +13,37 @@ type CacheKey struct {
 
 // CacheStats provides counts of cached items across all cache types.
 type CacheStats struct {
-	PrefixCacheSize    int
-	KVCacheSize        int
-	SemanticCacheSize  int
+	PrefixCacheSize     int
+	KVCacheSize         int
+	SemanticCacheSize   int
 	ToolResultCacheSize int
-	ResponseCacheSize  int
-	Total              int
+	ResponseCacheSize   int
+	Total               int
 }
 
 // CacheManager composes all cache types into a single point of configuration.
 type CacheManager struct {
-	mu                sync.Mutex
-	prefixCache       *KVCache[string]
-	kvCache           *KVCache[string]
-	semanticCache     *SemanticCache[string]
-	toolResultCache   *ToolResultCache[string]
-	responseCache     *ResponseCache[string]
-	enabled           bool
-	cacheableTools    map[string]bool
+	mu              sync.Mutex
+	prefixCache     *KVCache[string]
+	kvCache         *KVCache[string]
+	semanticCache   *SemanticCache[string]
+	toolResultCache *ToolResultCache[string]
+	responseCache   *ResponseCache[string]
+	enabled         bool
+	cacheableTools  map[string]bool
 }
 
 // NewCacheManager creates a new manager with default TTLs and sizes.
 // Set enabled to false to bypass all caching operations.
 func NewCacheManager(enabled bool, cacheableTools []string) *CacheManager {
 	cm := &CacheManager{
-		prefixCache:       NewKVCache[string](100, 24*time.Hour),
-		kvCache:           NewKVCache[string](500, 24*time.Hour),
-		semanticCache:     NewSemanticCache[string](200, 24*time.Hour, 0.95),
-		toolResultCache:   NewToolResultCache[string](1000, 7*24*time.Hour),
-		responseCache:     NewResponseCache[string](500, 24*time.Hour),
-		enabled:           enabled,
-		cacheableTools:    make(map[string]bool),
+		prefixCache:     NewKVCache[string](100, 24*time.Hour),
+		kvCache:         NewKVCache[string](500, 24*time.Hour),
+		semanticCache:   NewSemanticCache[string](200, 24*time.Hour, 0.95),
+		toolResultCache: NewToolResultCache[string](1000, 7*24*time.Hour),
+		responseCache:   NewResponseCache[string](500, 24*time.Hour),
+		enabled:         enabled,
+		cacheableTools:  make(map[string]bool),
 	}
 	for _, tool := range cacheableTools {
 		cm.cacheableTools[tool] = true
@@ -67,7 +67,8 @@ func (m *CacheManager) Get(key CacheKey) (string, bool) {
 	case "kv":
 		return m.kvCache.Get(key.Value)
 	case "semantic":
-		return m.semanticCache.Get(key.Value)
+		// semantic cache requires embedding; use Lookup instead
+		return "", false
 	case "tool":
 		return m.toolResultCache.Get(key.Value)
 	case "response":
@@ -114,11 +115,11 @@ func (m *CacheManager) Stats() CacheStats {
 	defer m.mu.Unlock()
 
 	stats := CacheStats{
-		PrefixCacheSize:    m.prefixCache.lru.Len(),
-		KVCacheSize:        m.kvCache.lru.Len(),
-		SemanticCacheSize:  m.semanticCache.lru.Len(),
+		PrefixCacheSize:     m.prefixCache.lru.Len(),
+		KVCacheSize:         m.kvCache.lru.Len(),
+		SemanticCacheSize:   m.semanticCache.lru.Len(),
 		ToolResultCacheSize: m.toolResultCache.lru.Len(),
-		ResponseCacheSize:  m.responseCache.lru.Len(),
+		ResponseCacheSize:   m.responseCache.lru.Len(),
 	}
 	stats.Total = stats.PrefixCacheSize + stats.KVCacheSize + stats.SemanticCacheSize +
 		stats.ToolResultCacheSize + stats.ResponseCacheSize

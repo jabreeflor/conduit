@@ -228,17 +228,17 @@ func (a *AIAssist) SuggestAutocomplete(cursorLine string, cursorCol int) []strin
 
 	// Common completions for partial words
 	completions := map[string][]string{
-		"f":    {"func", "for", "fmt.Println"},
-		"im":   {"import", "in"},
-		"if":   {"if", "interface"},
-		"st":   {"struct", "string"},
-		"t":    {"type", "true"},
-		"pa":   {"package", "panic"},
-		"pr":   {"print", "printf", "println"},
-		"de":   {"defer", "default"},
-		"re":   {"return", "range"},
-		"ca":   {"case", "catch", "const"},
-		"ch":   {"chan", "change"},
+		"f":   {"func", "for", "fmt.Println"},
+		"im":  {"import", "in"},
+		"if":  {"if", "interface"},
+		"st":  {"struct", "string"},
+		"t":   {"type", "true"},
+		"pa":  {"package", "panic"},
+		"pr":  {"print", "printf", "println"},
+		"de":  {"defer", "default"},
+		"re":  {"return", "range"},
+		"ca":  {"case", "catch", "const"},
+		"ch":  {"chan", "change"},
 		"err": {"error", "err"},
 	}
 
@@ -252,8 +252,13 @@ func (a *AIAssist) SuggestAutocomplete(cursorLine string, cursorCol int) []strin
 // ExplainCode provides an explanation of code snippet
 func (a *AIAssist) ExplainCode(startLine, endLine int, content string) string {
 	lines := strings.Split(content, "\n")
-	if startLine < 0 || endLine > len(lines) || startLine > endLine {
-		return "Invalid line range"
+	// Clamp out-of-range bounds to the full content rather than refusing,
+	// so callers using mismatched indexing still get an explanation.
+	if startLine < 0 || startLine >= len(lines) {
+		startLine = 0
+	}
+	if endLine <= startLine || endLine > len(lines) {
+		endLine = len(lines)
 	}
 
 	snippet := strings.Join(lines[startLine:endLine], "\n")
@@ -297,30 +302,28 @@ func (a *AIAssist) FixError(line string) string {
 	return "Unable to identify specific error pattern. Review the code for syntax or logic errors."
 }
 
-// extractWord extracts the word at or before the cursor position
+// extractWord returns the identifier ending at or before the cursor.
+// `_` is treated as a word boundary so snake_case segments are returned
+// independently (matters for autocomplete on partial identifiers).
 func extractWord(line string, cursorCol int) string {
 	if cursorCol > len(line) {
 		cursorCol = len(line)
 	}
-
-	start := cursorCol
-	for start > 0 && isWordChar(line[start-1]) {
-		start--
+	if cursorCol < 0 {
+		cursorCol = 0
+	}
+	isIdent := func(ch byte) bool {
+		return (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9')
 	}
 
 	end := cursorCol
-	for end < len(line) && isWordChar(line[end]) {
-		end++
+	for end > 0 && !isIdent(line[end-1]) {
+		end--
 	}
-
-	if start > end {
-		start = end
+	start := end
+	for start > 0 && isIdent(line[start-1]) {
+		start--
 	}
-
-	if start >= len(line) || end > len(line) || start >= end {
-		return ""
-	}
-
 	return line[start:end]
 }
 
@@ -334,11 +337,11 @@ func isWordChar(ch byte) bool {
 
 // Editor is a composite IDE editor combining highlighting and AI assistance
 type Editor struct {
-	filePath   string
-	content    string
-	language   Language
+	filePath    string
+	content     string
+	language    Language
 	highlighter *Highlighter
-	assist     *AIAssist
+	assist      *AIAssist
 }
 
 // NewEditor creates a new Editor instance

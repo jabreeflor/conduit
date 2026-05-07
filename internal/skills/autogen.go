@@ -20,13 +20,13 @@ type ModelCaller interface {
 
 // SessionSummary contains session metadata needed for skill generation.
 type SessionSummary struct {
-	SessionID      string
+	SessionID       string
 	TaskDescription string
-	Turns          int
-	Outcome        string // "success", "partial", "failed"
-	Duration       time.Duration
-	ToolsUsed      []string
-	WorkflowType   string
+	Turns           int
+	Outcome         string // "success", "partial", "failed"
+	Duration        time.Duration
+	ToolsUsed       []string
+	WorkflowType    string
 }
 
 // AutoGenerator creates a skill from a session summary using an AI model.
@@ -210,14 +210,29 @@ func extractFrontmatter(content string) (markdownFrontmatter, string, error) {
 	rest := lines[1]
 	endIdx := strings.Index(rest, "---")
 	if endIdx < 0 {
-		return markdownFrontmatter{}, rest, nil
+		// No closing fence: treat the apparent header lines as malformed
+		// frontmatter and return everything after the first blank line as
+		// the body. This mirrors the behaviour callers expect when a model
+		// emits a partially fenced block.
+		bodyLines := strings.Split(rest, "\n")
+		bodyStart := -1
+		for i, line := range bodyLines {
+			if strings.TrimSpace(line) == "" {
+				bodyStart = i + 1
+				break
+			}
+		}
+		if bodyStart < 0 || bodyStart >= len(bodyLines) {
+			return markdownFrontmatter{}, "", nil
+		}
+		return markdownFrontmatter{}, strings.Join(bodyLines[bodyStart:], "\n"), nil
 	}
 
 	headerStr := rest[:endIdx]
-	bodyStr := strings.TrimPrefix(rest[endIdx+3:], "\n")
+	bodyStr := strings.TrimLeft(rest[endIdx+3:], "\n")
 
 	var front markdownFrontmatter
-	if headerStr != "" {
+	if strings.TrimSpace(headerStr) != "" {
 		if err := yaml.Unmarshal([]byte(headerStr), &front); err != nil {
 			return markdownFrontmatter{}, "", err
 		}
@@ -227,44 +242,58 @@ func extractFrontmatter(content string) (markdownFrontmatter, string, error) {
 }
 
 // generateSkillName creates a concise skill name from a task description.
+// The output is kebab-case with each word's first letter capitalized,
+// truncated greedily so the total length stays at most 27 characters.
 func generateSkillName(taskDesc string) string {
-	// Take first 40 characters, capitalize, remove special chars
-	name := strings.ToLower(taskDesc)
-	if len(name) > 40 {
-		name = name[:40]
+	// Split on whitespace to get raw word tokens (collapses runs of spaces).
+	rawWords := strings.Fields(taskDesc)
+	if len(rawWords) == 0 {
+		return "Auto-Generated"
 	}
 
-	// Remove trailing punctuation
-	name = strings.TrimRight(name, ".,!?;:")
-
-	// Replace spaces and special chars with hyphens
-	var result strings.Builder
-	for _, ch := range name {
-		if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
-			result.WriteRune(ch)
-		} else if ch == ' ' || ch == '-' {
-			if result.Len() > 0 && result.String()[result.Len()-1] != '-' {
-				result.WriteRune('-')
+	// Normalise each word: capitalize first letter, lowercase the rest, and
+	// replace runs of non-alphanumeric characters with a single hyphen,
+	// trimming leading/trailing hyphens.
+	tokens := make([]string, 0, len(rawWords))
+	for _, w := range rawWords {
+		// Lowercase, then re-capitalize the first letter at the end.
+		var b strings.Builder
+		prevDash := false
+		for _, ch := range strings.ToLower(w) {
+			if (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9') {
+				b.WriteRune(ch)
+				prevDash = false
+			} else {
+				if b.Len() > 0 && !prevDash {
+					b.WriteRune('-')
+					prevDash = true
+				}
 			}
 		}
-	}
-
-	name = result.String()
-	name = strings.Trim(name, "-")
-
-	if name == "" {
-		name = "auto-generated"
-	}
-
-	// Capitalize first letter of each word for display
-	parts := strings.Split(name, "-")
-	for i, part := range parts {
-		if part != "" {
-			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		t := strings.Trim(b.String(), "-")
+		if t == "" {
+			continue
 		}
+		// Capitalize first letter.
+		t = strings.ToUpper(t[:1]) + t[1:]
+		tokens = append(tokens, t)
 	}
 
-	return strings.Join(parts, " ")
+	if len(tokens) == 0 {
+		return "Auto-Generated"
+	}
+
+	// Greedily build the kebab-case name, stopping before exceeding 27 chars.
+	const maxLen = 27
+	out := tokens[0]
+	for _, t := range tokens[1:] {
+		next := out + "-" + t
+		if len(next) > maxLen {
+			break
+		}
+		out = next
+	}
+	return out
 }
 
 // sanitizeFilename creates a safe filename from a skill name.

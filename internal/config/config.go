@@ -241,26 +241,11 @@ func LoadFiles(userPath, projectPath string) (Config, error) {
 	return cfg, nil
 }
 
-// deepMerge merges src into dst in-place.
-//
-// TODO: implement the merge strategy here — this is where the explicit
-// precedence rule lives. Two approaches worth considering:
-//
-//  1. Recursive map merge: for each key, if both dst and src hold a
-//     map[string]any, recurse. For all other types (including slices),
-//     src replaces dst. This gives fine-grained per-key overrides but
-//     means a project config that sets only escalation.default_model also
-//     keeps the user's escalation.escalation_model.
-//
-//  2. Top-level section replace: if src contains a key at the top level
-//     (models, escalation, hooks, …), replace the entire dst section with
-//     the src value — no recursion. Simpler, but a project config that
-//     overrides one models field must repeat all others.
-//
-// Implement your preferred strategy below (5-10 lines of recursive Go).
-// Consider: should slices append or replace? Should nested maps merge or
-// replace? How should a project config that only sets one field inside a
-// section behave?
+// deepMerge merges src into dst in-place. Nested maps are merged recursively
+// so a project config can override a single nested field without restating
+// its siblings. Slices are replaced wholesale (not appended) — append would
+// make it impossible for a project to shrink a user-global list, e.g. drop
+// a fallback model or remove a sandbox tool.
 func deepMerge(dst, src map[string]any) {
 	for k, srcVal := range src {
 		dstVal, exists := dst[k]

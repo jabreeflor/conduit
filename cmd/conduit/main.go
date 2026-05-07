@@ -119,8 +119,7 @@ func main() {
 	consensusEnabled := fs.Bool("consensus", false, "enable consensus mode for multi-model deliberation")
 	consensusMode := fs.String("consensus-mode", "ranked", "consensus mode: majority, ranked, or weighted")
 	if err := fs.Parse(os.Args[1:]); err != nil {
-		fmt.Fprintf(os.Stderr, "conduit: %v
-", err)
+		fmt.Fprintf(os.Stderr, "conduit: %v\n", err)
 		os.Exit(1)
 	}
 

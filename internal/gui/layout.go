@@ -4,10 +4,9 @@ package gui
 type SidebarTab int
 
 const (
-	TabSessions  SidebarTab = iota // session history list
-	TabWorkflows                   // workflow DAG browser
-	TabMemory                      // SOUL.md / USER.md / memory inspector
-	TabSkills                      // skills registry
+	TabSessions SidebarTab = iota // session history list
+	TabMemory                     // SOUL.md / USER.md / memory inspector
+	TabSkills                     // skills registry
 )
 
 // MainView identifies the content rendered in the centre column.
