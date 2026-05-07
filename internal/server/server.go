@@ -84,7 +84,23 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/info", s.handleInfo)
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/memory", s.handleMemory)
-	return mux
+	return withCORS(mux)
+}
+
+// withCORS lets the local Tauri/vite dev frontend (different origin) call
+// the REST endpoints. The server only ever binds to localhost so this is
+// not a real-world cross-site exposure.
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // Serve binds to addr and runs the HTTP server until ctx is cancelled.

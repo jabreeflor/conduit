@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown, ChevronRight, SendHorizontal } from "lucide-react";
 import {
   connectAgent,
   getInfo,
@@ -37,6 +38,30 @@ type Turn = {
   blocks: Block[];
   done: boolean;
 };
+
+type ProviderTone = "claude" | "openai" | "litellm" | "openrouter" | "local";
+
+// Map raw provider strings (as emitted by the core session frame) onto the
+// per-provider model-badge tokens published in design/dist/web/tokens.css.
+function providerTone(provider: string | undefined): ProviderTone {
+  switch ((provider ?? "").toLowerCase()) {
+    case "anthropic":
+    case "claude":
+      return "claude";
+    case "openai":
+    case "codex":
+      return "openai";
+    case "litellm":
+      return "litellm";
+    case "openrouter":
+      return "openrouter";
+    case "auto":
+    case "":
+      return "local";
+    default:
+      return "local";
+  }
+}
 
 export function ChatPanel() {
   const [info, setInfo] = useState<Info | null>(null);
@@ -88,11 +113,24 @@ export function ChatPanel() {
     }
   }
 
-  const header = info ? `${info.provider} / ${info.model}` : "Chat";
+  const tone = providerTone(info?.provider);
+  const sendDisabled = state !== "connected" || draft.trim().length === 0;
 
   return (
     <section className="agent-panel" aria-label="Agent">
-      <div className="agent-header">{header}</div>
+      <div className="agent-header">
+        <span className="agent-header-title">Chat</span>
+        {info ? (
+          <span
+            className={`model-badge model-badge--${tone}`}
+            title={`${info.provider} / ${info.model}`}
+          >
+            {info.provider}/{info.model}
+          </span>
+        ) : (
+          <span className="model-badge model-badge--local">offline</span>
+        )}
+      </div>
       <div className="agent-stream" ref={streamRef}>
         {turns.length === 0 && (
           <div className="placeholder" style={{ margin: 0 }}>
@@ -103,21 +141,35 @@ export function ChatPanel() {
           <TurnCard key={t.id} turn={t} />
         ))}
       </div>
-      <textarea
-        className="agent-input"
-        placeholder={
-          state === "connected"
-            ? "Message Conduit…"
-            : `Reconnecting… (${state})`
-        }
-        rows={3}
-        value={draft}
-        onChange={(e) => setDraft(e.target.value)}
-        onKeyDown={onKey}
-        disabled={state !== "connected"}
-      />
+      <div className="agent-input-wrap">
+        <textarea
+          className="agent-input"
+          placeholder={
+            state === "connected"
+              ? "Message Conduit…"
+              : `Reconnecting… (${state})`
+          }
+          rows={3}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onKey}
+          disabled={state !== "connected"}
+        />
+        <button
+          type="button"
+          className="agent-send"
+          aria-label="Send message"
+          onClick={send}
+          disabled={sendDisabled}
+        >
+          <SendHorizontal size={20} aria-hidden />
+        </button>
+      </div>
       <div className="agent-status">
-        <span>{stateLabel(state)}</span>
+        <span className="agent-status-left">
+          <span className={`state-dot state-dot--${state}`} aria-hidden />
+          <span>{stateLabel(state)}</span>
+        </span>
         <span>{info?.version ? `v${info.version}` : ""}</span>
       </div>
     </section>
@@ -127,11 +179,11 @@ export function ChatPanel() {
 function stateLabel(s: ConnectionState): string {
   switch (s) {
     case "connecting":
-      return "● connecting";
+      return "connecting";
     case "connected":
-      return "● connected";
+      return "connected";
     case "disconnected":
-      return "● disconnected";
+      return "disconnected";
   }
 }
 
@@ -241,23 +293,34 @@ function TurnCard({ turn }: { turn: Turn }) {
 
 function ToolCall({ block }: { block: ToolBlock }) {
   const [open, setOpen] = useState(false);
-  const summary =
+  const pillClass =
     block.output === null
-      ? "running…"
+      ? "tool-pill--running"
       : block.isError
-        ? "error"
-        : "ok";
+        ? "tool-pill--error"
+        : "tool-pill--ok";
+  const pillLabel =
+    block.output === null ? "running" : block.isError ? "error" : "ok";
   return (
     <div className={`tool-call ${block.isError ? "error" : ""}`}>
       <button
         type="button"
         className="tool-head"
         onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
       >
-        <span className="tool-arrow">{open ? "▼" : "▶"}</span>
+        <span className="tool-arrow">
+          {open ? (
+            <ChevronDown size={14} aria-hidden />
+          ) : (
+            <ChevronRight size={14} aria-hidden />
+          )}
+        </span>
         <span className="tool-name">{block.name}</span>
         <span className="tool-input">{block.input}</span>
-        <span className="tool-summary">→ {summary}</span>
+        <span className="tool-summary">
+          <span className={`tool-pill ${pillClass}`}>{pillLabel}</span>
+        </span>
       </button>
       {open && block.output !== null && (
         <pre className="tool-output">{block.output}</pre>
