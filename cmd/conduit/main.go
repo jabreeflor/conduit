@@ -277,7 +277,7 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	enableCache := fs.Bool("cache", false, "enable caching for prompts, KV pairs, and tool results")
 	autoSkill := fs.Bool("auto-skill", false, "auto-generate a reusable skill from successful sessions")
 	provider := fs.String("provider", "auto", "model provider: auto | anthropic | codex | echo")
-	model := fs.String("model", "", "model id (defaults per provider; e.g. claude-opus-4-5, gpt-5-codex)")
+	model := fs.String("model", "", "model id (defaults per provider; e.g. claude-opus-4-5, gpt-5.5)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -371,7 +371,10 @@ func newAnthropicStreamer(model string, codingTools []tools.Tool, stderr *os.Fil
 
 func newCodexStreamer(model string, codingTools []tools.Tool, stderr *os.File, explicit bool) (coding.Streamer, string, string) {
 	if model == "" {
-		model = "gpt-5-codex"
+		// gpt-5-codex is API-key-only; ChatGPT-account auth needs a sub-tier
+		// model. gpt-5.5 is broadly available across ChatGPT-Codex plans.
+		// Override with --model if your sub gates a different one.
+		model = "gpt-5.5"
 	}
 	auth, err := codex.LoadAuth()
 	if err != nil {
