@@ -104,6 +104,12 @@ func main() {
 				os.Exit(1)
 			}
 			return
+		case "plugins":
+			if err := runPluginsCLI(os.Args[2:], os.Stdout, os.Stderr); err != nil {
+				fmt.Fprintf(os.Stderr, "conduit plugins: %v\n", err)
+				os.Exit(1)
+			}
+			return
 		case "sandbox":
 			if err := sandbox.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit sandbox: %v\n", err)
