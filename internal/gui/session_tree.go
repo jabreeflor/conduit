@@ -48,16 +48,9 @@ type ForkPlan struct {
 
 // ForkMode is the semantics chosen for ForkPlan.Mode.
 //
-// TODO(SUP-9): The default is intentionally unset (ForkModeUnspecified) so
-// the GUI must surface the choice to the user the first time they fork in a
-// session. The product question — "should fork default to snapshot, replay,
-// or reference?" — depends on workflow values not encoded here:
-//
-//   - if memory cost dominates: prefer ForkReference (cheap, COW)
-//   - if reproducibility dominates: prefer ForkReplay (deterministic rebuild)
-//   - if isolation dominates: prefer ForkSnapshot (no parent leakage)
-//
-// Implement DefaultForkMode below to bake in the project's stance.
+//   - ForkSnapshot: copy parent state at the source turn; no later coupling
+//   - ForkReplay:   re-execute turns 1..N to rebuild state deterministically
+//   - ForkReference: child references parent turns up to N (copy-on-write)
 type ForkMode int
 
 const (
@@ -68,12 +61,11 @@ const (
 )
 
 // DefaultForkMode returns the ForkMode used when the user activates "fork
-// from turn" without explicitly picking a mode. Implementing this is a
-// design decision left to the project owner — see ForkMode docs above.
-//
-// TODO(SUP-9): replace this stub with the chosen default.
+// from turn" without explicitly picking a mode. Snapshot is the default:
+// isolation by default avoids surprising parent-session leakage when the
+// user is exploring a divergent path.
 func DefaultForkMode() ForkMode {
-	return ForkModeUnspecified
+	return ForkSnapshot
 }
 
 // NewSessionTree returns a view-model wrapping tree. The tree may be nil
