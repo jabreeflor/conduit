@@ -466,16 +466,6 @@ type DynamicMountRequest struct {
 	BlockReason          string
 }
 
-// SandboxBaseImage describes a custom execution image that can be reused by a
-// project or shared with teammates.
-type SandboxBaseImage struct {
-	Name        string
-	Image       string
-	Digest      string
-	Description string
-	Shared      bool
-}
-
 // SandboxArchitecture describes the security and startup contract every agent
 // execution sandbox must satisfy.
 type SandboxArchitecture struct {
@@ -491,7 +481,6 @@ type SandboxArchitecture struct {
 	PackageManagers           []string
 	PreinstalledTools         []string
 	AllowlistedRegistries     []string
-	CustomBaseImages          []SandboxBaseImage
 	NetworkPolicy             SandboxNetworkPolicy
 	Mounts                    []SandboxMount
 	DenyHostFilesystem        bool

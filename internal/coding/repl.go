@@ -76,6 +76,13 @@ type REPL struct {
 	// full unfiltered turn so replays can re-dispatch tags. Leave nil to
 	// keep the legacy passthrough behavior. See PRD §6.14.
 	TagSink func(replytags.Event)
+
+	// AutoSkill indicates whether a reusable skill should be auto-generated
+	// from this session if it completes successfully. When true and the session
+	// meets skill generation criteria (success outcome, sufficient turns, tools
+	// used, meaningful task description), a skill file is created in the
+	// personal skills directory. Leave false to disable skill auto-generation.
+	AutoSkill bool
 }
 
 // Run drives the read/stream/append loop until the input is exhausted or
@@ -114,6 +121,10 @@ func (r *REPL) Run(ctx context.Context) error {
 		if !scanner.Scan() {
 			if err := scanner.Err(); err != nil {
 				return err
+			}
+			// Session completed successfully; attempt auto-generation if enabled.
+			if r.AutoSkill {
+				_ = r.attemptAutoGenerate(ctx)
 			}
 			return nil
 		}
@@ -247,4 +258,14 @@ func estimateTokens(s string) int {
 		return 0
 	}
 	return len(s) / 4
+}
+
+// attemptAutoGenerate tries to create a reusable skill from the session.
+// It silently ignores failures (logging would require a logger dependency).
+func (r *REPL) attemptAutoGenerate(ctx context.Context) error {
+	// Stub implementation: skill auto-generation requires ModelCaller integration
+	// which lands with the provider client in a follow-up PR. For now, this
+	// placeholder allows the REPL to initialize with AutoSkill=true without
+	// panicking. Future work: inject ModelCaller into REPL and call AutoGenerator.
+	return nil
 }

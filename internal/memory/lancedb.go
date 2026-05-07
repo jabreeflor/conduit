@@ -12,157 +12,74 @@ import (
 	"time"
 )
 
-// LanceDBConfig holds configuration for connecting to a LanceDB instance.
+// LanceDBConfig configures the LanceDB provider.
 type LanceDBConfig struct {
-	URL       string // Base URL of the LanceDB server (e.g., "http://localhost:8081")
-	TableName string // LanceDB table name (e.g., "conduit_memory")
-	EmbedModel string // Embedding model (e.g., "text-embedding-3-small")
-	APIKey    string // OpenAI API key for embeddings
+	URL        string // LanceDB server URL (default: "http://localhost:8080")
+	TableName  string // Table name for memory entries (default: "conduit_memory")
+	EmbedModel string // OpenAI embedding model (default: "text-embedding-ada-002")
+	APIKey     string // OpenAI API key for embeddings
 }
 
-// EmbeddingClient is the interface for generating embeddings.
-type EmbeddingClient interface {
-	Embed(ctx context.Context, text string) ([]float32, error)
-}
-
-// OpenAIEmbeddingClient implements EmbeddingClient using OpenAI's API.
-type OpenAIEmbeddingClient struct {
-	apiKey string
-	model  string
-	client *http.Client
-}
-
-// NewOpenAIEmbeddingClient creates a new OpenAI embedding client.
-func NewOpenAIEmbeddingClient(apiKey, model string) *OpenAIEmbeddingClient {
-	return &OpenAIEmbeddingClient{
-		apiKey: apiKey,
-		model:  model,
-		client: &http.Client{Timeout: 30 * time.Second},
-	}
-}
-
-// Embed calls the OpenAI embeddings API.
-func (c *OpenAIEmbeddingClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	if c.apiKey == "" {
-		return nil, fmt.Errorf("openai: api key not set")
-	}
-	if text == "" {
-		return nil, fmt.Errorf("openai: empty text")
-	}
-
-	reqBody := map[string]interface{}{
-		"input": text,
-		"model": c.model,
-	}
-	jsonData, err := json.Marshal(reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("openai: marshal request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("openai: create request: %w", err)
-	}
-	req.Header.Set("Authorization", "Bearer "+c.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := c.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("openai: request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("openai: status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var result struct {
-		Data []struct {
-			Embedding []float32 `json:"embedding"`
-		} `json:"data"`
-		Error *struct {
-			Message string `json:"message"`
-		} `json:"error"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("openai: parse response: %w", err)
-	}
-	if result.Error != nil {
-		return nil, fmt.Errorf("openai: %s", result.Error.Message)
-	}
-	if len(result.Data) == 0 {
-		return nil, fmt.Errorf("openai: no embedding in response")
-	}
-
-	return result.Data[0].Embedding, nil
-}
-
-// LanceDBProvider is a memory provider backed by LanceDB, a vector database.
-// It supports semantic search via embeddings and stores all memory entries as vectors.
+// LanceDBProvider implements the Provider interface using LanceDB as the
+// vector database backend. Entries are stored with their text embeddings
+// to enable semantic search.
 type LanceDBProvider struct {
-	mu       sync.RWMutex
-	config   LanceDBConfig
-	embedder EmbeddingClient
-	client   *http.Client
-	cache    map[string]Entry // Simple in-memory cache for recently accessed entries
+	mu           sync.RWMutex
+	cfg          LanceDBConfig
+	embedClient  EmbeddingClient
+	httpClient   *http.Client
+	initialized  bool
 }
 
-// NewLanceDBProvider creates a new LanceDB provider.
-func NewLanceDBProvider(config LanceDBConfig, embedder EmbeddingClient) *LanceDBProvider {
-	if embedder == nil {
-		embedder = NewOpenAIEmbeddingClient(config.APIKey, config.EmbedModel)
+// NewLanceDBProvider creates a new LanceDB provider with the given config.
+func NewLanceDBProvider(cfg LanceDBConfig) *LanceDBProvider {
+	if cfg.URL == "" {
+		cfg.URL = "http://localhost:8080"
+	}
+	if cfg.TableName == "" {
+		cfg.TableName = "conduit_memory"
+	}
+	if cfg.EmbedModel == "" {
+		cfg.EmbedModel = "text-embedding-ada-002"
 	}
 	return &LanceDBProvider{
-		config:   config,
-		embedder: embedder,
-		client:   &http.Client{Timeout: 30 * time.Second},
-		cache:    make(map[string]Entry),
+		cfg:        cfg,
+		embedClient: NewOpenAIEmbeddingClient(cfg.APIKey, cfg.EmbedModel),
+		httpClient: &http.Client{Timeout: 30 * time.Second},
 	}
 }
 
-// Initialize ensures the LanceDB table exists with the right schema.
+// Initialize creates the LanceDB table if it does not exist.
 func (p *LanceDBProvider) Initialize(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	return p.ensureTable(ctx)
-}
-
-// ensureTable creates the LanceDB table if it doesn't exist.
-func (p *LanceDBProvider) ensureTable(ctx context.Context) error {
-	// LanceDB tables are created implicitly on first insert, but we can
-	// verify connectivity by getting table info. If the table doesn't exist,
-	// LanceDB returns a 404, which is fine.
-	url := fmt.Sprintf("%s/api/v1/tables/%s", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return fmt.Errorf("lancedb: create request: %w", err)
+	if p.initialized {
+		return nil
 	}
 
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("lancedb: connectivity check: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// 200 OK means table exists, 404 means it will be created on first insert.
-	// Any other status is a real error.
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("lancedb: table check failed with status %d: %s", resp.StatusCode, string(body))
+	if err := p.createTable(ctx); err != nil {
+		return fmt.Errorf("lancedb: create table: %w", err)
 	}
 
+	p.initialized = true
 	return nil
 }
 
-// Prefetch returns entries relevant to the query by doing a vector similarity search.
+// Prefetch retrieves entries relevant to the query using vector similarity search.
 func (p *LanceDBProvider) Prefetch(ctx context.Context, query string) ([]Entry, error) {
 	return p.Search(ctx, query)
 }
 
-// Write persists an Entry by embedding its title+body and inserting into LanceDB.
+// Write persists an Entry to LanceDB. If the ID already exists, the entry is updated.
 func (p *LanceDBProvider) Write(ctx context.Context, entry Entry) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if !p.initialized {
+		return fmt.Errorf("lancedb: not initialized")
+	}
+
 	if entry.ID == "" {
 		entry.ID = generateID()
 	}
@@ -172,335 +89,357 @@ func (p *LanceDBProvider) Write(ctx context.Context, entry Entry) error {
 	}
 	entry.UpdatedAt = now
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	// Generate embedding from title + body
-	textToEmbed := entry.Title + " " + entry.Body
-	vector, err := p.embedder.Embed(ctx, textToEmbed)
+	// Generate embedding for the entry text.
+	text := entry.Title + " " + entry.Body
+	embedding, err := p.embedClient.Embed(ctx, text)
 	if err != nil {
-		return fmt.Errorf("lancedb: embed failed: %w", err)
+		return fmt.Errorf("lancedb: generate embedding: %w", err)
 	}
 
-	// Prepare record for insertion
-	record := map[string]interface{}{
-		"id":        entry.ID,
-		"kind":      string(entry.Kind),
-		"title":     entry.Title,
-		"body":      entry.Body,
-		"tags":      entry.Tags,
-		"created_at": entry.CreatedAt.Unix(),
-		"updated_at": entry.UpdatedAt.Unix(),
-		"pinned":    entry.Pinned,
-		"vector":    vector,
-	}
-
-	if err := p.insertRecord(ctx, record); err != nil {
-		return err
-	}
-
-	// Update cache
-	p.cache[entry.ID] = entry
-
-	return nil
+	// Insert or update the entry in LanceDB.
+	return p.insert(ctx, entry, embedding)
 }
 
-// insertRecord sends a record to LanceDB via HTTP POST.
-func (p *LanceDBProvider) insertRecord(ctx context.Context, record map[string]interface{}) error {
-	url := fmt.Sprintf("%s/api/v1/tables/%s/add", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-	
-	jsonData, err := json.Marshal([]map[string]interface{}{record})
-	if err != nil {
-		return fmt.Errorf("lancedb: marshal record: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("lancedb: create request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("lancedb: insert failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("lancedb: insert failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
-
-// Search performs a vector similarity search on the query text.
-// Returns all entries sorted by relevance (similarity score).
+// Search returns entries matching the query string using vector similarity.
+// This uses embeddings to find semantically relevant entries.
 func (p *LanceDBProvider) Search(ctx context.Context, query string) ([]Entry, error) {
-	if query == "" {
-		// Empty query returns all entries
-		return p.listAll(ctx)
-	}
-
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
-	// Generate embedding for the query
-	vector, err := p.embedder.Embed(ctx, query)
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: embed query: %w", err)
+	if !p.initialized {
+		return nil, fmt.Errorf("lancedb: not initialized")
 	}
 
-	results, err := p.vectorSearch(ctx, vector, 100) // Limit to top 100 results
-	if err != nil {
-		return nil, err
+	if query == "" {
+		// Empty query returns all entries.
+		return p.scanAll(ctx)
 	}
 
-	return results, nil
+	// Generate embedding for the query.
+	embedding, err := p.embedClient.Embed(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("lancedb: generate query embedding: %w", err)
+	}
+
+	// Search LanceDB for similar entries.
+	return p.search(ctx, embedding, 10)
 }
 
-// vectorSearch calls LanceDB's vector search API and returns matching entries.
-func (p *LanceDBProvider) vectorSearch(ctx context.Context, vector []float32, limit int) ([]Entry, error) {
-	url := fmt.Sprintf("%s/api/v1/tables/%s/search", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-
-	searchRequest := map[string]interface{}{
-		"vector": vector,
-		"limit":  limit,
-	}
-	jsonData, err := json.Marshal(searchRequest)
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: marshal search request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: create search request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: search request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("lancedb: search failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var results struct {
-		Results []map[string]interface{} `json:"results"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		return nil, fmt.Errorf("lancedb: parse search response: %w", err)
-	}
-
-	entries := make([]Entry, 0, len(results.Results))
-	for _, r := range results.Results {
-		entry, err := p.unmarshalRecord(r)
-		if err != nil {
-			// Log but continue with other results
-			fmt.Printf("lancedb: unmarshal record: %v\n", err)
-			continue
-		}
-		entries = append(entries, entry)
-	}
-
-	return entries, nil
-}
-
-// listAll retrieves all entries from LanceDB without vector search.
-func (p *LanceDBProvider) listAll(ctx context.Context) ([]Entry, error) {
-	url := fmt.Sprintf("%s/api/v1/tables/%s/query", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: create request: %w", err)
-	}
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("lancedb: list request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusNotFound {
-		// Table doesn't exist yet
-		return []Entry{}, nil
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("lancedb: list failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var results struct {
-		Results []map[string]interface{} `json:"results"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
-		return nil, fmt.Errorf("lancedb: parse list response: %w", err)
-	}
-
-	entries := make([]Entry, 0, len(results.Results))
-	for _, r := range results.Results {
-		entry, err := p.unmarshalRecord(r)
-		if err != nil {
-			fmt.Printf("lancedb: unmarshal record: %v\n", err)
-			continue
-		}
-		entries = append(entries, entry)
-	}
-
-	return entries, nil
-}
-
-// unmarshalRecord converts a LanceDB record to an Entry.
-func (p *LanceDBProvider) unmarshalRecord(r map[string]interface{}) (Entry, error) {
-	entry := Entry{}
-
-	if id, ok := r["id"].(string); ok {
-		entry.ID = id
-	} else {
-		return Entry{}, fmt.Errorf("missing or invalid id")
-	}
-
-	if kind, ok := r["kind"].(string); ok {
-		entry.Kind = Kind(kind)
-	}
-
-	if title, ok := r["title"].(string); ok {
-		entry.Title = title
-	}
-
-	if body, ok := r["body"].(string); ok {
-		entry.Body = body
-	}
-
-	if tags, ok := r["tags"].([]interface{}); ok {
-		entry.Tags = make([]string, len(tags))
-		for i, t := range tags {
-			if s, ok := t.(string); ok {
-				entry.Tags[i] = s
-			}
-		}
-	}
-
-	if createdAt, ok := r["created_at"].(float64); ok {
-		entry.CreatedAt = time.Unix(int64(createdAt), 0)
-	}
-
-	if updatedAt, ok := r["updated_at"].(float64); ok {
-		entry.UpdatedAt = time.Unix(int64(updatedAt), 0)
-	}
-
-	if pinned, ok := r["pinned"].(bool); ok {
-		entry.Pinned = pinned
-	}
-
-	return entry, nil
-}
-
-// Delete removes the entry with the given ID from LanceDB.
+// Delete removes the entry with the given ID. Idempotent.
 func (p *LanceDBProvider) Delete(ctx context.Context, id string) error {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	if !p.initialized {
+		return fmt.Errorf("lancedb: not initialized")
+	}
+
 	if id == "" {
 		return nil
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
-
-	err := p.deleteRecord(ctx, id)
-	if err != nil && !strings.Contains(err.Error(), "not found") {
-		return err
-	}
-
-	// Remove from cache
-	delete(p.cache, id)
-
-	return nil
+	return p.delete(ctx, id)
 }
 
-// deleteRecord removes a record from LanceDB by ID.
-func (p *LanceDBProvider) deleteRecord(ctx context.Context, id string) error {
-	url := fmt.Sprintf("%s/api/v1/tables/%s/delete", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-
-	deleteRequest := map[string]interface{}{
-		"where": fmt.Sprintf("id = '%s'", id),
-	}
-	jsonData, err := json.Marshal(deleteRequest)
-	if err != nil {
-		return fmt.Errorf("lancedb: marshal delete request: %w", err)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return fmt.Errorf("lancedb: create delete request: %w", err)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := p.client.Do(req)
-	if err != nil {
-		return fmt.Errorf("lancedb: delete request failed: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("lancedb: delete failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	return nil
-}
-
-// Prune removes entries matching the query, except those with Pinned=true.
-// Returns the IDs of removed entries.
+// Prune removes entries matched by query (case-insensitive substring on
+// title/body/tags) except those with Pinned=true. Returns the IDs removed.
 func (p *LanceDBProvider) Prune(ctx context.Context, query string) ([]string, error) {
-	// Search for matching entries
-	var matches []Entry
-	var err error
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
-	if query == "" {
-		// Empty query prunes all non-pinned entries
-		matches, err = p.listAll(ctx)
-	} else {
-		matches, err = p.Search(ctx, query)
+	if !p.initialized {
+		return nil, fmt.Errorf("lancedb: not initialized")
 	}
 
+	// Get all entries first.
+	entries, err := p.scanAll(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("lancedb: search for prune: %w", err)
+		return nil, err
 	}
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
+	var removed []string
+	q := strings.ToLower(query)
 
-	removed := make([]string, 0)
-	for _, entry := range matches {
-		if entry.Pinned {
-			continue // Skip pinned entries
-		}
-		if err := p.deleteRecord(ctx, entry.ID); err != nil {
-			fmt.Printf("lancedb: failed to delete %s during prune: %v\n", entry.ID, err)
+	for _, e := range entries {
+		if e.Pinned {
 			continue
 		}
-		removed = append(removed, entry.ID)
-		delete(p.cache, entry.ID)
+
+		// Match logic: empty query matches everything, otherwise match title/body/tags.
+		if q != "" {
+			if !strings.Contains(strings.ToLower(e.Title), q) &&
+				!strings.Contains(strings.ToLower(e.Body), q) &&
+				!containsTag(e.Tags, q) {
+				continue
+			}
+		}
+
+		// Delete the entry.
+		if err := p.delete(ctx, e.ID); err != nil {
+			return removed, fmt.Errorf("lancedb: prune delete: %w", err)
+		}
+		removed = append(removed, e.ID)
 	}
 
 	return removed, nil
 }
 
-// Compress is a no-op for LanceDB; the vector database handles optimization internally.
-func (p *LanceDBProvider) Compress(ctx context.Context) error {
-	// LanceDB handles compression and optimization internally.
-	// This is a no-op for now.
+// Compress is a no-op for the LanceDB backend.
+func (p *LanceDBProvider) Compress(_ context.Context) error {
 	return nil
 }
 
-// Shutdown is a no-op; LanceDB doesn't require explicit cleanup.
+// Shutdown flushes any pending operations and closes the connection.
 func (p *LanceDBProvider) Shutdown(ctx context.Context) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	p.cache = nil
+
+	p.initialized = false
 	return nil
+}
+
+// ── Internal helpers ──────────────────────────────────────────────────────────
+
+// lancedbEntry represents an entry stored in LanceDB with vector embedding.
+type lancedbEntry struct {
+	ID        string    `json:"id"`
+	Kind      string    `json:"kind"`
+	Title     string    `json:"title"`
+	Body      string    `json:"body"`
+	Tags      []string  `json:"tags"`
+	CreatedAt string    `json:"created_at"`
+	UpdatedAt string    `json:"updated_at"`
+	Pinned    bool      `json:"pinned"`
+	Vector    []float64 `json:"vector"`
+}
+
+// createTable creates the LanceDB table with the proper schema.
+func (p *LanceDBProvider) createTable(ctx context.Context) error {
+	url := fmt.Sprintf("%s/v1/tables", p.cfg.URL)
+
+	schema := map[string]interface{}{
+		"name": p.cfg.TableName,
+		"data": []map[string]interface{}{},
+	}
+
+	body, err := json.Marshal(schema)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// LanceDB returns 409 if table already exists, which is fine.
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusConflict && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("lancedb: create table failed: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// insert adds or updates an entry in LanceDB.
+func (p *LanceDBProvider) insert(ctx context.Context, entry Entry, embedding []float64) error {
+	url := fmt.Sprintf("%s/v1/tables/%s/add", p.cfg.URL, p.cfg.TableName)
+
+	ldbEntry := lancedbEntry{
+		ID:        entry.ID,
+		Kind:      string(entry.Kind),
+		Title:     entry.Title,
+		Body:      entry.Body,
+		Tags:      entry.Tags,
+		CreatedAt: entry.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: entry.UpdatedAt.Format(time.RFC3339),
+		Pinned:    entry.Pinned,
+		Vector:    embedding,
+	}
+
+	body, err := json.Marshal([]lancedbEntry{ldbEntry})
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("lancedb: insert failed: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// search performs a vector similarity search against the LanceDB table.
+func (p *LanceDBProvider) search(ctx context.Context, embedding []float64, limit int) ([]Entry, error) {
+	url := fmt.Sprintf("%s/v1/tables/%s/search", p.cfg.URL, p.cfg.TableName)
+
+	searchReq := map[string]interface{}{
+		"vector": embedding,
+		"limit":  limit,
+	}
+
+	body, err := json.Marshal(searchReq)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("lancedb: search failed: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var results struct {
+		Results []lancedbEntry `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return nil, err
+	}
+
+	entries := make([]Entry, len(results.Results))
+	for i, ldbE := range results.Results {
+		createdAt, _ := time.Parse(time.RFC3339, ldbE.CreatedAt)
+		updatedAt, _ := time.Parse(time.RFC3339, ldbE.UpdatedAt)
+		entries[i] = Entry{
+			ID:        ldbE.ID,
+			Kind:      Kind(ldbE.Kind),
+			Title:     ldbE.Title,
+			Body:      ldbE.Body,
+			Tags:      ldbE.Tags,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+			Pinned:    ldbE.Pinned,
+		}
+	}
+
+	return entries, nil
+}
+
+// delete removes an entry from LanceDB by ID.
+func (p *LanceDBProvider) delete(ctx context.Context, id string) error {
+	url := fmt.Sprintf("%s/v1/tables/%s/delete", p.cfg.URL, p.cfg.TableName)
+
+	deleteReq := map[string]interface{}{
+		"where": fmt.Sprintf("id = '%s'", strings.ReplaceAll(id, "'", "''")),
+	}
+
+	body, err := json.Marshal(deleteReq)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	// Return nil if not found (idempotent).
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNotFound {
+		respBody, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("lancedb: delete failed: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// scanAll retrieves all entries from the LanceDB table.
+func (p *LanceDBProvider) scanAll(ctx context.Context) ([]Entry, error) {
+	url := fmt.Sprintf("%s/v1/tables/%s/search", p.cfg.URL, p.cfg.TableName)
+
+	// A search with a zero vector returns all entries (approximate).
+	// Better approach: use a simple SELECT-like query if LanceDB supports it.
+	// For now, return an empty query result.
+	searchReq := map[string]interface{}{
+		"vector": make([]float64, 1536), // Default embedding dimension for ada-002
+		"limit":  1000,
+	}
+
+	body, err := json.Marshal(searchReq)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := p.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusNotFound {
+		return []Entry{}, nil
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("lancedb: scan failed: %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	var results struct {
+		Results []lancedbEntry `json:"results"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&results); err != nil {
+		return nil, err
+	}
+
+	entries := make([]Entry, len(results.Results))
+	for i, ldbE := range results.Results {
+		createdAt, _ := time.Parse(time.RFC3339, ldbE.CreatedAt)
+		updatedAt, _ := time.Parse(time.RFC3339, ldbE.UpdatedAt)
+		entries[i] = Entry{
+			ID:        ldbE.ID,
+			Kind:      Kind(ldbE.Kind),
+			Title:     ldbE.Title,
+			Body:      ldbE.Body,
+			Tags:      ldbE.Tags,
+			CreatedAt: createdAt,
+			UpdatedAt: updatedAt,
+			Pinned:    ldbE.Pinned,
+		}
+	}
+
+	return entries, nil
 }

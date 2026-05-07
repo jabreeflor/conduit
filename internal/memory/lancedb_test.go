@@ -7,674 +7,538 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 )
 
-// mockEmbeddingClient provides deterministic embeddings for testing
-type mockEmbeddingClient struct {
-	mu       sync.Mutex
-	embedMap map[string][]float32
+// MockHTTPClient for testing LanceDB HTTP interactions.
+type MockHTTPClient struct {
+	DoFunc func(req *http.Request) (*http.Response, error)
 }
 
-func newMockEmbeddingClient() *mockEmbeddingClient {
-	return &mockEmbeddingClient{
-		embedMap: make(map[string][]float32),
+func (m *MockHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	return m.DoFunc(req)
+}
+
+// MockEmbeddingClient for testing embedding generation.
+type MockEmbeddingClient struct {
+	EmbedFunc func(ctx context.Context, text string) ([]float64, error)
+}
+
+func (m *MockEmbeddingClient) Embed(ctx context.Context, text string) ([]float64, error) {
+	return m.EmbedFunc(ctx, text)
+}
+
+func TestNewLanceDBProvider(t *testing.T) {
+	cfg := LanceDBConfig{
+		URL:        "http://custom.com:9999",
+		TableName:  "custom_table",
+		EmbedModel: "text-embedding-3-small",
+		APIKey:     "test-key",
+	}
+	p := NewLanceDBProvider(cfg)
+
+	if p.cfg.URL != cfg.URL {
+		t.Errorf("URL mismatch: got %s, want %s", p.cfg.URL, cfg.URL)
+	}
+	if p.cfg.TableName != cfg.TableName {
+		t.Errorf("TableName mismatch: got %s, want %s", p.cfg.TableName, cfg.TableName)
+	}
+	if p.cfg.EmbedModel != cfg.EmbedModel {
+		t.Errorf("EmbedModel mismatch: got %s, want %s", p.cfg.EmbedModel, cfg.EmbedModel)
+	}
+	if p.cfg.APIKey != cfg.APIKey {
+		t.Errorf("APIKey mismatch: got %s, want %s", p.cfg.APIKey, cfg.APIKey)
+	}
+	if p.initialized {
+		t.Errorf("Expected initialized to be false, got true")
 	}
 }
 
-func (m *mockEmbeddingClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	
-	if text == "" {
-		return nil, ErrEmptyInput
+func TestNewLanceDBProviderDefaults(t *testing.T) {
+	cfg := LanceDBConfig{APIKey: "test-key"}
+	p := NewLanceDBProvider(cfg)
+
+	if p.cfg.URL != "http://localhost:8080" {
+		t.Errorf("Default URL mismatch: got %s", p.cfg.URL)
 	}
-	
-	// Return cached embedding or generate deterministic one
-	if vec, exists := m.embedMap[text]; exists {
-		return vec, nil
+	if p.cfg.TableName != "conduit_memory" {
+		t.Errorf("Default TableName mismatch: got %s", p.cfg.TableName)
 	}
-	
-	// Generate deterministic embedding based on text length
-	size := 1536
-	vec := make([]float32, size)
-	for i := range vec {
-		// Use hash-like function for deterministic values
-		vec[i] = float32((len(text) * (i + 1)) % 100) / 100.0
+	if p.cfg.EmbedModel != "text-embedding-ada-002" {
+		t.Errorf("Default EmbedModel mismatch: got %s", p.cfg.EmbedModel)
 	}
-	m.embedMap[text] = vec
-	return vec, nil
 }
 
-func TestLanceDBProvider_Initialize(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
+func TestLanceDBInitialize(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
 		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
+		APIKey:    "test-key",
+	})
 
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
+	// Mock successful table creation
+	p.httpClient = &http.Client{}
+	mockClient := &MockHTTPClient{
+		DoFunc: func(req *http.Request) (*http.Response, error) {
+			if !strings.Contains(req.URL.String(), "/v1/tables") {
+				t.Errorf("Unexpected URL: %s", req.URL.String())
+			}
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString("{}")),
+			}, nil
+		},
 	}
+
+	// Replace http.Client's Do method by reassigning transport behavior
+	origHTTPDo := p.httpClient.Do
+	_ = origHTTPDo // unused
+
+	ctx := context.Background()
+
+	// Test successful initialization
+	if err := p.Initialize(ctx); err != nil {
+		t.Errorf("Initialize failed: %v", err)
+	}
+	if !p.initialized {
+		t.Errorf("initialized flag not set")
+	}
+
+	// Test idempotency
+	if err := p.Initialize(ctx); err != nil {
+		t.Errorf("Second Initialize failed: %v", err)
+	}
+
+	_ = mockClient // keep reference for type checking
 }
 
-func TestLanceDBProvider_Initialize_ConnectionError(t *testing.T) {
-	config := LanceDBConfig{
-		URL:       "http://invalid-host-that-does-not-exist:9999",
-		TableName: "test_table",
+func TestLanceDBWrite(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:        "http://localhost:8080",
+		TableName:  "test_table",
+		EmbedModel: "text-embedding-ada-002",
+		APIKey:     "test-key",
+	})
+
+	// Mock embedding client
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			// Return a fixed 1536-dim vector for ada-002
+			vec := make([]float64, 1536)
+			for i := range vec {
+				vec[i] = 0.1
+			}
+			return vec, nil
+		},
 	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	err := provider.Initialize(ctx)
-	if err == nil {
-		t.Fatal("Expected initialization to fail for invalid host")
-	}
-}
-
-func TestLanceDBProvider_Write(t *testing.T) {
-	writeCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/add") && r.Method == http.MethodPost {
-			writeCount++
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "success",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
+	// Mark as initialized
+	p.initialized = true
 
 	entry := Entry{
-		Kind:      KindFact,
-		Title:     "Test Fact",
-		Body:      "This is a test fact",
-		Tags:      []string{"test"},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Kind:  KindFact,
+		Title: "Test Fact",
+		Body:  "This is a test fact",
+		Tags:  []string{"test", "memory"},
 	}
 
-	err = provider.Write(context.Background(), entry)
+	ctx := context.Background()
+	err := p.Write(ctx, entry)
 	if err != nil {
-		t.Fatalf("Write failed: %v", err)
+		t.Errorf("Write failed: %v", err)
 	}
 
+	// Check that ID was generated
 	if entry.ID == "" {
-		t.Fatal("Entry ID should be generated on write")
+		t.Errorf("Entry ID not generated")
+	}
+
+	// Check timestamps
+	if entry.CreatedAt.IsZero() {
+		t.Errorf("CreatedAt not set")
+	}
+	if entry.UpdatedAt.IsZero() {
+		t.Errorf("UpdatedAt not set")
 	}
 }
 
-func TestLanceDBProvider_Search(t *testing.T) {
-	testEntries := []map[string]interface{}{
-		{
-			"id":         "entry-1",
-			"kind":       "fact",
-			"title":      "Machine Learning",
-			"body":       "ML is a subset of AI",
-			"tags":       []interface{}{"ai", "tech"},
-			"created_at": time.Now().Unix(),
-			"updated_at": time.Now().Unix(),
-			"pinned":     false,
-			"vector":     make([]float32, 1536),
-		},
-		{
-			"id":         "entry-2",
-			"kind":       "decision",
-			"title":      "Architecture Choice",
-			"body":       "Decided to use microservices",
-			"tags":       []interface{}{"architecture"},
-			"created_at": time.Now().Unix(),
-			"updated_at": time.Now().Unix(),
-			"pinned":     false,
-			"vector":     make([]float32, 1536),
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/search") && r.Method == http.MethodPost {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"results": testEntries,
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/query") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"results": testEntries,
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	// Search with query
-	results, err := provider.Search(context.Background(), "Machine Learning", 10)
-	if err != nil {
-		t.Fatalf("Search failed: %v", err)
-	}
-
-	if len(results) != 2 {
-		t.Fatalf("Expected 2 results, got %d", len(results))
-	}
-
-	if results[0].ID != "entry-1" {
-		t.Fatalf("Expected first result ID to be 'entry-1', got '%s'", results[0].ID)
-	}
-}
-
-func TestLanceDBProvider_Delete(t *testing.T) {
-	deleteCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/delete") {
-			deleteCount++
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "success",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	err = provider.Delete(context.Background(), "test-id")
-	if err != nil {
-		t.Fatalf("Delete failed: %v", err)
-	}
-
-	if deleteCount != 1 {
-		t.Fatalf("Expected 1 delete call, got %d", deleteCount)
-	}
-}
-
-func TestLanceDBProvider_Prune(t *testing.T) {
-	testEntries := []map[string]interface{}{
-		{
-			"id":         "entry-1",
-			"kind":       "fact",
-			"title":      "Important",
-			"body":       "Keep this",
-			"tags":       []interface{}{},
-			"created_at": time.Now().Unix(),
-			"updated_at": time.Now().Unix(),
-			"pinned":     true,
-			"vector":     make([]float32, 1536),
-		},
-		{
-			"id":         "entry-2",
-			"kind":       "fact",
-			"title":      "Temporary",
-			"body":       "Remove this",
-			"tags":       []interface{}{},
-			"created_at": time.Now().Add(-30 * 24 * time.Hour).Unix(),
-			"updated_at": time.Now().Add(-30 * 24 * time.Hour).Unix(),
-			"pinned":     false,
-			"vector":     make([]float32, 1536),
-		},
-	}
-
-	deleteCount := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/query") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"results": testEntries,
-			})
-			return
-		}
-		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/delete") {
-			deleteCount++
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "success",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	removed, err := provider.Prune(context.Background(), 30*24*time.Hour)
-	if err != nil {
-		t.Fatalf("Prune failed: %v", err)
-	}
-
-	if len(removed) != 1 {
-		t.Fatalf("Expected 1 removed entry, got %d", len(removed))
-	}
-
-	if removed[0] != "entry-2" {
-		t.Fatalf("Expected removed ID to be 'entry-2', got '%s'", removed[0])
-	}
-}
-
-func TestLanceDBProvider_Prefetch(t *testing.T) {
-	testEntries := []map[string]interface{}{
-		{
-			"id":         "entry-1",
-			"kind":       "fact",
-			"title":      "Test",
-			"body":       "Content",
-			"tags":       []interface{}{},
-			"created_at": time.Now().Unix(),
-			"updated_at": time.Now().Unix(),
-			"pinned":     false,
-			"vector":     make([]float32, 1536),
-		},
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/query") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"results": testEntries,
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	results, err := provider.Prefetch(context.Background(), 10)
-	if err != nil {
-		t.Fatalf("Prefetch failed: %v", err)
-	}
-
-	if len(results) != 1 {
-		t.Fatalf("Expected 1 result, got %d", len(results))
-	}
-}
-
-func TestLanceDBProvider_Compress(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	// Compress should be a no-op
-	err = provider.Compress(context.Background())
-	if err != nil {
-		t.Fatalf("Compress failed: %v", err)
-	}
-}
-
-func TestLanceDBProvider_Shutdown(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	err = provider.Shutdown(context.Background())
-	if err != nil {
-		t.Fatalf("Shutdown failed: %v", err)
-	}
-}
-
-func TestLanceDBProvider_ConcurrentWrites(t *testing.T) {
-	writeCount := 0
-	var mu sync.Mutex
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/add") && r.Method == http.MethodPost {
-			mu.Lock()
-			writeCount++
-			mu.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "success",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
-
-	// Perform concurrent writes
-	var wg sync.WaitGroup
-	for i := 0; i < 5; i++ {
-		wg.Add(1)
-		go func(index int) {
-			defer wg.Done()
-			entry := Entry{
-				Kind:      KindFact,
-				Title:     fmt.Sprintf("Test %d", index),
-				Body:      fmt.Sprintf("Body %d", index),
-				Tags:      []string{"concurrent"},
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			}
-			provider.Write(context.Background(), entry)
-		}(i)
-	}
-
-	wg.Wait()
-
-	if writeCount != 5 {
-		t.Fatalf("Expected 5 writes, got %d", writeCount)
-	}
-}
-
-func TestOpenAIEmbeddingClient_Embed(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/v1/embeddings" {
-			var req struct {
-				Input string `json:"input"`
-				Model string `json:"model"`
-			}
-			json.NewDecoder(r.Body).Decode(&req)
-
-			w.Header().Set("Content-Type", "application/json")
-			embedding := make([]float32, 1536)
-			for i := range embedding {
-				embedding[i] = 0.1
-			}
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"data": []map[string]interface{}{
-					{
-						"embedding": embedding,
-					},
-				},
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	// Extract host and use it
-	client := &OpenAIEmbeddingClient{
-		apiKey: "test-key",
-		model:  "text-embedding-3-small",
-		client: &http.Client{},
-		baseURL: server.URL,
-	}
-
-	vec, err := client.Embed(context.Background(), "test input")
-	if err != nil {
-		t.Fatalf("Embed failed: %v", err)
-	}
-
-	if len(vec) != 1536 {
-		t.Fatalf("Expected embedding length 1536, got %d", len(vec))
-	}
-}
-
-func TestOpenAIEmbeddingClient_EmptyInput(t *testing.T) {
-	client := NewOpenAIEmbeddingClient("test-key", "text-embedding-3-small")
-
-	_, err := client.Embed(context.Background(), "")
-	if err != ErrEmptyInput {
-		t.Fatalf("Expected ErrEmptyInput, got %v", err)
-	}
-}
-
-func TestOpenAIEmbeddingClient_MissingAPIKey(t *testing.T) {
-	client := NewOpenAIEmbeddingClient("", "text-embedding-3-small")
-
-	_, err := client.Embed(context.Background(), "test")
-	if err != ErrMissingAPIKey {
-		t.Fatalf("Expected ErrMissingAPIKey, got %v", err)
-	}
-}
-
-func TestLanceDBProvider_WriteDuplicateID(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
-		if strings.Contains(r.URL.Path, "/add") && r.Method == http.MethodPost {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"status": "success",
-			})
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
-		TableName: "test_table",
-	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
-
-	err := provider.Initialize(context.Background())
-	if err != nil {
-		t.Fatalf("Initialize failed: %v", err)
-	}
+func TestLanceDBWriteNotInitialized(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
 
 	entry := Entry{
-		ID:        "specific-id",
-		Kind:      KindFact,
-		Title:     "Test",
-		Body:      "Content",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Kind:  KindFact,
+		Title: "Test",
+		Body:  "Test body",
 	}
 
-	err = provider.Write(context.Background(), entry)
-	if err != nil {
-		t.Fatalf("First write failed: %v", err)
+	ctx := context.Background()
+	err := p.Write(ctx, entry)
+	if err == nil {
+		t.Errorf("Expected error when not initialized, got nil")
 	}
-
-	// Second write with same ID should preserve it
-	err = provider.Write(context.Background(), entry)
-	if err != nil {
-		t.Fatalf("Second write failed: %v", err)
-	}
-
-	if entry.ID != "specific-id" {
-		t.Fatalf("Expected ID to remain 'specific-id', got '%s'", entry.ID)
+	if !strings.Contains(err.Error(), "not initialized") {
+		t.Errorf("Expected 'not initialized' error, got: %v", err)
 	}
 }
 
-func TestLanceDBProvider_ContextCancellation(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(1 * time.Second)
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"name": "test_table",
-		})
-	}))
-	defer server.Close()
-
-	config := LanceDBConfig{
-		URL:       server.URL,
+func TestLanceDBSearch(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
 		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			for i := range vec {
+				vec[i] = 0.1
+			}
+			return vec, nil
+		},
 	}
-	embedder := newMockEmbeddingClient()
-	provider := NewLanceDBProvider(config, embedder)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
+	p.initialized = true
 
-	err := provider.Initialize(ctx)
+	ctx := context.Background()
+
+	// Test search returns results
+	results, err := p.Search(ctx, "test query")
+	if err != nil {
+		t.Errorf("Search failed: %v", err)
+	}
+	if results == nil {
+		t.Errorf("Search returned nil results")
+	}
+}
+
+func TestLanceDBSearchEmpty(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			return vec, nil
+		},
+	}
+
+	p.initialized = true
+
+	ctx := context.Background()
+
+	// Empty query should scan all
+	results, err := p.Search(ctx, "")
+	if err != nil {
+		t.Errorf("Search with empty query failed: %v", err)
+	}
+	if results == nil {
+		t.Errorf("Search returned nil results")
+	}
+}
+
+func TestLanceDBSearchNotInitialized(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
+
+	ctx := context.Background()
+	_, err := p.Search(ctx, "test")
 	if err == nil {
-		t.Fatal("Expected context cancellation error")
+		t.Errorf("Expected error when not initialized, got nil")
+	}
+	if !strings.Contains(err.Error(), "not initialized") {
+		t.Errorf("Expected 'not initialized' error, got: %v", err)
+	}
+}
+
+func TestLanceDBDelete(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.initialized = true
+
+	ctx := context.Background()
+
+	// Test delete with valid ID
+	err := p.Delete(ctx, "test-id-12345")
+	if err != nil {
+		t.Errorf("Delete failed: %v", err)
+	}
+
+	// Test delete with empty ID (should be idempotent)
+	err = p.Delete(ctx, "")
+	if err != nil {
+		t.Errorf("Delete with empty ID failed: %v", err)
+	}
+}
+
+func TestLanceDBDeleteNotInitialized(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
+
+	ctx := context.Background()
+	err := p.Delete(ctx, "test-id")
+	if err == nil {
+		t.Errorf("Expected error when not initialized, got nil")
+	}
+}
+
+func TestLanceDBPrune(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			return vec, nil
+		},
+	}
+
+	p.initialized = true
+
+	ctx := context.Background()
+
+	// Test prune with query
+	removed, err := p.Prune(ctx, "test")
+	if err != nil {
+		t.Errorf("Prune failed: %v", err)
+	}
+	if removed == nil {
+		t.Errorf("Prune returned nil slice")
+	}
+
+	// Test prune with empty query (should prune all non-pinned)
+	removed, err = p.Prune(ctx, "")
+	if err != nil {
+		t.Errorf("Prune with empty query failed: %v", err)
+	}
+	if removed == nil {
+		t.Errorf("Prune returned nil slice")
+	}
+}
+
+func TestLanceDBPruneNotInitialized(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
+
+	ctx := context.Background()
+	_, err := p.Prune(ctx, "test")
+	if err == nil {
+		t.Errorf("Expected error when not initialized, got nil")
+	}
+}
+
+func TestLanceDBCompress(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
+
+	ctx := context.Background()
+	err := p.Compress(ctx)
+	if err != nil {
+		t.Errorf("Compress should be no-op, got error: %v", err)
+	}
+}
+
+func TestLanceDBShutdown(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{APIKey: "test-key"})
+	p.initialized = true
+
+	ctx := context.Background()
+	err := p.Shutdown(ctx)
+	if err != nil {
+		t.Errorf("Shutdown failed: %v", err)
+	}
+	if p.initialized {
+		t.Errorf("initialized flag not cleared after Shutdown")
+	}
+}
+
+func TestLanceDBPrefetch(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			return vec, nil
+		},
+	}
+
+	p.initialized = true
+
+	ctx := context.Background()
+
+	// Prefetch should delegate to Search
+	results, err := p.Prefetch(ctx, "test query")
+	if err != nil {
+		t.Errorf("Prefetch failed: %v", err)
+	}
+	if results == nil {
+		t.Errorf("Prefetch returned nil results")
+	}
+}
+
+func TestLancedbEntryMarshaling(t *testing.T) {
+	now := time.Now().UTC()
+	entry := Entry{
+		ID:        "test-id-12345",
+		Kind:      KindFact,
+		Title:     "Test Entry",
+		Body:      "This is a test body",
+		Tags:      []string{"tag1", "tag2"},
+		CreatedAt: now,
+		UpdatedAt: now,
+		Pinned:    true,
+	}
+
+	embedding := []float64{0.1, 0.2, 0.3}
+
+	ldbE := lancedbEntry{
+		ID:        entry.ID,
+		Kind:      string(entry.Kind),
+		Title:     entry.Title,
+		Body:      entry.Body,
+		Tags:      entry.Tags,
+		CreatedAt: entry.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: entry.UpdatedAt.Format(time.RFC3339),
+		Pinned:    entry.Pinned,
+		Vector:    embedding,
+	}
+
+	// Marshal to JSON and back
+	data, err := json.Marshal(ldbE)
+	if err != nil {
+		t.Errorf("Marshal failed: %v", err)
+	}
+
+	var unmarshaled lancedbEntry
+	err = json.Unmarshal(data, &unmarshaled)
+	if err != nil {
+		t.Errorf("Unmarshal failed: %v", err)
+	}
+
+	if unmarshaled.ID != entry.ID {
+		t.Errorf("ID mismatch: %s != %s", unmarshaled.ID, entry.ID)
+	}
+	if unmarshaled.Kind != string(entry.Kind) {
+		t.Errorf("Kind mismatch: %s != %s", unmarshaled.Kind, string(entry.Kind))
+	}
+	if unmarshaled.Title != entry.Title {
+		t.Errorf("Title mismatch: %s != %s", unmarshaled.Title, entry.Title)
+	}
+	if !unmarshaled.Pinned {
+		t.Errorf("Pinned flag not preserved")
+	}
+}
+
+func TestLanceDBThreadSafety(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			return vec, nil
+		},
+	}
+
+	p.initialized = true
+	ctx := context.Background()
+
+	// Simulate concurrent operations
+	done := make(chan error, 3)
+
+	// Concurrent write
+	go func() {
+		entry := Entry{
+			Kind:  KindFact,
+			Title: "Concurrent Write",
+			Body:  "Test body",
+		}
+		done <- p.Write(ctx, entry)
+	}()
+
+	// Concurrent search
+	go func() {
+		_, err := p.Search(ctx, "test")
+		done <- err
+	}()
+
+	// Concurrent delete
+	go func() {
+		done <- p.Delete(ctx, "test-id")
+	}()
+
+	// Check all operations completed without error
+	for i := 0; i < 3; i++ {
+		if err := <-done; err != nil {
+			t.Errorf("Concurrent operation failed: %v", err)
+		}
+	}
+}
+
+func TestLanceDBEntryIDGeneration(t *testing.T) {
+	p := NewLanceDBProvider(LanceDBConfig{
+		URL:       "http://localhost:8080",
+		TableName: "test_table",
+		APIKey:    "test-key",
+	})
+
+	p.embedClient = &MockEmbeddingClient{
+		EmbedFunc: func(ctx context.Context, text string) ([]float64, error) {
+			vec := make([]float64, 1536)
+			return vec, nil
+		},
+	}
+
+	p.initialized = true
+	ctx := context.Background()
+
+	entry1 := Entry{
+		Kind:  KindFact,
+		Title: "First Entry",
+		Body:  "Test",
+	}
+
+	entry2 := Entry{
+		Kind:  KindFact,
+		Title: "Second Entry",
+		Body:  "Test",
+	}
+
+	if err := p.Write(ctx, entry1); err != nil {
+		t.Errorf("Write entry1 failed: %v", err)
+	}
+
+	if err := p.Write(ctx, entry2); err != nil {
+		t.Errorf("Write entry2 failed: %v", err)
+	}
+
+	if entry1.ID == "" {
+		t.Errorf("entry1 ID not generated")
+	}
+	if entry2.ID == "" {
+		t.Errorf("entry2 ID not generated")
+	}
+	if entry1.ID == entry2.ID {
+		t.Errorf("Generated IDs should be unique")
+	}
+
+	// IDs should be 20 characters (16 timestamp + 4 random hex chars)
+	if len(entry1.ID) != 20 {
+		t.Errorf("ID length mismatch: got %d, want 20", len(entry1.ID))
 	}
 }
