@@ -402,13 +402,13 @@ func TestSanitizeFilename(t *testing.T) {
 
 func TestExtractFrontmatter(t *testing.T) {
 	tests := []struct {
-		name            string
-		input           string
-		expectedName    string
-		expectedDesc    string
-		expectedTags    []string
-		expectedBody    string
-		shouldError     bool
+		name         string
+		input        string
+		expectedName string
+		expectedDesc string
+		expectedTags []string
+		expectedBody string
+		shouldError  bool
 	}{
 		{
 			name: "valid frontmatter with all fields",

@@ -20,7 +20,7 @@ type Manifest struct {
 
 // HookDef defines a lifecycle hook provided by the plugin.
 type HookDef struct {
-	Event       string `json:"event"`        // Hook event (e.g., "before_tool", "after_tool")
+	Event       string `json:"event"`       // Hook event (e.g., "before_tool", "after_tool")
 	Description string `json:"description"` // Human-readable description
 	Handler     string `json:"handler"`     // Function or command to invoke
 }
@@ -29,9 +29,9 @@ type HookDef struct {
 type ToolDef struct {
 	Name        string                 `json:"name"`
 	Description string                 `json:"description"`
-	Handler     string                 `json:"handler"`        // Function or command to invoke
-	InputSchema map[string]interface{} `json:"input_schema"` // JSON schema for input parameters
-	Alias       string                 `json:"alias,omitempty"` // Alternative name for the tool
+	Handler     string                 `json:"handler"`           // Function or command to invoke
+	InputSchema map[string]interface{} `json:"input_schema"`      // JSON schema for input parameters
+	Alias       string                 `json:"alias,omitempty"`   // Alternative name for the tool
 	Virtual     bool                   `json:"virtual,omitempty"` // Whether this is a virtual tool (no actual handler)
 }
 
