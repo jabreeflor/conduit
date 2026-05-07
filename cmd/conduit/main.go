@@ -16,6 +16,7 @@ import (
 	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
 	"github.com/jabreeflor/conduit/internal/provider/anthropic"
+	"github.com/jabreeflor/conduit/internal/provider/codex"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/sandbox"
 	"github.com/jabreeflor/conduit/internal/sessions"
@@ -275,7 +276,8 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	maxInputTokens := fs.Int("max-input-tokens", 200_000, "model input window for context budgeting")
 	enableCache := fs.Bool("cache", false, "enable caching for prompts, KV pairs, and tool results")
 	autoSkill := fs.Bool("auto-skill", false, "auto-generate a reusable skill from successful sessions")
-	model := fs.String("model", "claude-opus-4-5", "Anthropic model id")
+	provider := fs.String("provider", "auto", "model provider: auto | anthropic | codex | echo")
+	model := fs.String("model", "", "model id (defaults per provider; e.g. claude-opus-4-5, gpt-5-codex)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -303,7 +305,7 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	}
 	budget := coding.NewBudget(*maxInputTokens)
 
-	streamer := selectCodingStreamer(*model, codingTools, stderr)
+	streamer, chosen, chosenModel := selectCodingStreamer(*provider, *model, codingTools, stderr)
 
 	repl := &coding.REPL{
 		Session:   session,
@@ -315,22 +317,71 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 		Out:       stdout,
 		AutoSkill: *autoSkill,
 	}
-	fmt.Fprintf(stdout, "conduit code: session %s (model=%s allow-write=%t allow-shell=%t cache=%t)\n",
-		session.ID, *model, perms.AllowWrite, perms.AllowShell, *enableCache)
+	fmt.Fprintf(stdout, "conduit code: session %s (provider=%s model=%s allow-write=%t allow-shell=%t cache=%t)\n",
+		session.ID, chosen, chosenModel, perms.AllowWrite, perms.AllowShell, *enableCache)
 	return repl.Run(ctx)
 }
 
-// selectCodingStreamer returns the live AgentStreamer when ANTHROPIC_API_KEY
-// is set, otherwise the echo placeholder. The fallback is loud on stderr so
-// the user knows why responses look like "echo: ...".
-func selectCodingStreamer(model string, codingTools []tools.Tool, stderr *os.File) coding.Streamer {
+// selectCodingStreamer picks a Streamer based on the provider flag:
+//
+//   - "anthropic" — requires ANTHROPIC_API_KEY
+//   - "codex"     — requires ~/.codex/auth.json from `codex login`
+//   - "echo"      — placeholder, no model calls
+//   - "auto"      — Anthropic if its key is set, else Codex if logged in, else echo
+//
+// Returns the streamer plus the human-readable provider name and model used,
+// for the startup banner.
+func selectCodingStreamer(provider, model string, codingTools []tools.Tool, stderr *os.File) (coding.Streamer, string, string) {
+	switch provider {
+	case "anthropic":
+		return newAnthropicStreamer(model, codingTools, stderr, true)
+	case "codex":
+		return newCodexStreamer(model, codingTools, stderr, true)
+	case "echo":
+		return echoStreamer{}, "echo", "(none)"
+	case "auto", "":
+		if os.Getenv("ANTHROPIC_API_KEY") != "" {
+			return newAnthropicStreamer(model, codingTools, stderr, false)
+		}
+		if _, err := codex.LoadAuth(); err == nil {
+			return newCodexStreamer(model, codingTools, stderr, false)
+		}
+		fmt.Fprintln(stderr, "conduit code: no credentials found (set ANTHROPIC_API_KEY or run `codex login`); using echo streamer")
+		return echoStreamer{}, "echo", "(none)"
+	default:
+		fmt.Fprintf(stderr, "conduit code: unknown provider %q; using echo streamer\n", provider)
+		return echoStreamer{}, "echo", "(none)"
+	}
+}
+
+func newAnthropicStreamer(model string, codingTools []tools.Tool, stderr *os.File, explicit bool) (coding.Streamer, string, string) {
+	if model == "" {
+		model = "claude-opus-4-5"
+	}
 	apiKey := os.Getenv("ANTHROPIC_API_KEY")
 	if apiKey == "" {
-		fmt.Fprintln(stderr, "conduit code: ANTHROPIC_API_KEY not set; using echo streamer (no real model calls)")
-		return echoStreamer{}
+		if explicit {
+			fmt.Fprintln(stderr, "conduit code: --provider=anthropic but ANTHROPIC_API_KEY is not set; falling back to echo")
+		}
+		return echoStreamer{}, "echo", "(none)"
 	}
 	client := anthropic.New(apiKey, model)
-	return coding.NewAgentStreamer(client, codingTools, codingSystemPrompt)
+	return coding.NewAgentStreamer(client, codingTools, codingSystemPrompt), "anthropic", model
+}
+
+func newCodexStreamer(model string, codingTools []tools.Tool, stderr *os.File, explicit bool) (coding.Streamer, string, string) {
+	if model == "" {
+		model = "gpt-5-codex"
+	}
+	auth, err := codex.LoadAuth()
+	if err != nil {
+		if explicit {
+			fmt.Fprintf(stderr, "conduit code: --provider=codex but %v; falling back to echo\n", err)
+		}
+		return echoStreamer{}, "echo", "(none)"
+	}
+	client := codex.NewClient(auth, model)
+	return coding.NewCodexAgentStreamer(client, codingTools, codingSystemPrompt), "codex", model
 }
 
 // echoStreamer is the placeholder Streamer: it echoes the user's prompt
