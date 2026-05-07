@@ -13,7 +13,10 @@ import (
 
 // mockRunner records calls and returns canned responses.
 type mockRunner struct {
-	mu      interface{ Lock(); Unlock() }
+	mu interface {
+		Lock()
+		Unlock()
+	}
 	calls   []delegation.SubagentSpec
 	outputs map[string]string
 	errs    map[string]error

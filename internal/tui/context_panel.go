@@ -199,8 +199,8 @@ func (p *ContextPanel) renderSessionTree() string {
 	return sb.String()
 }
 
-// renderMemory renders the memory browser view.
-// TODO: implement memory browser rendering
+// renderMemory renders the memory browser view: one line per MemoryEntry,
+// matching the workflow / hook log style used by the sibling renderers.
 func (p *ContextPanel) renderMemory() string {
 	var sb strings.Builder
 	sb.WriteString("── memory browser ────────────\n\n")
@@ -208,8 +208,28 @@ func (p *ContextPanel) renderMemory() string {
 		sb.WriteString(" no memory entries\n")
 		return sb.String()
 	}
-	// TODO: implement how individual MemoryEntry values are formatted and displayed
+	for _, e := range p.memory {
+		sb.WriteString(formatMemoryEntry(e))
+	}
 	return sb.String()
+}
+
+// formatMemoryEntry renders one MemoryEntry as a single line:
+//
+//	[HH:MM:SS] key = value
+//
+// Long values are truncated so the panel stays single-column. Empty keys and
+// values are surfaced with placeholders so the row remains readable.
+func formatMemoryEntry(e MemoryEntry) string {
+	key := e.Key
+	if key == "" {
+		key = "(unnamed)"
+	}
+	val := e.Value
+	if val == "" {
+		val = "(empty)"
+	}
+	return fmt.Sprintf(" [%s] %s = %s\n", e.UpdatedAt.Format("15:04:05"), key, truncate(val, 48))
 }
 
 func renderSessionNode(sb *strings.Builder, n SessionNode) {

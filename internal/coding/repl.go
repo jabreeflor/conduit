@@ -76,6 +76,11 @@ type REPL struct {
 	// full unfiltered turn so replays can re-dispatch tags. Leave nil to
 	// keep the legacy passthrough behavior. See PRD §6.14.
 	TagSink func(replytags.Event)
+
+	// AutoSkill controls whether successful sessions are summarized into a
+	// reusable skill via internal/skills autogen. Wired through the
+	// `--auto-skill` CLI flag; behavior wiring lives in a follow-up PR.
+	AutoSkill bool
 }
 
 // Run drives the read/stream/append loop until the input is exhausted or

@@ -1,11 +1,9 @@
 package memory
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -29,22 +27,22 @@ func newMockEmbeddingClient() *mockEmbeddingClient {
 func (m *mockEmbeddingClient) Embed(ctx context.Context, text string) ([]float32, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	if text == "" {
-		return nil, ErrEmptyInput
+		return nil, fmt.Errorf("empty input")
 	}
-	
+
 	// Return cached embedding or generate deterministic one
 	if vec, exists := m.embedMap[text]; exists {
 		return vec, nil
 	}
-	
+
 	// Generate deterministic embedding based on text length
 	size := 1536
 	vec := make([]float32, size)
 	for i := range vec {
 		// Use hash-like function for deterministic values
-		vec[i] = float32((len(text) * (i + 1)) % 100) / 100.0
+		vec[i] = float32((len(text)*(i+1))%100) / 100.0
 	}
 	m.embedMap[text] = vec
 	return vec, nil
@@ -142,8 +140,8 @@ func TestLanceDBProvider_Write(t *testing.T) {
 		t.Fatalf("Write failed: %v", err)
 	}
 
-	if entry.ID == "" {
-		t.Fatal("Entry ID should be generated on write")
+	if writeCount != 1 {
+		t.Fatalf("Expected 1 write call, got %d", writeCount)
 	}
 }
 
@@ -212,7 +210,7 @@ func TestLanceDBProvider_Search(t *testing.T) {
 	}
 
 	// Search with query
-	results, err := provider.Search(context.Background(), "Machine Learning", 10)
+	results, err := provider.Search(context.Background(), "Machine Learning")
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -236,7 +234,7 @@ func TestLanceDBProvider_Delete(t *testing.T) {
 			})
 			return
 		}
-		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/delete") {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/delete") {
 			deleteCount++
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -298,13 +296,6 @@ func TestLanceDBProvider_Prune(t *testing.T) {
 
 	deleteCount := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
 		if strings.Contains(r.URL.Path, "/query") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -312,11 +303,18 @@ func TestLanceDBProvider_Prune(t *testing.T) {
 			})
 			return
 		}
-		if r.Method == http.MethodDelete && strings.Contains(r.URL.Path, "/delete") {
+		if r.Method == http.MethodPost && strings.Contains(r.URL.Path, "/delete") {
 			deleteCount++
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"status": "success",
+			})
+			return
+		}
+		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"name": "test_table",
 			})
 			return
 		}
@@ -336,7 +334,7 @@ func TestLanceDBProvider_Prune(t *testing.T) {
 		t.Fatalf("Initialize failed: %v", err)
 	}
 
-	removed, err := provider.Prune(context.Background(), 30*24*time.Hour)
+	removed, err := provider.Prune(context.Background(), "")
 	if err != nil {
 		t.Fatalf("Prune failed: %v", err)
 	}
@@ -366,17 +364,17 @@ func TestLanceDBProvider_Prefetch(t *testing.T) {
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"name": "test_table",
-			})
-			return
-		}
 		if strings.Contains(r.URL.Path, "/query") && r.Method == http.MethodGet {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]interface{}{
 				"results": testEntries,
+			})
+			return
+		}
+		if strings.Contains(r.URL.Path, "/api/v1/tables/") && r.Method == http.MethodGet {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"name": "test_table",
 			})
 			return
 		}
@@ -396,7 +394,7 @@ func TestLanceDBProvider_Prefetch(t *testing.T) {
 		t.Fatalf("Initialize failed: %v", err)
 	}
 
-	results, err := provider.Prefetch(context.Background(), 10)
+	results, err := provider.Prefetch(context.Background(), "")
 	if err != nil {
 		t.Fatalf("Prefetch failed: %v", err)
 	}
@@ -562,9 +560,9 @@ func TestOpenAIEmbeddingClient_Embed(t *testing.T) {
 
 	// Extract host and use it
 	client := &OpenAIEmbeddingClient{
-		apiKey: "test-key",
-		model:  "text-embedding-3-small",
-		client: &http.Client{},
+		apiKey:  "test-key",
+		model:   "text-embedding-3-small",
+		client:  &http.Client{},
 		baseURL: server.URL,
 	}
 
@@ -582,8 +580,8 @@ func TestOpenAIEmbeddingClient_EmptyInput(t *testing.T) {
 	client := NewOpenAIEmbeddingClient("test-key", "text-embedding-3-small")
 
 	_, err := client.Embed(context.Background(), "")
-	if err != ErrEmptyInput {
-		t.Fatalf("Expected ErrEmptyInput, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "empty text") {
+		t.Fatalf("Expected empty text error, got %v", err)
 	}
 }
 
@@ -591,8 +589,8 @@ func TestOpenAIEmbeddingClient_MissingAPIKey(t *testing.T) {
 	client := NewOpenAIEmbeddingClient("", "text-embedding-3-small")
 
 	_, err := client.Embed(context.Background(), "test")
-	if err != ErrMissingAPIKey {
-		t.Fatalf("Expected ErrMissingAPIKey, got %v", err)
+	if err == nil || !strings.Contains(err.Error(), "api key not set") {
+		t.Fatalf("Expected api key not set error, got %v", err)
 	}
 }
 

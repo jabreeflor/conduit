@@ -22,7 +22,8 @@ func NewCursorRulesAdapter() CursorRulesAdapter {
 // Name implements Adapter.
 func (CursorRulesAdapter) Name() string { return "cursor" }
 
-// CanHandle accepts .cursorrules files and .mdc files (Markdown with Code).
+// CanHandle accepts .cursorrules files and .mdc/.md files inside a
+// .cursor/rules/ directory.
 func (CursorRulesAdapter) CanHandle(path string) bool {
 	base := filepath.Base(path)
 	ext := filepath.Ext(path)
@@ -34,6 +35,12 @@ func (CursorRulesAdapter) CanHandle(path string) bool {
 
 	// Accept .mdc files in .cursor/rules/ directory
 	if strings.EqualFold(ext, ".mdc") && strings.Contains(path, ".cursor") {
+		return true
+	}
+
+	// Accept .md files in .cursor/rules/ directory
+	if strings.EqualFold(ext, ".md") &&
+		strings.Contains(filepath.ToSlash(path), "/.cursor/rules/") {
 		return true
 	}
 
@@ -80,6 +87,15 @@ func (CursorRulesAdapter) Parse(path string, data []byte, tier contracts.SkillTi
 	name = strings.TrimSpace(name)
 	if name == "" || name == "." || name == "/" {
 		name = "cursor-rules"
+	}
+
+	// Namespace .md rules under a "cursor:" prefix so they don't collide
+	// with similarly named skills from other sources. Existing .cursorrules
+	// and .mdc conventions keep their historical names.
+	if strings.EqualFold(ext, ".md") &&
+		strings.Contains(filepath.ToSlash(path), "/.cursor/rules/") &&
+		!strings.HasPrefix(name, "cursor:") {
+		name = "cursor:" + name
 	}
 
 	skill := contracts.Skill{

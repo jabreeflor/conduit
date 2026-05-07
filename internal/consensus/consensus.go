@@ -3,8 +3,6 @@ package consensus
 import (
 	"context"
 	"fmt"
-	"math"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -23,7 +21,7 @@ const (
 type ModelEndpoint struct {
 	Name  string
 	URL   string
-	Tier  int    // 1=basic, 2=standard, 3=premium
+	Tier  int // 1=basic, 2=standard, 3=premium
 	Model string
 }
 
@@ -293,7 +291,7 @@ func estimateConfidence(response string) float64 {
 	}
 
 	// Definitive language rewards
-	definitive := []string{"definitely", "certainly", "clearly", "obviously", "must", "will", "cannot"}
+	definitive := []string{"definitely", "certainly", "clear", "obviously", "must", "will", "cannot"}
 	for _, word := range definitive {
 		if strings.Contains(strings.ToLower(response), word) {
 			confidence += 0.05

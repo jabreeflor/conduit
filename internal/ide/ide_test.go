@@ -177,9 +177,9 @@ func TestAIAssistSuggestAutocomplete(t *testing.T) {
 		col         int
 		shouldMatch bool
 	}{
-		{"f", 1, true},           // Should match "f" -> func, for, fmt
-		{"im", 2, true},          // Should match "im" -> import
-		{"unknown", 7, false},    // Should not match "unknown"
+		{"f", 1, true},        // Should match "f" -> func, for, fmt
+		{"im", 2, true},       // Should match "im" -> import
+		{"unknown", 7, false}, // Should not match "unknown"
 	}
 
 	for _, tt := range tests {
@@ -228,11 +228,11 @@ func TestAIAssistFixError(t *testing.T) {
 	assist := NewAIAssist(session)
 
 	tests := []struct {
-		line           string
-		shouldContain  string
+		line          string
+		shouldContain string
 	}{
 		{"panic(\"error\")", "error handling"},
-		{"if x > 5", ""},  // Should suggest no specific pattern
+		{"if x > 5", ""}, // Should suggest no specific pattern
 		{"(((", "parentheses"},
 	}
 

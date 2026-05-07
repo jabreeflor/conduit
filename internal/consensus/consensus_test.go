@@ -52,7 +52,7 @@ func TestStringSimilarity(t *testing.T) {
 		{"hello world", "hello world", 1.0},
 		{"hello world", "world hello", 1.0},
 		{"hello", "goodbye", 0.0},
-		{"hello world", "hello there", 0.5},
+		{"hello world", "hello there", 1.0 / 3.0},
 	}
 
 	for _, tt := range tests {

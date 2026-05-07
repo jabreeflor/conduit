@@ -14,10 +14,10 @@ import (
 
 // LanceDBConfig holds configuration for connecting to a LanceDB instance.
 type LanceDBConfig struct {
-	URL       string // Base URL of the LanceDB server (e.g., "http://localhost:8081")
-	TableName string // LanceDB table name (e.g., "conduit_memory")
+	URL        string // Base URL of the LanceDB server (e.g., "http://localhost:8081")
+	TableName  string // LanceDB table name (e.g., "conduit_memory")
 	EmbedModel string // Embedding model (e.g., "text-embedding-3-small")
-	APIKey    string // OpenAI API key for embeddings
+	APIKey     string // OpenAI API key for embeddings
 }
 
 // EmbeddingClient is the interface for generating embeddings.
@@ -27,9 +27,10 @@ type EmbeddingClient interface {
 
 // OpenAIEmbeddingClient implements EmbeddingClient using OpenAI's API.
 type OpenAIEmbeddingClient struct {
-	apiKey string
-	model  string
-	client *http.Client
+	apiKey  string
+	model   string
+	client  *http.Client
+	baseURL string
 }
 
 // NewOpenAIEmbeddingClient creates a new OpenAI embedding client.
@@ -59,7 +60,11 @@ func (c *OpenAIEmbeddingClient) Embed(ctx context.Context, text string) ([]float
 		return nil, fmt.Errorf("openai: marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.openai.com/v1/embeddings", bytes.NewBuffer(jsonData))
+	url := c.baseURL
+	if url == "" {
+		url = "https://api.openai.com"
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url+"/v1/embeddings", bytes.NewBuffer(jsonData))
 	if err != nil {
 		return nil, fmt.Errorf("openai: create request: %w", err)
 	}
@@ -184,15 +189,15 @@ func (p *LanceDBProvider) Write(ctx context.Context, entry Entry) error {
 
 	// Prepare record for insertion
 	record := map[string]interface{}{
-		"id":        entry.ID,
-		"kind":      string(entry.Kind),
-		"title":     entry.Title,
-		"body":      entry.Body,
-		"tags":      entry.Tags,
+		"id":         entry.ID,
+		"kind":       string(entry.Kind),
+		"title":      entry.Title,
+		"body":       entry.Body,
+		"tags":       entry.Tags,
 		"created_at": entry.CreatedAt.Unix(),
 		"updated_at": entry.UpdatedAt.Unix(),
-		"pinned":    entry.Pinned,
-		"vector":    vector,
+		"pinned":     entry.Pinned,
+		"vector":     vector,
 	}
 
 	if err := p.insertRecord(ctx, record); err != nil {
@@ -208,7 +213,7 @@ func (p *LanceDBProvider) Write(ctx context.Context, entry Entry) error {
 // insertRecord sends a record to LanceDB via HTTP POST.
 func (p *LanceDBProvider) insertRecord(ctx context.Context, record map[string]interface{}) error {
 	url := fmt.Sprintf("%s/api/v1/tables/%s/add", strings.TrimSuffix(p.config.URL, "/"), p.config.TableName)
-	
+
 	jsonData, err := json.Marshal([]map[string]interface{}{record})
 	if err != nil {
 		return fmt.Errorf("lancedb: marshal record: %w", err)

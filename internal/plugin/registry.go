@@ -35,7 +35,7 @@ func (r *Registry) Register(plugin *Plugin) error {
 	for _, tool := range plugin.Tools {
 		if tool.Alias != "" {
 			if existing, aliasExists := r.aliases[tool.Alias]; aliasExists {
-				return fmt.Errorf("alias %q for tool %q conflicts with existing alias in plugin %q", 
+				return fmt.Errorf("alias %q for tool %q conflicts with existing alias in plugin %q",
 					tool.Alias, tool.Name, existing)
 			}
 			r.aliases[tool.Alias] = plugin.Name
