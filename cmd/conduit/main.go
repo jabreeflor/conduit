@@ -15,11 +15,13 @@ import (
 	evalpkg "github.com/jabreeflor/conduit/internal/eval"
 	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
+	"github.com/jabreeflor/conduit/internal/provider/anthropic"
 	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/sandbox"
 	"github.com/jabreeflor/conduit/internal/sessions"
 	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tools"
+	"github.com/jabreeflor/conduit/internal/tools/websearch"
 	"github.com/jabreeflor/conduit/internal/tui"
 	"github.com/jabreeflor/conduit/internal/usage"
 )
@@ -262,9 +264,9 @@ func (r providerResponder) Replay(ctx context.Context, req evalpkg.ReplayRequest
 }
 
 // runCodeCLI wires the `conduit code` REPL with tier-filtered tools, a
-// budget tracker, and a fresh session journal. The provider streamer is
-// stubbed to echo input until a real client lands; that swap is the only
-// dependency between this entry point and the live coding agent.
+// budget tracker, and a fresh session journal. If ANTHROPIC_API_KEY is set
+// the REPL talks to the real provider; otherwise it falls back to an echo
+// streamer so the loop is still inspectable without credentials.
 func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.File) error {
 	fs := flag.NewFlagSet("conduit code", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -273,6 +275,7 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	maxInputTokens := fs.Int("max-input-tokens", 200_000, "model input window for context budgeting")
 	enableCache := fs.Bool("cache", false, "enable caching for prompts, KV pairs, and tool results")
 	autoSkill := fs.Bool("auto-skill", false, "auto-generate a reusable skill from successful sessions")
+	model := fs.String("model", "claude-opus-4-5", "Anthropic model id")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -281,7 +284,11 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 		AllowWrite: *allowWrite,
 		AllowShell: *allowShell,
 	}
-	codingTools := coding.RegisterCodingTools(coding.DefaultCodingTools(), perms)
+	// Use the live tool set so reads/writes/shell actually execute.
+	// tool_search needs the registered tool slice; we fill that in after
+	// permission filtering so search results match what's actually callable.
+	liveTools := coding.LiveCodingTools(websearch.Config{}, nil)
+	codingTools := coding.RegisterCodingTools(liveTools, perms)
 	// Pipeline is built so the REPL can resolve calls when real runners
 	// arrive; PolicyConfig{} defers policy work to PR #62.
 	_ = tools.NewPipeline(codingTools, tools.PolicyConfig{})
@@ -296,18 +303,34 @@ func runCodeCLI(ctx context.Context, args []string, stdin, stdout, stderr *os.Fi
 	}
 	budget := coding.NewBudget(*maxInputTokens)
 
+	streamer := selectCodingStreamer(*model, codingTools, stderr)
+
 	repl := &coding.REPL{
 		Session:   session,
 		Budget:    budget,
 		Tools:     codingTools,
-		Streamer:  echoStreamer{},
+		Streamer:  streamer,
 		Continuer: coding.DefaultContinuer{},
 		In:        stdin,
 		Out:       stdout,
 		AutoSkill: *autoSkill,
 	}
-	fmt.Fprintf(stdout, "conduit code: session %s (allow-write=%t allow-shell=%t cache=%t)\n", session.ID, perms.AllowWrite, perms.AllowShell, *enableCache)
+	fmt.Fprintf(stdout, "conduit code: session %s (model=%s allow-write=%t allow-shell=%t cache=%t)\n",
+		session.ID, *model, perms.AllowWrite, perms.AllowShell, *enableCache)
 	return repl.Run(ctx)
+}
+
+// selectCodingStreamer returns the live AgentStreamer when ANTHROPIC_API_KEY
+// is set, otherwise the echo placeholder. The fallback is loud on stderr so
+// the user knows why responses look like "echo: ...".
+func selectCodingStreamer(model string, codingTools []tools.Tool, stderr *os.File) coding.Streamer {
+	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	if apiKey == "" {
+		fmt.Fprintln(stderr, "conduit code: ANTHROPIC_API_KEY not set; using echo streamer (no real model calls)")
+		return echoStreamer{}
+	}
+	client := anthropic.New(apiKey, model)
+	return coding.NewAgentStreamer(client, codingTools, codingSystemPrompt)
 }
 
 // echoStreamer is the placeholder Streamer: it echoes the user's prompt
