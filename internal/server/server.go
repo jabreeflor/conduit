@@ -83,6 +83,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/api/agent", s.handleAgent)
 	mux.HandleFunc("/api/info", s.handleInfo)
 	mux.HandleFunc("/api/sessions", s.handleSessions)
+	mux.HandleFunc("/api/projects", s.handleProjects)
 	mux.HandleFunc("/api/memory", s.handleMemory)
 	return withCORS(mux)
 }
