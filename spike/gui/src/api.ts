@@ -40,6 +40,32 @@ export type Memory = {
   user: string;
 };
 
+// Projects + chats — wire shape that the backend agent is building to.
+// Server source of truth: internal/gui/api/projects.go.
+
+export type ChatSummary = {
+  id: string;
+  title: string;
+  createdAt: string; // ISO
+  turnCount: number;
+};
+
+export type Project = {
+  id: string;
+  name: string;
+  path: string; // home-relative ~/...
+  absolutePath: string;
+  branch: string; // may be ""
+  sessionCount: number;
+  lastActivity: string; // ISO
+  chats: ChatSummary[];
+};
+
+export type ProjectsResponse = {
+  projects: Project[];
+  orphans: ChatSummary[];
+};
+
 // ── REST helpers ─────────────────────────────────────────────────────────
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -52,6 +78,12 @@ export const getInfo = (): Promise<Info> => getJSON<Info>("/api/info");
 export const getSessions = (): Promise<SessionMeta[]> =>
   getJSON<SessionMeta[]>("/api/sessions");
 export const getMemory = (): Promise<Memory> => getJSON<Memory>("/api/memory");
+export const getProjects = (): Promise<ProjectsResponse> =>
+  getJSON<ProjectsResponse>("/api/projects");
+
+export function baseUrl(): string {
+  return BASE;
+}
 
 // ── WebSocket helper with reconnection ───────────────────────────────────
 

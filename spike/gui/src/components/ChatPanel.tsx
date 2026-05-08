@@ -63,7 +63,11 @@ function providerTone(provider: string | undefined): ProviderTone {
   }
 }
 
-export function ChatPanel() {
+export function ChatPanel({
+  initialPrompt = null,
+}: {
+  initialPrompt?: string | null;
+}) {
   const [info, setInfo] = useState<Info | null>(null);
   const [state, setState] = useState<ConnectionState>("connecting");
   const [turns, setTurns] = useState<Turn[]>([]);
@@ -71,6 +75,9 @@ export function ChatPanel() {
   const clientRef = useRef<ReturnType<typeof connectAgent> | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const turnIdRef = useRef(0);
+  // Track whether the welcome composer's prompt was already auto-sent so
+  // reconnects after a network blip don't replay it.
+  const initialSentRef = useRef(false);
 
   useEffect(() => {
     getInfo().then(setInfo).catch(() => {
@@ -87,6 +94,21 @@ export function ChatPanel() {
     clientRef.current = client;
     return () => client.close();
   }, []);
+
+  // Auto-send the welcome-screen prompt once the WS is connected. Renders
+  // the user turn locally so the chat surface mirrors a real send.
+  useEffect(() => {
+    if (state !== "connected" || initialSentRef.current) return;
+    const text = initialPrompt?.trim();
+    if (!text) return;
+    initialSentRef.current = true;
+    const id = ++turnIdRef.current;
+    setTurns((prev) => [
+      ...prev,
+      { id, blocks: [{ kind: "user", text }], done: false },
+    ]);
+    clientRef.current?.send({ type: "prompt", text });
+  }, [state, initialPrompt]);
 
   // Pin the stream to the bottom whenever it grows.
   useEffect(() => {
