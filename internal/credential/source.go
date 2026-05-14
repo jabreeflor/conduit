@@ -12,7 +12,10 @@ import (
 //
 // It first scans CONDUIT_{PROVIDER}_API_KEY_1, _2, … until one is absent,
 // then falls back to the bare CONDUIT_{PROVIDER}_API_KEY for a single key.
-// provider is case-insensitive ("anthropic", "ANTHROPIC", etc.).
+// As a final fallback for known provider aliases — anthropic accepts a
+// Claude Code subscription token — the canonical provider env vars
+// (ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, OPENAI_API_KEY) are also
+// consulted. provider is case-insensitive ("anthropic", "ANTHROPIC", etc.).
 func LoadFromEnv(provider string, backoff time.Duration) *Pool {
 	upper := strings.ToUpper(provider)
 
@@ -31,7 +34,30 @@ func LoadFromEnv(provider string, backoff time.Duration) *Pool {
 		}
 	}
 
+	if len(keys) == 0 {
+		for _, name := range providerEnvAliases(upper) {
+			if k := os.Getenv(name); k != "" {
+				keys = append(keys, k)
+				break
+			}
+		}
+	}
+
 	return New(keys, backoff)
+}
+
+// providerEnvAliases returns the canonical, non-CONDUIT-prefixed env vars
+// recognised for a provider. Anthropic is treated agnostically: a Claude
+// Code subscription token is a valid Anthropic credential.
+func providerEnvAliases(upperProvider string) []string {
+	switch upperProvider {
+	case "ANTHROPIC", "CLAUDE", "CLAUDE_CODE", "CLAUDE-CODE":
+		return []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_API_KEY"}
+	case "OPENAI":
+		return []string{"OPENAI_API_KEY"}
+	default:
+		return nil
+	}
 }
 
 // LoadFromKeychain loads API keys for provider from the macOS Keychain.

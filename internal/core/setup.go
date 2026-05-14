@@ -91,11 +91,13 @@ func (s *firstRunSetup) SetupLocalAI() (contracts.FirstRunSetupSnapshot, error) 
 }
 
 // DefaultExternalAPIOptions keeps the non-local path visible next to local
-// setup, as required by PRD 7.4.
+// setup, as required by PRD 7.4. The list is provider-agnostic so a Claude
+// Code subscription token can stand in for a bare Anthropic API key.
 func DefaultExternalAPIOptions() []contracts.ExternalAPIOption {
 	return []contracts.ExternalAPIOption{
 		{Provider: "openai", Label: "Connect OpenAI", EnvVar: "OPENAI_API_KEY"},
 		{Provider: "anthropic", Label: "Connect Anthropic", EnvVar: "ANTHROPIC_API_KEY"},
+		{Provider: "claude-code", Label: "Connect Claude Code", EnvVar: "CLAUDE_CODE_OAUTH_TOKEN"},
 	}
 }
 

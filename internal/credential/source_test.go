@@ -37,6 +37,35 @@ func TestLoadFromEnv_NoKeys(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnv_AnthropicAcceptsClaudeCodeToken(t *testing.T) {
+	// Unset ANTHROPIC_API_KEY so the Claude Code alias is the only credential.
+	t.Setenv("ANTHROPIC_API_KEY", "")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "subscription-token")
+
+	p := credential.LoadFromEnv("anthropic", 0)
+	if p.Len() != 1 {
+		t.Fatalf("Len() = %d, want 1 from CLAUDE_CODE_OAUTH_TOKEN", p.Len())
+	}
+	k, ok := p.Next()
+	if !ok || k != "subscription-token" {
+		t.Errorf("Next() = (%q, %v), want (\"subscription-token\", true)", k, ok)
+	}
+}
+
+func TestLoadFromEnv_AnthropicPrefersExplicitConduitKey(t *testing.T) {
+	t.Setenv("CONDUIT_ANTHROPIC_API_KEY", "explicit")
+	t.Setenv("CLAUDE_CODE_OAUTH_TOKEN", "fallback")
+
+	p := credential.LoadFromEnv("anthropic", 0)
+	if p.Len() != 1 {
+		t.Fatalf("Len() = %d, want 1", p.Len())
+	}
+	k, _ := p.Next()
+	if k != "explicit" {
+		t.Errorf("Next() = %q, want explicit CONDUIT_ key to win over Claude Code fallback", k)
+	}
+}
+
 func TestLoadFromEnv_CaseInsensitive(t *testing.T) {
 	t.Setenv("CONDUIT_MYPROVIDER_API_KEY", "lower")
 

@@ -390,13 +390,13 @@ func selectCodingStreamer(provider, model string, codingTools []tools.Tool, stde
 	case "echo":
 		return echoStreamer{}, "echo", "(none)"
 	case "auto", "":
-		if os.Getenv("ANTHROPIC_API_KEY") != "" {
+		if anthropicAPIKeyFromEnv() != "" {
 			return newAnthropicStreamer(model, codingTools, stderr, false)
 		}
 		if _, err := codex.LoadAuth(); err == nil {
 			return newCodexStreamer(model, codingTools, stderr, false)
 		}
-		fmt.Fprintln(stderr, "conduit code: no credentials found (set ANTHROPIC_API_KEY or run `codex login`); using echo streamer")
+		fmt.Fprintln(stderr, "conduit code: no credentials found (set ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN, or run `codex login`); using echo streamer")
 		return echoStreamer{}, "echo", "(none)"
 	default:
 		fmt.Fprintf(stderr, "conduit code: unknown provider %q; using echo streamer\n", provider)
@@ -408,15 +408,27 @@ func newAnthropicStreamer(model string, codingTools []tools.Tool, stderr *os.Fil
 	if model == "" {
 		model = "claude-opus-4-5"
 	}
-	apiKey := os.Getenv("ANTHROPIC_API_KEY")
+	apiKey := anthropicAPIKeyFromEnv()
 	if apiKey == "" {
 		if explicit {
-			fmt.Fprintln(stderr, "conduit code: --provider=anthropic but ANTHROPIC_API_KEY is not set; falling back to echo")
+			fmt.Fprintln(stderr, "conduit code: --provider=anthropic but no Anthropic key found (set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN); falling back to echo")
 		}
 		return echoStreamer{}, "echo", "(none)"
 	}
 	client := anthropic.New(apiKey, model)
 	return coding.NewAgentStreamer(client, codingTools, codingSystemPrompt), "anthropic", model
+}
+
+// anthropicAPIKeyFromEnv resolves an Anthropic-compatible credential from the
+// environment, accepting a Claude Code subscription token in place of a bare
+// API key. The first non-empty value wins.
+func anthropicAPIKeyFromEnv() string {
+	for _, name := range []string{"ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN", "CLAUDE_CODE_API_KEY"} {
+		if v := os.Getenv(name); v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 func newCodexStreamer(model string, codingTools []tools.Tool, stderr *os.File, explicit bool) (coding.Streamer, string, string) {
@@ -466,7 +478,7 @@ func providerResponderFromEnv(model string) (evalpkg.Responder, bool) {
 			Model:   model,
 		})}, true
 	case strings.HasPrefix(model, "claude-"):
-		key := os.Getenv("ANTHROPIC_API_KEY")
+		key := anthropicAPIKeyFromEnv()
 		if key == "" {
 			return nil, false
 		}

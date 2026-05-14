@@ -79,8 +79,18 @@ func TestFirstRunSetupWelcomeIncludesProfileLocalSetupAndExternalAPI(t *testing.
 	if snapshot.Recommendation.Name == "" || !localSetupRecommended(snapshot) {
 		t.Fatalf("missing local recommendation: %+v", snapshot.Recommendation)
 	}
-	if len(snapshot.ExternalAPI) < 2 {
-		t.Fatalf("ExternalAPI = %+v, want OpenAI and Anthropic options", snapshot.ExternalAPI)
+	if len(snapshot.ExternalAPI) < 3 {
+		t.Fatalf("ExternalAPI = %+v, want OpenAI, Anthropic, and Claude Code options", snapshot.ExternalAPI)
+	}
+	var sawClaudeCode bool
+	for _, opt := range snapshot.ExternalAPI {
+		if opt.Provider == "claude-code" {
+			sawClaudeCode = true
+			break
+		}
+	}
+	if !sawClaudeCode {
+		t.Fatalf("ExternalAPI = %+v, missing Claude Code option", snapshot.ExternalAPI)
 	}
 	if snapshot.Steps[0].Status != contracts.FirstRunSetupStepDone {
 		t.Fatalf("first step = %+v, want profiled machine done", snapshot.Steps[0])
