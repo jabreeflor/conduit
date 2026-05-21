@@ -68,15 +68,44 @@ reference:
       "500": "#2A9D49"
       "700": "#155F2C"
       "900": "#062714"
+    # Warm neutral ramp — the "Minimalist & Airy" canvas/ink scale.
+    # Cream (50) → warm charcoal (950). Drives all surfaces, borders, and text.
+    sand:
+      "50":  "#FBF9F4"
+      "100": "#F5F3EE"
+      "150": "#F0EEE9"
+      "200": "#EAE8E3"
+      "300": "#E4E2DD"
+      "400": "#CDC5BC"
+      "500": "#A39C92"
+      "600": "#7C766E"
+      "700": "#4B463F"
+      "800": "#30312E"
+      "900": "#1B1C19"
+      "950": "#121310"
+    # Brass / gold accent — the warm secondary used for the active rail,
+    # focus, links, and "sandbox" affordances.
+    gold:
+      "50":  "#FCF6E6"
+      "100": "#F9DFB1"
+      "200": "#F6DDAE"
+      "300": "#DCC497"
+      "400": "#B69A6A"
+      "500": "#8C7851"
+      "600": "#6E5C37"
+      "650": "#73603B"
+      "700": "#554422"
+      "800": "#3A2E14"
+      "900": "#261A00"
     pure:
       white: "#FFFFFF"
       black: "#000000"
 
   type:
     family:
-      sans: "ui-sans-serif, -apple-system, 'SF Pro Text', 'Inter', system-ui, sans-serif"
-      mono: "ui-monospace, 'SF Mono', 'JetBrains Mono', 'Menlo', monospace"
-      display: "ui-sans-serif, -apple-system, 'SF Pro Display', 'Inter', system-ui, sans-serif"
+      sans: "'Hanken Grotesk', ui-sans-serif, -apple-system, 'Inter', system-ui, sans-serif"
+      mono: "'JetBrains Mono', ui-monospace, 'SF Mono', 'Menlo', monospace"
+      display: "'Manrope', ui-sans-serif, -apple-system, 'Inter', system-ui, sans-serif"
     size:
       caption:    "11px"
       small:      "12px"
@@ -86,6 +115,7 @@ reference:
       heading-2:  "22px"
       heading-1:  "28px"
       display:    "36px"
+      display-large: "48px"
     weight:
       regular:  "400"
       medium:   "500"
@@ -143,26 +173,34 @@ semantic:
   dark:
     color:
       surface:
-        canvas:    "{color.indigo.900}"   # app background
-        primary:   "{color.indigo.800}"   # cards, panels
-        elevated:  "{color.indigo.700}"   # popovers, modals
-        sunken:    "{color.pure.black}"   # input fields, code blocks
+        canvas:           "{color.sand.950}"   # app background
+        primary:          "{color.sand.900}"   # cards, panels
+        elevated:         "{color.sand.800}"   # popovers, modals
+        sunken:           "{color.sand.950}"   # input fields, code blocks
+        container:        "{color.sand.800}"   # filled chips / rails
+        container-high:   "{color.sand.700}"   # raised chips
+        container-lowest: "{color.sand.950}"   # deepest wells
       border:
-        subtle:    "{color.indigo.700}"
-        default:   "{color.indigo.600}"
-        strong:    "{color.indigo.500}"
-        focus:     "{color.saffron.300}"
+        subtle:    "{color.sand.800}"
+        default:   "{color.sand.700}"
+        strong:    "{color.sand.600}"
+        focus:     "{color.gold.300}"
       text:
-        body:      "{color.indigo.100}"
-        muted:     "{color.indigo.300}"
-        subtle:    "{color.indigo.400}"
-        inverted:  "{color.indigo.900}"
-        link:      "{color.cyan.300}"
+        body:      "{color.sand.50}"
+        muted:     "{color.sand.400}"
+        subtle:    "{color.sand.500}"
+        inverted:  "{color.sand.900}"
+        link:      "{color.gold.300}"
       brand:
-        primary:        "{color.saffron.300}"
-        primary-hover:  "{color.saffron.200}"
-        primary-active: "{color.saffron.400}"
-        on-primary:     "{color.indigo.900}"
+        primary:        "{color.sand.50}"
+        primary-hover:  "{color.sand.100}"
+        primary-active: "{color.sand.200}"
+        on-primary:     "{color.sand.900}"
+      secondary:
+        base:         "{color.gold.300}"
+        on:           "{color.sand.900}"
+        container:    "{color.gold.700}"
+        on-container: "{color.gold.100}"
       accent:
         cool:      "{color.cyan.300}"
         warm-alt:  "{color.violet.300}"
@@ -172,8 +210,8 @@ semantic:
         error:     "{color.red.300}"
         info:      "{color.cyan.300}"
       agent:
-        idle:      "{color.indigo.400}"
-        active:    "{color.saffron.300}"
+        idle:      "{color.sand.500}"
+        active:    "{color.gold.300}"
         thinking:  "{color.cyan.300}"
         error:     "{color.red.300}"
       model-badge:
@@ -201,37 +239,45 @@ semantic:
   light:
     color:
       surface:
-        canvas:    "{color.indigo.50}"
-        primary:   "{color.pure.white}"
-        elevated:  "{color.pure.white}"
-        sunken:    "{color.indigo.100}"
+        canvas:           "{color.sand.50}"     # cream app background
+        primary:          "{color.pure.white}"  # cards, panels, composer
+        elevated:         "{color.pure.white}"  # popovers, modals
+        sunken:           "{color.sand.100}"     # input fields, code blocks
+        container:        "{color.sand.150}"     # filled chips / soft fills
+        container-high:   "{color.sand.200}"     # raised chips / avatars
+        container-lowest: "{color.pure.white}"   # pure-white wells
       border:
-        subtle:    "{color.indigo.100}"
-        default:   "{color.indigo.200}"
-        strong:    "{color.indigo.300}"
-        focus:     "{color.saffron.500}"
+        subtle:    "{color.sand.400}"
+        default:   "{color.sand.400}"
+        strong:    "{color.sand.600}"
+        focus:     "{color.gold.600}"
       text:
-        body:      "{color.indigo.900}"
-        muted:     "{color.indigo.500}"
-        subtle:    "{color.indigo.400}"
-        inverted:  "{color.indigo.50}"
-        link:      "{color.cyan.600}"
+        body:      "{color.sand.900}"
+        muted:     "{color.sand.700}"
+        subtle:    "{color.sand.600}"
+        inverted:  "{color.sand.50}"
+        link:      "{color.gold.600}"
       brand:
-        primary:        "{color.saffron.500}"
-        primary-hover:  "{color.saffron.600}"
-        primary-active: "{color.saffron.700}"
+        primary:        "{color.sand.900}"
+        primary-hover:  "{color.sand.800}"
+        primary-active: "{color.sand.950}"
         on-primary:     "{color.pure.white}"
+      secondary:
+        base:         "{color.gold.600}"
+        on:           "{color.pure.white}"
+        container:    "{color.gold.200}"
+        on-container: "{color.gold.650}"
       accent:
-        cool:      "{color.cyan.600}"
+        cool:      "{color.gold.500}"
         warm-alt:  "{color.violet.500}"
       status:
         success:   "{color.green.500}"
-        warning:   "{color.saffron.500}"
+        warning:   "{color.gold.600}"
         error:     "{color.red.500}"
         info:      "{color.cyan.600}"
       agent:
-        idle:      "{color.indigo.400}"
-        active:    "{color.saffron.500}"
+        idle:      "{color.sand.500}"
+        active:    "{color.gold.600}"
         thinking:  "{color.cyan.600}"
         error:     "{color.red.500}"
       model-badge:
@@ -244,9 +290,9 @@ semantic:
           fg:     "{color.cyan.700}"
           border: "{color.cyan.300}"
         local:
-          bg:     "{color.indigo.100}"
-          fg:     "{color.indigo.700}"
-          border: "{color.indigo.300}"
+          bg:     "{color.sand.200}"
+          fg:     "{color.sand.700}"
+          border: "{color.sand.400}"
         openrouter:
           bg:     "{color.violet.100}"
           fg:     "{color.violet.700}"
@@ -261,10 +307,13 @@ semantic:
   hc:
     color:
       surface:
-        canvas:    "{color.pure.black}"
-        primary:   "{color.pure.black}"
-        elevated:  "{color.indigo.900}"
-        sunken:    "{color.pure.black}"
+        canvas:           "{color.pure.black}"
+        primary:          "{color.pure.black}"
+        elevated:         "{color.indigo.900}"
+        sunken:           "{color.pure.black}"
+        container:        "{color.indigo.900}"
+        container-high:   "{color.indigo.800}"
+        container-lowest: "{color.pure.black}"
       border:
         subtle:    "{color.indigo.300}"
         default:   "{color.indigo.100}"
@@ -281,6 +330,11 @@ semantic:
         primary-hover:  "{color.saffron.100}"
         primary-active: "{color.saffron.300}"
         on-primary:     "{color.pure.black}"
+      secondary:
+        base:         "{color.gold.300}"
+        on:           "{color.pure.black}"
+        container:    "{color.pure.black}"
+        on-container: "{color.gold.300}"
       accent:
         cool:      "{color.cyan.200}"
         warm-alt:  "{color.violet.200}"

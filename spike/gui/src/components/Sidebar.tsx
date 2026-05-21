@@ -1,34 +1,61 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Clock,
-  Filter,
-  Folder,
-  MessageSquarePlus,
-  Plus,
-  Search,
-  Workflow,
-  Wrench,
-} from "lucide-react";
-import { BrandRow } from "./BrandRow";
-import { getProjects, type ChatSummary, type Project } from "../api";
+import { BrandHeader } from "./BrandRow";
+import { Icon } from "./Icon";
+import { THEME_META, type Theme } from "../useTheme";
+import { getInfo, getProjects, type ChatSummary, type Project } from "../api";
 
-// Sidebar is the permanent left rail — chrome + brand + nav + projects + chats.
-// It owns the projects fetch (one shot on mount) and lifts chat selection up
-// to App via onSelectChat / onNewChat.
+// View ids the sidebar can navigate to (mirrors App's View union).
+export type NavView =
+  | "welcome"
+  | "chat"
+  | "projects"
+  | "newProject"
+  | "workspace"
+  | "soul"
+  | "settings"
+  | "plugins"
+  | "automations";
+
+const NAV_ITEMS: { view: NavView; icon: string; label: string }[] = [
+  { view: "welcome", icon: "add_box", label: "New chat" },
+  { view: "projects", icon: "folder_open", label: "Projects" },
+  { view: "plugins", icon: "extension", label: "Plugins" },
+  { view: "automations", icon: "auto_mode", label: "Automations" },
+  { view: "soul", icon: "psychology", label: "Soul" },
+  { view: "settings", icon: "settings", label: "Settings" },
+];
+
+// Which top-level nav row is highlighted for a given active view (project
+// sub-views all light up "Projects").
+function navActive(item: NavView, view: NavView): boolean {
+  if (item === "projects") {
+    return view === "projects" || view === "newProject" || view === "workspace";
+  }
+  if (item === "welcome") return view === "welcome" || view === "chat";
+  return item === view;
+}
+
 export function Sidebar({
   activeChatId,
+  activeView,
+  onNavigate,
   onSelectChat,
-  onNewChat,
+  theme,
+  onCycleTheme,
   version,
 }: {
   activeChatId: string | null;
+  activeView: NavView;
+  onNavigate: (view: NavView) => void;
   onSelectChat: (id: string) => void;
-  onNewChat: () => void;
+  theme: Theme;
+  onCycleTheme: () => void;
   version: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [orphans, setOrphans] = useState<ChatSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [identity, setIdentity] = useState<string>("local session");
 
   useEffect(() => {
     getProjects()
@@ -39,33 +66,32 @@ export function Sidebar({
       .catch((e: unknown) =>
         setError(e instanceof Error ? e.message : String(e)),
       );
+    getInfo()
+      .then((info) => setIdentity(`${info.provider} · ${info.model}`))
+      .catch(() => {
+        /* offline — keep the placeholder */
+      });
   }, []);
 
   return (
     <aside className="conduit-sidebar" aria-label="Navigation">
-      <BrandRow version={version} />
+      <BrandHeader version={version} />
 
       <nav className="sb-nav">
-        <button
-          type="button"
-          className={`sb-nav-row ${activeChatId === null || activeChatId === "new" ? "active" : ""}`}
-          onClick={onNewChat}
-        >
-          <MessageSquarePlus size={16} aria-hidden />
-          <span className="sb-nav-label">New chat</span>
-        </button>
-        <button type="button" className="sb-nav-row">
-          <Search size={16} aria-hidden />
-          <span className="sb-nav-label">Search</span>
-        </button>
-        <button type="button" className="sb-nav-row">
-          <Wrench size={16} aria-hidden />
-          <span className="sb-nav-label">Plugins</span>
-        </button>
-        <button type="button" className="sb-nav-row">
-          <Workflow size={16} aria-hidden />
-          <span className="sb-nav-label">Automations</span>
-        </button>
+        {NAV_ITEMS.map((item) => {
+          const active = navActive(item.view, activeView);
+          return (
+            <button
+              key={item.view}
+              type="button"
+              className={`sb-nav-row ${active ? "active" : ""}`}
+              onClick={() => onNavigate(item.view)}
+            >
+              <Icon name={item.icon} size={20} fill={active} />
+              <span className="sb-nav-label">{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       <div className="sb-scroll">
@@ -73,13 +99,40 @@ export function Sidebar({
           projects={projects}
           activeChatId={activeChatId}
           onSelectChat={onSelectChat}
+          onAdd={() => onNavigate("newProject")}
           error={error}
         />
         <OrphanChatsSection
           orphans={orphans}
           activeChatId={activeChatId}
           onSelectChat={onSelectChat}
+          onAdd={() => onNavigate("welcome")}
         />
+      </div>
+
+      <div className="sb-profile">
+        <div className="sb-avatar">YOU</div>
+        <div className="sb-profile-meta">
+          <div className="sb-profile-name">You</div>
+          <div className="sb-profile-plan">{identity}</div>
+        </div>
+        <button
+          type="button"
+          className="sb-profile-settings"
+          onClick={onCycleTheme}
+          aria-label={`Theme: ${THEME_META[theme].label}. Click to switch.`}
+          title={`Theme: ${THEME_META[theme].label}`}
+        >
+          <Icon name={THEME_META[theme].icon} size={20} />
+        </button>
+        <button
+          type="button"
+          className="sb-profile-settings"
+          onClick={() => onNavigate("settings")}
+          aria-label="Settings"
+        >
+          <Icon name="settings" size={20} />
+        </button>
       </div>
     </aside>
   );
@@ -89,11 +142,13 @@ function ProjectsSection({
   projects,
   activeChatId,
   onSelectChat,
+  onAdd,
   error,
 }: {
   projects: Project[];
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
+  onAdd: () => void;
   error: string | null;
 }) {
   return (
@@ -101,13 +156,21 @@ function ProjectsSection({
       <div className="sb-section-header">
         <span className="sb-section-label">Projects</span>
         <span className="sb-section-actions">
-          <span className="sb-icon-btn" aria-hidden>
-            <Plus size={13} />
-          </span>
+          <button
+            type="button"
+            className="sb-icon-btn"
+            onClick={onAdd}
+            aria-label="New project"
+            title="New project"
+          >
+            <Icon name="add" size={16} />
+          </button>
         </span>
       </div>
 
-      {error && <div className="sb-section-empty">Failed: {error}</div>}
+      {error && (
+        <div className="sb-section-empty">Start `conduit serve` to load</div>
+      )}
       {!error && projects.length === 0 && (
         <div className="sb-section-empty">No projects yet</div>
       )}
@@ -132,7 +195,6 @@ function ProjectRow({
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
 }) {
-  // Project rows expand to show their chats by default — collapse is local-only.
   const [open, setOpen] = useState(true);
   return (
     <>
@@ -142,7 +204,7 @@ function ProjectRow({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
       >
-        <Folder size={14} aria-hidden />
+        <Icon name="folder" size={18} />
         <span className="sb-project-name">{project.name}</span>
       </button>
       {open && project.chats.length > 0 && (
@@ -166,22 +228,27 @@ function OrphanChatsSection({
   orphans,
   activeChatId,
   onSelectChat,
+  onAdd,
 }: {
   orphans: ChatSummary[];
   activeChatId: string | null;
   onSelectChat: (id: string) => void;
+  onAdd: () => void;
 }) {
   return (
     <div className="sb-section">
       <div className="sb-section-header">
         <span className="sb-section-label">Chats</span>
         <span className="sb-section-actions">
-          <span className="sb-icon-btn" aria-hidden>
-            <Filter size={13} />
-          </span>
-          <span className="sb-icon-btn" aria-hidden>
-            <Plus size={13} />
-          </span>
+          <button
+            type="button"
+            className="sb-icon-btn"
+            onClick={onAdd}
+            aria-label="New chat"
+            title="New chat"
+          >
+            <Icon name="add" size={16} />
+          </button>
         </span>
       </div>
       {orphans.length === 0 && (
@@ -224,14 +291,13 @@ function ChatRow({
     >
       <span className="sb-chat-name">{chat.title}</span>
       <span className="sb-chat-ts">
-        <Clock size={10} aria-hidden /> {ts}
+        <Icon name="schedule" size={11} /> {ts}
       </span>
     </button>
   );
 }
 
-// relativeTime collapses an ISO timestamp into the compact h/d/w/mo form the
-// design uses — same vocabulary as iMessage / Slack.
+// relativeTime collapses an ISO timestamp into the compact h/d/w/mo form.
 function relativeTime(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "";

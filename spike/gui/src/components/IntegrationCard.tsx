@@ -7,14 +7,16 @@ export function IntegrationCard({
   icon,
   title,
   body,
+  tile = false,
 }: {
   icon: ReactNode;
   title: string;
   body: string;
+  tile?: boolean;
 }) {
   return (
     <div className="integration-card">
-      <div className="integration-brand">{icon}</div>
+      <div className={`integration-brand${tile ? " tile" : ""}`}>{icon}</div>
       <div className="integration-title">{title}</div>
       <div className="integration-body">{body}</div>
     </div>
@@ -44,26 +46,6 @@ export function LinearMark() {
       <path
         fill="url(#conduit-linear-grad)"
         d="M2 56c1.6 17.7 15.3 31.4 33 33L2 56zm0-9.6L45.6 90c4 .4 7.6.4 11.7 0L2 34.7v11.7zm0-19.7L65.3 88c2.8-.7 5.4-1.7 8-2.9L4.9 17.5c-1.2 2.6-2.2 5.2-2.9 8zM10.6 9C19.7 1.3 31-2 50 2c26.4 5.6 42.4 21.6 48 48 4 19-.7 30.3-8.4 39.4L10.6 9z"
-      />
-    </svg>
-  );
-}
-
-export function McpMark() {
-  return (
-    <svg width="32" height="32" viewBox="0 0 32 32" fill="none" aria-hidden>
-      <path
-        d="M16 2 L28 9 V23 L16 30 L4 23 V9 Z"
-        stroke="#F59E1F"
-        strokeWidth="1.8"
-        fill="rgba(245,158,31,0.06)"
-      />
-      <circle cx="16" cy="16" r="4" fill="#36B3CF" />
-      <path
-        d="M16 12 V6 M16 26 V20 M22 16 H28 M4 16 H10"
-        stroke="#36B3CF"
-        strokeWidth="1.6"
-        strokeLinecap="round"
       />
     </svg>
   );

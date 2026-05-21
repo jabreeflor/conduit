@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -46,6 +47,50 @@ func TestHandleMemory(t *testing.T) {
 	}
 	if got.User != "" {
 		t.Errorf("user: want empty for missing USER.md, got %q", got.User)
+	}
+}
+
+func TestHandleMemorySaveRoundTrip(t *testing.T) {
+	home := t.TempDir()
+	s := New(Config{HomeDir: home})
+
+	// POST writes both files even though .conduit doesn't exist yet.
+	bodyIn := `{"soul":"# Soul\nbe precise","user":"# User\nprefers Go"}`
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/api/memory",
+		strings.NewReader(bodyIn))
+	s.Handler().ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("save status: got %d want 200 (body %s)", rr.Code, rr.Body.String())
+	}
+
+	// Files landed on disk with the expected content.
+	soul, err := os.ReadFile(filepath.Join(home, ".conduit", "SOUL.md"))
+	if err != nil {
+		t.Fatalf("read SOUL.md: %v", err)
+	}
+	if string(soul) != "# Soul\nbe precise" {
+		t.Errorf("SOUL.md: got %q", string(soul))
+	}
+
+	// GET reads them back identically.
+	rr2 := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr2, httptest.NewRequest(http.MethodGet, "/api/memory", nil))
+	var got memoryResponse
+	if err := json.Unmarshal(rr2.Body.Bytes(), &got); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if got.Soul != "# Soul\nbe precise" || got.User != "# User\nprefers Go" {
+		t.Errorf("round-trip mismatch: %+v", got)
+	}
+}
+
+func TestHandleMemoryMethodNotAllowed(t *testing.T) {
+	s := New(Config{HomeDir: t.TempDir()})
+	rr := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rr, httptest.NewRequest(http.MethodDelete, "/api/memory", nil))
+	if rr.Code != http.StatusMethodNotAllowed {
+		t.Errorf("DELETE status: got %d want 405", rr.Code)
 	}
 }
 

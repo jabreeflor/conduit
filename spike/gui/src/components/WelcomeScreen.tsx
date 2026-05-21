@@ -1,28 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowUp,
-  ChevronDown,
-  Folder,
-  GitBranch,
-  Laptop,
-  Mic,
-  Plus,
-  Square,
-  SquareSplitHorizontal,
-} from "lucide-react";
-import { ConduitMark } from "./BrandRow";
+import { Icon } from "./Icon";
 import {
   GitHubMark,
   IntegrationCard,
   LinearMark,
-  McpMark,
   SlackMark,
 } from "./IntegrationCard";
 
-// WelcomeScreen is the empty-state body of <main>. It's shown when no chat is
-// selected (activeChatId === null or "new"). The composer's submit fires the
-// onStartChat callback, which the parent uses to create a session and route
-// to ChatPanel for the rest of the conversation.
+// WelcomeScreen is the empty-state body of the content column. Shown when no
+// chat is selected. The composer's submit fires onStartChat, which the parent
+// uses to create a session and route to ChatPanel.
 export function WelcomeScreen({
   branch,
   onStartChat,
@@ -33,7 +20,18 @@ export function WelcomeScreen({
   autoFocus: boolean;
 }) {
   const [draft, setDraft] = useState("");
+  const [sandbox, setSandbox] = useState("Sandboxed");
+  const [model, setModel] = useState("gpt-5.5 Medium");
+  const [menu, setMenu] = useState<null | "sandbox" | "model">(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const SANDBOX_OPTS = ["Sandboxed", "Unrestricted"];
+  const MODEL_OPTS = [
+    "gpt-5.5 Medium",
+    "gpt-5.5 High",
+    "claude-opus-4-7",
+    "local",
+  ];
 
   useEffect(() => {
     if (autoFocus) taRef.current?.focus();
@@ -55,17 +53,12 @@ export function WelcomeScreen({
 
   return (
     <div className="welcome">
-      <div className="welcome-top-actions" aria-hidden>
-        <button type="button" className="ghost-icon-btn" title="Split window">
-          <SquareSplitHorizontal size={16} />
-        </button>
-        <button type="button" className="ghost-icon-btn" title="New window">
-          <Square size={16} />
-        </button>
-      </div>
+      <div className="welcome-glow" aria-hidden />
 
       <div className="welcome-center">
-        <ConduitMark size={44} className="welcome-mark" idSuffix="hero" />
+        <div className="welcome-mark" aria-hidden>
+          <Icon name="terminal" size={40} fill />
+        </div>
         <h1 className="welcome-headline">What should we build in conduit?</h1>
 
         <div className="composer-wrap">
@@ -87,16 +80,72 @@ export function WelcomeScreen({
                   title="Attach"
                   aria-label="Attach"
                 >
-                  <Plus size={16} />
+                  <Icon name="add" size={20} />
                 </button>
-                <span className="pill pill-sandbox">
-                  <span className="pill-dot" />
-                  Sandboxed
-                  <ChevronDown size={10} className="pill-chev" />
+                <span className="pill-wrap">
+                  <button
+                    type="button"
+                    className="pill pill-sandbox"
+                    aria-haspopup="listbox"
+                    aria-expanded={menu === "sandbox"}
+                    onClick={() =>
+                      setMenu((m) => (m === "sandbox" ? null : "sandbox"))
+                    }
+                  >
+                    <span className="pill-dot" />
+                    {sandbox}
+                    <Icon name="expand_more" size={14} className="pill-chev" />
+                  </button>
+                  {menu === "sandbox" && (
+                    <ul className="composer-menu" role="listbox">
+                      {SANDBOX_OPTS.map((opt) => (
+                        <li key={opt} role="option" aria-selected={opt === sandbox}>
+                          <button
+                            type="button"
+                            className={`composer-menu-item${opt === sandbox ? " active" : ""}`}
+                            onClick={() => {
+                              setSandbox(opt);
+                              setMenu(null);
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </span>
-                <span className="pill pill-model">
-                  gpt-5.5 Medium
-                  <ChevronDown size={10} className="pill-chev" />
+                <span className="pill-wrap">
+                  <button
+                    type="button"
+                    className="pill pill-model"
+                    aria-haspopup="listbox"
+                    aria-expanded={menu === "model"}
+                    onClick={() =>
+                      setMenu((m) => (m === "model" ? null : "model"))
+                    }
+                  >
+                    {model}
+                    <Icon name="expand_more" size={14} className="pill-chev" />
+                  </button>
+                  {menu === "model" && (
+                    <ul className="composer-menu" role="listbox">
+                      {MODEL_OPTS.map((opt) => (
+                        <li key={opt} role="option" aria-selected={opt === model}>
+                          <button
+                            type="button"
+                            className={`composer-menu-item${opt === model ? " active" : ""}`}
+                            onClick={() => {
+                              setModel(opt);
+                              setMenu(null);
+                            }}
+                          >
+                            {opt}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </span>
               </div>
               <div className="composer-bar-right">
@@ -106,7 +155,7 @@ export function WelcomeScreen({
                   title="Voice"
                   aria-label="Voice"
                 >
-                  <Mic size={15} />
+                  <Icon name="mic" size={18} />
                 </button>
                 <button
                   type="button"
@@ -116,7 +165,7 @@ export function WelcomeScreen({
                   aria-label="Send"
                   title="Send"
                 >
-                  <ArrowUp size={14} strokeWidth={2.4} />
+                  <Icon name="arrow_upward" size={20} />
                 </button>
               </div>
             </div>
@@ -124,19 +173,19 @@ export function WelcomeScreen({
 
           <div className="context-row">
             <span className="ctx-pill">
-              <Folder size={13} />
+              <Icon name="folder_open" size={14} />
               conduit
-              <ChevronDown size={10} className="pill-chev" />
+              <Icon name="expand_more" size={14} className="pill-chev" />
             </span>
             <span className="ctx-pill">
-              <Laptop size={13} />
+              <Icon name="computer" size={14} />
               Work locally
-              <ChevronDown size={10} className="pill-chev" />
+              <Icon name="expand_more" size={14} className="pill-chev" />
             </span>
             <span className="ctx-pill">
-              <GitBranch size={13} />
+              <Icon name="account_tree" size={14} />
               {branch || "main"}
-              <ChevronDown size={10} className="pill-chev" />
+              <Icon name="expand_more" size={14} className="pill-chev" />
             </span>
           </div>
         </div>
@@ -146,22 +195,23 @@ export function WelcomeScreen({
         <IntegrationCard
           icon={<GitHubMark />}
           title="Connect GitHub"
-          body="Pull issues, branches, and PR context"
+          body="Pull issues, branches, and PR context directly into chat."
         />
         <IntegrationCard
           icon={<LinearMark />}
           title="Connect Linear"
-          body="Plan from your team's backlog"
+          body="Plan from your team's backlog and update statuses."
         />
         <IntegrationCard
-          icon={<McpMark />}
+          tile
+          icon={<Icon name="hub" size={24} fill />}
           title="Connect MCP"
-          body="Plug in external tools and data"
+          body="Plug in external tools and data via Protocol."
         />
         <IntegrationCard
           icon={<SlackMark />}
           title="Connect Slack"
-          body="Pull context from team threads"
+          body="Pull context from team threads and share updates."
         />
       </div>
     </div>

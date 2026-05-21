@@ -117,16 +117,91 @@ type memoryResponse struct {
 	User string `json:"user"`
 }
 
-// handleMemory reads SOUL.md and USER.md from ~/.conduit/. Missing
-// files return empty strings — the GUI's editor seeds them on first
-// save.
-func (s *Server) handleMemory(w http.ResponseWriter, _ *http.Request) {
-	out := memoryResponse{}
-	if s.homeDir != "" {
-		out.Soul = readFileOrEmpty(filepath.Join(s.homeDir, ".conduit", "SOUL.md"))
-		out.User = readFileOrEmpty(filepath.Join(s.homeDir, ".conduit", "USER.md"))
+// handleMemory serves the agent memory files. GET reads SOUL.md and USER.md
+// from ~/.conduit/ (missing files return empty strings). POST/PUT writes them
+// back from a {soul, user} body — the "editor seeds them on first save" path
+// the read handler anticipates. The response echoes the saved memory so the
+// client can refresh from a single round-trip.
+func (s *Server) handleMemory(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		out := memoryResponse{}
+		if s.homeDir != "" {
+			out.Soul = readFileOrEmpty(filepath.Join(s.homeDir, ".conduit", "SOUL.md"))
+			out.User = readFileOrEmpty(filepath.Join(s.homeDir, ".conduit", "USER.md"))
+		}
+		writeJSON(w, http.StatusOK, out)
+	case http.MethodPost, http.MethodPut:
+		s.saveMemory(w, r)
+	default:
+		w.Header().Set("Allow", "GET, POST, PUT")
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{
+			"error": "method not allowed",
+		})
 	}
-	writeJSON(w, http.StatusOK, out)
+}
+
+// saveMemory persists the SOUL.md / USER.md bodies under ~/.conduit/. Both
+// files are always written so the pair stays consistent; the client sends the
+// full memory it wants on disk. Writes are atomic (temp file + rename) so a
+// crash mid-write can't leave a half-written memory file.
+func (s *Server) saveMemory(w http.ResponseWriter, r *http.Request) {
+	if s.homeDir == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "no home directory configured",
+		})
+		return
+	}
+	var body memoryResponse
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "invalid JSON body",
+		})
+		return
+	}
+	dir := filepath.Join(s.homeDir, ".conduit")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "could not create memory directory",
+		})
+		return
+	}
+	for name, content := range map[string]string{
+		"SOUL.md": body.Soul,
+		"USER.md": body.User,
+	} {
+		if err := writeFileAtomic(filepath.Join(dir, name), content); err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{
+				"error": "could not write " + name,
+			})
+			return
+		}
+	}
+	writeJSON(w, http.StatusOK, body)
+}
+
+// writeFileAtomic writes content to path via a sibling temp file + rename so
+// readers never observe a partially written file.
+func writeFileAtomic(path, content string) error {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		os.Remove(tmpName)
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	if err := os.Chmod(tmpName, 0o600); err != nil {
+		os.Remove(tmpName)
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func readFileOrEmpty(path string) string {

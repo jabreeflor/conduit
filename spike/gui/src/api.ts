@@ -78,6 +78,19 @@ export const getInfo = (): Promise<Info> => getJSON<Info>("/api/info");
 export const getSessions = (): Promise<SessionMeta[]> =>
   getJSON<SessionMeta[]>("/api/sessions");
 export const getMemory = (): Promise<Memory> => getJSON<Memory>("/api/memory");
+
+// saveMemory writes SOUL.md + USER.md back via POST /api/memory and returns the
+// persisted memory (the server echoes it). Both fields are always sent so the
+// pair stays consistent on disk.
+export async function saveMemory(mem: Memory): Promise<Memory> {
+  const r = await fetch(`${BASE}/api/memory`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(mem),
+  });
+  if (!r.ok) throw new Error(`/api/memory: HTTP ${r.status}`);
+  return (await r.json()) as Memory;
+}
 export const getProjects = (): Promise<ProjectsResponse> =>
   getJSON<ProjectsResponse>("/api/projects");
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { Icon } from "./Icon";
 import {
   connectAgent,
   getInfo,
@@ -19,16 +19,8 @@ type ToolBlock = {
   isError: boolean;
 };
 
-type AssistantBlock = {
-  kind: "assistant";
-  text: string;
-};
-
-type UserBlock = {
-  kind: "user";
-  text: string;
-};
-
+type AssistantBlock = { kind: "assistant"; text: string };
+type UserBlock = { kind: "user"; text: string };
 type Block = UserBlock | AssistantBlock | ToolBlock;
 
 // A turn groups a user prompt with the resulting assistant + tool blocks so
@@ -55,51 +47,63 @@ function providerTone(provider: string | undefined): ProviderTone {
       return "litellm";
     case "openrouter":
       return "openrouter";
-    case "auto":
-    case "":
-      return "local";
     default:
       return "local";
   }
 }
 
+// Seed turns used when ?demo=chat is set — lets the chat surface be captured
+// for design QA without a live backend. Mirrors the mockup exchange.
+const DEMO_TURNS: Turn[] = [
+  {
+    id: 1,
+    done: true,
+    blocks: [
+      { kind: "user", text: "Give me a one-line hello for a screenshot." },
+      { kind: "assistant", text: "Hello — nice to see you!" },
+    ],
+  },
+];
+
 export function ChatPanel({
   initialPrompt = null,
+  demo = false,
 }: {
   initialPrompt?: string | null;
+  demo?: boolean;
 }) {
   const [info, setInfo] = useState<Info | null>(null);
   const [state, setState] = useState<ConnectionState>("connecting");
-  const [turns, setTurns] = useState<Turn[]>([]);
+  const [turns, setTurns] = useState<Turn[]>(demo ? DEMO_TURNS : []);
   const [draft, setDraft] = useState("");
   const clientRef = useRef<ReturnType<typeof connectAgent> | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  const turnIdRef = useRef(0);
-  // Track whether the welcome composer's prompt was already auto-sent so
-  // reconnects after a network blip don't replay it.
+  const turnIdRef = useRef(demo ? DEMO_TURNS.length : 0);
   const initialSentRef = useRef(false);
 
   useEffect(() => {
-    getInfo().then(setInfo).catch(() => {
-      // Info is non-essential for the chat surface; the websocket session
-      // frame carries the same provider/model.
-    });
-  }, []);
+    if (demo) return;
+    getInfo()
+      .then(setInfo)
+      .catch(() => {
+        // Info is non-essential; the session frame carries provider/model.
+      });
+  }, [demo]);
 
   useEffect(() => {
+    if (demo) return;
     const client = connectAgent({
       onState: setState,
       onMessage: (msg) => applyMessage(msg, setTurns, setInfo),
     });
     clientRef.current = client;
     return () => client.close();
-  }, []);
+  }, [demo]);
 
-  // Auto-send the welcome-screen prompt once the WS is connected. Renders
-  // the user turn locally so the chat surface mirrors a real send.
+  // Auto-send the welcome-screen prompt once the WS is connected.
   useEffect(() => {
-    if (state !== "connected" || initialSentRef.current) return;
+    if (demo || state !== "connected" || initialSentRef.current) return;
     const text = initialPrompt?.trim();
     if (!text) return;
     initialSentRef.current = true;
@@ -109,9 +113,8 @@ export function ChatPanel({
       { id, blocks: [{ kind: "user", text }], done: false },
     ]);
     clientRef.current?.send({ type: "prompt", text });
-  }, [state, initialPrompt]);
+  }, [state, initialPrompt, demo]);
 
-  // Pin the stream to the bottom whenever it grows.
   useEffect(() => {
     const el = streamRef.current;
     if (el) el.scrollTop = el.scrollHeight;
@@ -136,7 +139,6 @@ export function ChatPanel({
     }
   }
 
-  // Grow the composer to fit its text, starting from a single line.
   useEffect(() => {
     const el = inputRef.current;
     if (!el) return;
@@ -144,59 +146,84 @@ export function ChatPanel({
     el.style.height = `${el.scrollHeight}px`;
   }, [draft]);
 
+  const connected = demo || state === "connected";
   const tone = providerTone(info?.provider);
+  const modelLabel = info ? `${info.provider}/${info.model}` : "codex/gpt-5.5";
 
   return (
     <section className="agent-panel" aria-label="Agent">
-      <div className="agent-header">
-        <span className="agent-header-title">Chat</span>
-      </div>
       <div className="agent-stream" ref={streamRef}>
-        {turns.length === 0 && (
-          <div className="placeholder" style={{ margin: 0 }}>
-            <p>No messages yet — say hello.</p>
+        <div className="agent-stream-inner">
+          {turns.length === 0 && (
+            <div className="placeholder">No messages yet — say hello.</div>
+          )}
+          {turns.map((t) => (
+            <TurnCard key={t.id} turn={t} />
+          ))}
+        </div>
+      </div>
+
+      <div className="agent-input-region">
+        <div className="agent-composer">
+          <textarea
+            ref={inputRef}
+            className="agent-input"
+            placeholder={connected ? "Message Conduit…" : `Reconnecting… (${state})`}
+            rows={1}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onKey}
+            disabled={!connected}
+          />
+          <div className="agent-composer-bar">
+            <div className="agent-composer-icons">
+              <button
+                type="button"
+                className="composer-icon"
+                title="Attach"
+                aria-label="Attach"
+              >
+                <Icon name="attach_file" size={18} />
+              </button>
+              <button
+                type="button"
+                className="composer-icon"
+                title="Voice"
+                aria-label="Voice"
+              >
+                <Icon name="mic" size={18} />
+              </button>
+              <button
+                type="button"
+                className="composer-icon"
+                title="Image"
+                aria-label="Image"
+              >
+                <Icon name="image" size={18} />
+              </button>
+            </div>
+            <div className="agent-composer-right">
+              <span className={`model-badge model-badge--${tone}`} title={modelLabel}>
+                {modelLabel}
+              </span>
+              <button
+                type="button"
+                className="agent-send"
+                onClick={send}
+                disabled={!connected || draft.trim().length === 0}
+                aria-label="Send"
+              >
+                <Icon name="arrow_forward" size={20} />
+              </button>
+            </div>
           </div>
-        )}
-        {turns.map((t) => (
-          <TurnCard key={t.id} turn={t} />
-        ))}
-      </div>
-      <div className="agent-input-wrap">
-        <textarea
-          ref={inputRef}
-          className="agent-input"
-          placeholder={
-            state === "connected"
-              ? "Message Conduit…"
-              : `Reconnecting… (${state})`
-          }
-          rows={1}
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onKey}
-          disabled={state !== "connected"}
-        />
-      </div>
-      <div className="agent-model-row">
-        {info ? (
-          <span
-            className={`model-badge model-badge--${tone}`}
-            title={`${info.provider} / ${info.model}`}
-          >
-            {info.provider}/{info.model}
-          </span>
-        ) : (
-          <span className="model-badge model-badge--local">offline</span>
-        )}
+        </div>
       </div>
     </section>
   );
 }
 
-// applyMessage reduces a single websocket frame into the turn list. The last
-// in-progress turn (the one with done === false) is the active target. The
-// session frame is sent once on connect and updates the header info; it does
-// not start a new turn.
+// applyMessage reduces a single websocket frame into the turn list.
 function applyMessage(
   msg: ServerMessage,
   setTurns: React.Dispatch<React.SetStateAction<Turn[]>>,
@@ -215,8 +242,6 @@ function applyMessage(
   setTurns((prev) => {
     const turns = [...prev];
     let active = turns[turns.length - 1];
-    // Errors that arrive without a turn (e.g. before the user has prompted)
-    // get shown as a synthetic assistant block so they're still visible.
     if (!active || active.done) {
       active = { id: -1, blocks: [], done: false };
       turns.push(active);
@@ -249,11 +274,7 @@ function applyMessage(
         );
         if (idx >= 0) {
           const t = blocks[idx] as ToolBlock;
-          blocks[idx] = {
-            ...t,
-            output: msg.output,
-            isError: msg.isError,
-          };
+          blocks[idx] = { ...t, output: msg.output, isError: msg.isError };
         }
         break;
       }
@@ -261,10 +282,7 @@ function applyMessage(
         turns[turns.length - 1] = { ...active, blocks, done: true };
         return turns;
       case "error":
-        blocks.push({
-          kind: "assistant",
-          text: `[error] ${msg.message}`,
-        });
+        blocks.push({ kind: "assistant", text: `[error] ${msg.message}` });
         break;
     }
 
@@ -279,15 +297,18 @@ function TurnCard({ turn }: { turn: Turn }) {
       {turn.blocks.map((b, i) => {
         if (b.kind === "user") {
           return (
-            <div key={i} className="message user">
-              {b.text}
+            <div key={i} className="msg-user-wrap">
+              <div className="message user">{b.text}</div>
             </div>
           );
         }
         if (b.kind === "assistant") {
           return (
-            <div key={i} className="message agent">
-              {b.text}
+            <div key={i} className="msg-agent-wrap">
+              <div className="msg-agent-mark" aria-hidden>
+                <Icon name="terminal" size={18} />
+              </div>
+              <div className="message agent">{b.text}</div>
             </div>
           );
         }
@@ -316,11 +337,7 @@ function ToolCall({ block }: { block: ToolBlock }) {
         aria-expanded={open}
       >
         <span className="tool-arrow">
-          {open ? (
-            <ChevronDown size={14} aria-hidden />
-          ) : (
-            <ChevronRight size={14} aria-hidden />
-          )}
+          <Icon name={open ? "expand_more" : "chevron_right"} size={16} />
         </span>
         <span className="tool-name">{block.name}</span>
         <span className="tool-input">{block.input}</span>
