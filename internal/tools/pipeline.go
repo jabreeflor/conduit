@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jabreeflor/conduit/internal/cache"
-	toolerrors "github.com/jabreeflor/conduit/internal/errors"
-	"github.com/jabreeflor/conduit/internal/hooks"
+	"github.com/jabreeflor/conduit/internal/billing/cache"
+	toolerrors "github.com/jabreeflor/conduit/internal/platform/errors"
+	"github.com/jabreeflor/conduit/internal/platform/hooks"
 	"gopkg.in/yaml.v3"
 )
 

@@ -1,0 +1,362 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/platform/keybindings"
+	"github.com/jabreeflor/conduit/internal/multimodal"
+	"github.com/jabreeflor/conduit/internal/sessions"
+
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/textarea"
+	"github.com/charmbracelet/bubbles/viewport"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+)
+
+// ── message types ─────────────────────────────────────────────────────────────
+
+type tokenMsg string   // streamed token arrives
+type toolDoneMsg int   // tool at index i finishes
+type tickMsg time.Time // drives streaming simulation
+
+// ── tool call ─────────────────────────────────────────────────────────────────
+
+type toolStatus int
+
+const (
+	toolRunning toolStatus = iota
+	toolDone
+	toolFailed
+)
+
+type toolCall struct {
+	name     string
+	input    string
+	status   toolStatus
+	expanded bool
+}
+
+func (t toolCall) render() string {
+	icon := styleToolRunning.Render("⟳")
+	switch t.status {
+	case toolDone:
+		icon = styleToolDone.Render("✓")
+	case toolFailed:
+		icon = styleToolFail.Render("✗")
+	}
+	toggle := styleDim.Render("▶")
+	if t.expanded {
+		toggle = styleDim.Render("▼")
+	}
+	name := lipgloss.NewStyle().Foreground(lipgloss.Color("#9d79d6")).Render(t.name)
+	header := fmt.Sprintf("%s %s %s %s", toggle, icon, styleAgent.Render("tool:"), name)
+	if !t.expanded {
+		return header
+	}
+	return header + "\n" + styleDim.Render("  input: "+t.input)
+}
+
+// ── chat message ──────────────────────────────────────────────────────────────
+
+type role int
+
+const (
+	roleUser role = iota
+	roleAgent
+)
+
+type message struct {
+	role        role
+	text        string
+	attachments []multimodal.Attachment
+}
+
+// ── key bindings ─────────────────────────────────────────────────────────────
+
+// keyMap groups the bubbles/key.Binding values used by Update. Bindings are
+// derived at runtime from a keybindings.Keymap so users can override every
+// shortcut via ~/.conduit/keybindings.json (PRD §6.15).
+type keyMap struct {
+	TogglePanel     key.Binding
+	Quit            key.Binding
+	Submit          key.Binding
+	ExpandTool      key.Binding
+	SetupLocal      key.Binding
+	ExternalAPI     key.Binding
+	MemoryInspector key.Binding
+	SessionBrowser  key.Binding
+}
+
+// buildKeyMap turns a resolved keybindings.Keymap into the bubbles/key bindings
+// the Update loop matches against. Unbound commands produce a key.Binding with
+// no keys; key.Matches will simply never fire for them, which is the desired
+// "shortcut disabled" behaviour.
+func buildKeyMap(km *keybindings.Keymap) keyMap {
+	binding := func(cmd keybindings.Command, help string) key.Binding {
+		keys := km.KeysFor(cmd)
+		display := help
+		if len(keys) > 0 {
+			display = fmt.Sprintf("%s — %s", keys[0], help)
+		}
+		return key.NewBinding(key.WithKeys(keys...), key.WithHelp(help, display))
+	}
+	return keyMap{
+		TogglePanel:     binding(keybindings.CommandTUITogglePanel, "toggle context panel"),
+		Quit:            binding(keybindings.CommandConduitQuit, "quit"),
+		Submit:          binding(keybindings.CommandTUISubmit, "send"),
+		ExpandTool:      binding(keybindings.CommandTUIExpandTool, "expand/collapse last tool call"),
+		SetupLocal:      binding(keybindings.CommandTUISetupLocal, "set up local ai"),
+		ExternalAPI:     binding(keybindings.CommandTUISetupAPI, "external api"),
+		MemoryInspector: binding(keybindings.CommandMemoryInspect, "memory inspector"),
+		SessionBrowser:  binding(keybindings.CommandTUISessionBrowser, "session tree browser"),
+	}
+}
+
+// keys is the package-level resolved keymap. RunInteractive replaces it with a
+// user-overridden version at boot via setKeys; tests may rely on the defaults.
+var keys = buildKeyMap(keybindings.Default())
+
+// setKeys swaps the global keymap. Called by the TUI entry point after
+// loading ~/.conduit/keybindings.json.
+func setKeys(km *keybindings.Keymap) { keys = buildKeyMap(km) }
+
+// parseSubmit extracts @image/@pdf directives from raw input, returning the
+// cleaned text and loaded attachments. Extracted so the Update handler and
+// tests share the same code path.
+func parseSubmit(text string) (cleanText string, atts []multimodal.Attachment, err error) {
+	return multimodal.ParseAndLoad(text)
+}
+
+// ── model ─────────────────────────────────────────────────────────────────────
+
+// Model is the Bubble Tea application state for the three-panel layout.
+type Model struct {
+	width            int
+	height           int
+	conversation     viewport.Model
+	contextPanel     viewport.Model
+	input            textarea.Model
+	messages         []message
+	toolCalls        []toolCall
+	showContext      bool
+	sessionCost      float64
+	activeModel      string
+	setup            contracts.FirstRunSetupSnapshot
+	setupLocalAI     func() (contracts.FirstRunSetupSnapshot, error)
+	streaming        bool
+	streamBuffer     string
+	tickCount        int
+	inspector        *MemoryInspector
+	inspectorOpen    bool
+	memoryController MemoryController // backing engine for inspector actions; may be nil in tests
+
+	// Sessions wiring (PRD §6.13). Optional — when nil, /sessions slash
+	// commands surface a friendly error instead of crashing. The browser is
+	// opened via CommandTUISessionBrowser (ctrl+b by default).
+	sessions        *sessions.Dispatcher
+	sessionsBrowser *SessionsBrowser
+	activeSessionID string
+
+	// activeSandbox is the currently-selected sandbox name (PRD §15.7).
+	// Empty means no sandbox is selected; the status bar omits the segment.
+	activeSandbox string
+}
+
+func newModel(activeModel string, setup contracts.FirstRunSetupSnapshot, setupLocalAI func() (contracts.FirstRunSetupSnapshot, error)) Model {
+	ta := textarea.New()
+	ta.Placeholder = "Message conduit..."
+	ta.Focus()
+	ta.SetWidth(80)
+	ta.SetHeight(2)
+	ta.ShowLineNumbers = false
+	ta.KeyMap.InsertNewline.SetKeys("shift+enter")
+
+	return Model{
+		input:        ta,
+		showContext:  true,
+		activeModel:  activeModel,
+		setup:        setup,
+		setupLocalAI: setupLocalAI,
+		inspector:    NewMemoryInspector(),
+		messages: []message{
+			{role: roleAgent, text: "Welcome to Conduit."},
+		},
+	}
+}
+
+// WithMemoryController attaches the engine adapter that backs the memory
+// inspector. Returning the model keeps newModel pure for tests that don't
+// need a live provider.
+func (m Model) WithMemoryController(c MemoryController) Model {
+	m.memoryController = c
+	return m
+}
+
+// WithActiveSandbox sets the active-sandbox name shown in the status bar
+// (PRD §15.7). Pass an empty string to hide the segment.
+func (m Model) WithActiveSandbox(name string) Model {
+	m.activeSandbox = name
+	return m
+}
+
+func (m Model) Init() tea.Cmd {
+	return textarea.Blink
+}
+
+func tick() tea.Cmd {
+	return tea.Tick(50*time.Millisecond, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// ── update ────────────────────────────────────────────────────────────────────
+
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// When the sessions browser is open, route key/window events to it
+	// first; everything else falls through to the normal model update.
+	if m.sessionsBrowser != nil {
+		next, cmd := m.sessionsBrowser.Update(msg)
+		m.sessionsBrowser = &next
+		if next.IsClosed() {
+			m = m.handleSessionsBrowserClose(next.Selected())
+		}
+		return m, cmd
+	}
+
+	switch msg := msg.(type) {
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+		m = m.recalculateLayout()
+
+	case tea.KeyMsg:
+		// Memory inspector takes precedence over normal input when open so
+		// its scoped key bindings (delete, pin, filter) do not collide with
+		// the chat textarea.
+		if m.inspectorOpen {
+			var consumed bool
+			m, consumed = m.handleInspectorKey(msg)
+			if consumed {
+				return m, nil
+			}
+		}
+		switch {
+		case key.Matches(msg, keys.Quit):
+			if m.inspectorOpen {
+				m = m.closeMemoryInspector()
+				return m, nil
+			}
+			return m, tea.Quit
+		case key.Matches(msg, keys.SessionBrowser):
+			m = m.openSessionsBrowser()
+			return m, nil
+		case key.Matches(msg, keys.MemoryInspector):
+			m = m.openMemoryInspector()
+			return m, nil
+		case key.Matches(msg, keys.TogglePanel):
+			m.showContext = !m.showContext
+			m = m.recalculateLayout()
+		case key.Matches(msg, keys.ExpandTool):
+			if len(m.toolCalls) > 0 {
+				last := len(m.toolCalls) - 1
+				m.toolCalls[last].expanded = !m.toolCalls[last].expanded
+				m = m.refreshContent()
+			}
+		case key.Matches(msg, keys.SetupLocal):
+			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome && m.setup.Recommendation.ID != "" {
+				if m.setupLocalAI != nil {
+					setup, err := m.setupLocalAI()
+					if err != nil {
+						m.setup = setup
+						m.messages = append(m.messages, message{role: roleAgent, text: "Local AI setup needs attention: " + err.Error()})
+						m = m.refreshContent()
+						break
+					}
+					m.setup = setup
+				} else {
+					m.setup.Phase = contracts.FirstRunSetupPhaseReady
+					m.setup.Ready = true
+					for i := range m.setup.Steps {
+						m.setup.Steps[i].Status = contracts.FirstRunSetupStepDone
+					}
+				}
+				m.messages = append(m.messages, message{role: roleAgent, text: "Local AI is ready. You can start a session with the recommended model now."})
+				m = m.refreshContent()
+			}
+		case key.Matches(msg, keys.ExternalAPI):
+			if m.setup.Phase == contracts.FirstRunSetupPhaseWelcome {
+				m.setup.Phase = contracts.FirstRunSetupPhaseExternal
+				m.messages = append(m.messages, message{role: roleAgent, text: "External API setup selected. Add a provider key to continue without local model downloads."})
+				m = m.refreshContent()
+			}
+		case key.Matches(msg, keys.Submit):
+			if text := strings.TrimSpace(m.input.Value()); text != "" {
+				if strings.HasPrefix(text, "/sessions") {
+					m.input.Reset()
+					m = m.handleSessionsSlash(text)
+					return m, nil
+				}
+				cleanText, atts, parseErr := parseSubmit(text)
+				if parseErr != nil {
+					m.messages = append(m.messages, message{role: roleAgent, text: "attachment error: " + parseErr.Error()})
+					m.input.Reset()
+					m = m.refreshContent()
+					return m, nil
+				}
+				displayText := cleanText
+				if displayText == "" && len(atts) > 0 {
+					displayText = "(attached files)"
+				}
+				m.messages = append(m.messages, message{role: roleUser, text: displayText, attachments: atts})
+				m.input.Reset()
+				m.streaming = true
+				m.streamBuffer = ""
+				m = m.refreshContent()
+				m.conversation.GotoBottom()
+			}
+		}
+
+	case tickMsg:
+		if m.streaming {
+			tokens := []string{"Sure", "!", " I", " can", " help", " with", " that", "."}
+			if m.tickCount < len(tokens) {
+				m.streamBuffer += tokens[m.tickCount]
+				m.tickCount++
+				m = m.refreshContent()
+				m.conversation.GotoBottom()
+				cmds = append(cmds, tick())
+			} else {
+				m.messages = append(m.messages, message{role: roleAgent, text: m.streamBuffer})
+				m.streaming = false
+				m.streamBuffer = ""
+				m.tickCount = 0
+				m = m.refreshContent()
+			}
+		}
+
+	case toolDoneMsg:
+		idx := int(msg)
+		if idx < len(m.toolCalls) {
+			m.toolCalls[idx].status = toolDone
+			m = m.refreshContent()
+		}
+	}
+
+	var inputCmd tea.Cmd
+	m.input, inputCmd = m.input.Update(msg)
+	cmds = append(cmds, inputCmd)
+
+	var convCmd, ctxCmd tea.Cmd
+	m.conversation, convCmd = m.conversation.Update(msg)
+	m.contextPanel, ctxCmd = m.contextPanel.Update(msg)
+	cmds = append(cmds, convCmd, ctxCmd)
+
+	return m, tea.Batch(cmds...)
+}

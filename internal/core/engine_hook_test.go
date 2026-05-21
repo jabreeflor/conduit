@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jabreeflor/conduit/internal/hooks"
+	"github.com/jabreeflor/conduit/internal/platform/hooks"
 )
 
 func scriptDispatcher(t *testing.T, event hooks.Event, output string) *hooks.Dispatcher {
