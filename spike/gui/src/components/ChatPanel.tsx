@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, ChevronRight, SendHorizontal } from "lucide-react";
+import { ChevronDown, ChevronRight } from "lucide-react";
 import {
   connectAgent,
   getInfo,
@@ -74,6 +74,7 @@ export function ChatPanel({
   const [draft, setDraft] = useState("");
   const clientRef = useRef<ReturnType<typeof connectAgent> | null>(null);
   const streamRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLTextAreaElement | null>(null);
   const turnIdRef = useRef(0);
   // Track whether the welcome composer's prompt was already auto-sent so
   // reconnects after a network blip don't replay it.
@@ -135,23 +136,20 @@ export function ChatPanel({
     }
   }
 
+  // Grow the composer to fit its text, starting from a single line.
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
+
   const tone = providerTone(info?.provider);
-  const sendDisabled = state !== "connected" || draft.trim().length === 0;
 
   return (
     <section className="agent-panel" aria-label="Agent">
       <div className="agent-header">
         <span className="agent-header-title">Chat</span>
-        {info ? (
-          <span
-            className={`model-badge model-badge--${tone}`}
-            title={`${info.provider} / ${info.model}`}
-          >
-            {info.provider}/{info.model}
-          </span>
-        ) : (
-          <span className="model-badge model-badge--local">offline</span>
-        )}
       </div>
       <div className="agent-stream" ref={streamRef}>
         {turns.length === 0 && (
@@ -165,48 +163,34 @@ export function ChatPanel({
       </div>
       <div className="agent-input-wrap">
         <textarea
+          ref={inputRef}
           className="agent-input"
           placeholder={
             state === "connected"
               ? "Message Conduit…"
               : `Reconnecting… (${state})`
           }
-          rows={3}
+          rows={1}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onKey}
           disabled={state !== "connected"}
         />
-        <button
-          type="button"
-          className="agent-send"
-          aria-label="Send message"
-          onClick={send}
-          disabled={sendDisabled}
-        >
-          <SendHorizontal size={20} aria-hidden />
-        </button>
       </div>
-      <div className="agent-status">
-        <span className="agent-status-left">
-          <span className={`state-dot state-dot--${state}`} aria-hidden />
-          <span>{stateLabel(state)}</span>
-        </span>
-        <span>{info?.version ? `v${info.version}` : ""}</span>
+      <div className="agent-model-row">
+        {info ? (
+          <span
+            className={`model-badge model-badge--${tone}`}
+            title={`${info.provider} / ${info.model}`}
+          >
+            {info.provider}/{info.model}
+          </span>
+        ) : (
+          <span className="model-badge model-badge--local">offline</span>
+        )}
       </div>
     </section>
   );
-}
-
-function stateLabel(s: ConnectionState): string {
-  switch (s) {
-    case "connecting":
-      return "connecting";
-    case "connected":
-      return "connected";
-    case "disconnected":
-      return "disconnected";
-  }
 }
 
 // applyMessage reduces a single websocket frame into the turn list. The last

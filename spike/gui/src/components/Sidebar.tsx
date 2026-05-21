@@ -81,10 +81,6 @@ export function Sidebar({
           onSelectChat={onSelectChat}
         />
       </div>
-
-      <div className="sb-footer">
-        <kbd>⌥Space</kbd> Spotlight · <kbd>⌘K</kbd> Palette
-      </div>
     </aside>
   );
 }

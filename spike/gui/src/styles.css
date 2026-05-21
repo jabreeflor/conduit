@@ -671,6 +671,12 @@ button {
   margin: var(--ref-space-sm);
 }
 
+.agent-model-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 var(--ref-space-sm) var(--ref-space-sm);
+}
+
 .agent-input {
   flex: 1;
   padding: var(--ref-space-sm);
@@ -681,6 +687,8 @@ button {
   font: inherit;
   font-family: var(--ref-type-family-sans);
   resize: none;
+  max-height: 200px;
+  overflow-y: auto;
   transition: border-color 120ms ease, background-color 120ms ease;
 }
 
@@ -771,13 +779,15 @@ button {
 }
 
 .message.user {
-  background: var(--color-surface-sunken);
-  border: 1px solid var(--color-border-default);
+  background: color-mix(in srgb, var(--color-brand-primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-brand-primary) 45%, transparent);
   color: var(--color-text-body);
 }
 
 .message.agent {
-  background: var(--color-surface-elevated);
+  background: transparent;
+  border: none;
+  padding: 0;
   white-space: pre-wrap;
   word-break: break-word;
   color: var(--color-text-body);
