@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jabreeflor/conduit/internal/cache"
-	toolerrors "github.com/jabreeflor/conduit/internal/errors"
+	"github.com/jabreeflor/conduit/internal/billing/cache"
+	toolerrors "github.com/jabreeflor/conduit/internal/platform/errors"
 )
 
 func TestPipelineAppliesAgentOverrideBeforePolicy(t *testing.T) {

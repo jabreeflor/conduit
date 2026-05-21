@@ -1,7 +1,7 @@
 package computeruse
 
 import (
-	"github.com/jabreeflor/conduit/internal/config"
+	"github.com/jabreeflor/conduit/internal/platform/config"
 	"github.com/jabreeflor/conduit/internal/mcp"
 )
 

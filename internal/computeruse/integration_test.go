@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/jabreeflor/conduit/internal/computeruse"
-	"github.com/jabreeflor/conduit/internal/config"
+	"github.com/jabreeflor/conduit/internal/platform/config"
 	"github.com/jabreeflor/conduit/internal/mcp"
 )
 
