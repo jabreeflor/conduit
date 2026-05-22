@@ -145,6 +145,8 @@ export type AgentClientHandlers = {
 export type AgentClientOptions = {
   /** When set, the server will prime the session with the named template's system prompt. */
   templateId?: string;
+  /** Absolute path of the selected project. The server reads AGENTS.md and CLAUDE.md from this directory and prepends them to the first turn. */
+  projectPath?: string;
 };
 
 export function connectAgent(
@@ -158,9 +160,11 @@ export function connectAgent(
 
   function open() {
     handlers.onState("connecting");
-    const url = options.templateId
-      ? `${wsBase()}/api/agent?template=${encodeURIComponent(options.templateId)}`
-      : `${wsBase()}/api/agent`;
+    const params = new URLSearchParams();
+    if (options.templateId) params.set("template", options.templateId);
+    if (options.projectPath) params.set("projectPath", options.projectPath);
+    const qs = params.toString();
+    const url = qs ? `${wsBase()}/api/agent?${qs}` : `${wsBase()}/api/agent`;
     ws = new WebSocket(url);
 
     ws.addEventListener("open", () => {

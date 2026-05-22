@@ -20,7 +20,6 @@ export type NavView =
 const NAV_ITEMS: { view: NavView; icon: string; label: string }[] = [
   { view: "welcome", icon: "add_box", label: "New chat" },
   { view: "projects", icon: "folder_open", label: "Projects" },
-  { view: "agents", icon: "smart_toy", label: "Agents" },
   { view: "plugins", icon: "extension", label: "Plugins" },
   { view: "automations", icon: "auto_mode", label: "Automations" },
   { view: "soul", icon: "psychology", label: "Soul" },

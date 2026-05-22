@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -36,6 +39,29 @@ type promptMsg struct {
 	Text string `json:"text"`
 }
 
+// buildProjectContext reads AGENTS.md from projectPath and any CLAUDE.md files
+// discovered up the directory tree. Content is joined for prepending to the
+// model's first user turn so the model has project-specific grounding context.
+func (s *Server) buildProjectContext(projectPath string) string {
+	if projectPath == "" {
+		return ""
+	}
+	var parts []string
+	if data, err := os.ReadFile(filepath.Join(projectPath, "AGENTS.md")); err == nil {
+		if content := strings.TrimSpace(string(data)); content != "" {
+			parts = append(parts, content)
+		}
+	}
+	if files, err := coding.DiscoverContextFiles(projectPath, s.homeDir); err == nil {
+		for _, f := range files {
+			if content := strings.TrimSpace(f.Content); content != "" {
+				parts = append(parts, content)
+			}
+		}
+	}
+	return strings.Join(parts, "\n\n---\n\n")
+}
+
 // handleAgent implements the WebSocket protocol documented in the
 // package README. One streamer + one wrapped tool slice are bound per
 // connection so concurrent sessions don't share conversation history
@@ -45,6 +71,10 @@ type promptMsg struct {
 // template. When set, the template's system prompt is prepended to the
 // first user message of the session so the model receives the persona
 // context before any user content.
+//
+// An optional ?projectPath=<url-encoded-path> parameter loads AGENTS.md and
+// CLAUDE.md from the given project directory and prepends them to the first
+// user turn alongside any template system prompt.
 func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	if s.factory == nil {
 		http.Error(w, "agent: no streamer factory configured", http.StatusServiceUnavailable)
@@ -59,6 +89,12 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	if t, ok := s.lookupTemplate(templateID); ok {
 		systemPrompt = t.SystemPrompt
 		templateName = t.Name
+	}
+
+	// Load project context (AGENTS.md + CLAUDE.md) when a projectPath is given.
+	// Prepended before any template system prompt so project rules take precedence.
+	if projectCtx := s.buildProjectContext(r.URL.Query().Get("projectPath")); projectCtx != "" {
+		systemPrompt = projectCtx + "\n\n" + systemPrompt
 	}
 
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{

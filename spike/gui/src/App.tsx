@@ -76,6 +76,7 @@ export function App() {
   );
   const [pendingPrompt, setPendingPrompt] = useState<string | null>(null);
   const [pendingTemplateId, setPendingTemplateId] = useState<string | null>(null);
+  const [pendingProjectPath, setPendingProjectPath] = useState<string | null>(null);
   const [spotlightOpen, setSpotlightOpen] = useState(demoParam === "spotlight");
   const [spotlightQuery, setSpotlightQuery] = useState("");
   const [activeProject, setActiveProject] = useState<{
@@ -116,8 +117,9 @@ export function App() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  function handleStartChat(prompt: string) {
+  function handleStartChat(prompt: string, projectPath?: string) {
     setPendingPrompt(prompt);
+    setPendingProjectPath(projectPath ?? null);
     setActiveChatId("active");
     navigate("chat");
   }
@@ -209,6 +211,7 @@ export function App() {
             <WelcomeScreen
               branch="feat/projects-shell"
               onStartChat={handleStartChat}
+              onBrowseProjects={() => navigate("projects")}
               autoFocus={activeChatId === "new"}
             />
           )}
@@ -217,6 +220,7 @@ export function App() {
               key={activeChatId}
               initialPrompt={pendingPrompt}
               templateId={pendingTemplateId}
+              projectPath={pendingProjectPath}
               demo={activeChatId === "demo"}
             />
           )}
