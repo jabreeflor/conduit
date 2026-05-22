@@ -16,6 +16,7 @@ const INFRA_OPTIONS: {
   icon: string;
   title: string;
   body: string;
+  disabled?: boolean;
 }[] = [
   {
     id: "local",
@@ -28,6 +29,7 @@ const INFRA_OPTIONS: {
     icon: "cloud",
     title: "Cloud-Native",
     body: "High-performance archival & remote agent scaling.",
+    disabled: true,
   },
 ];
 
@@ -187,9 +189,9 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 3. Infrastructure & Compute */}
+        {/* 3. Infrastructure */}
         <section className="np-section">
-          <div className="np-section-label">Infrastructure & Compute</div>
+          <div className="np-section-label">Infrastructure</div>
           <div className="np-infra-grid">
             {INFRA_OPTIONS.map((option) => {
               const active = infra === option.id;
@@ -197,9 +199,10 @@ export function NewProject({
                 <button
                   key={option.id}
                   type="button"
-                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}${option.disabled ? " np-toggle-card-disabled" : ""}`}
                   aria-pressed={active}
-                  onClick={() => setInfra(option.id)}
+                  disabled={option.disabled}
+                  onClick={() => !option.disabled && setInfra(option.id)}
                 >
                   <span className="np-toggle-icon">
                     <Icon name={option.icon} size={24} />
