@@ -1,0 +1,409 @@
+import { useState } from "react";
+import { Icon } from "./Icon";
+import "./NewProject.css";
+
+// NewProject is the "Create New Project" form page for the Conduit GUI. It's a
+// UI spike: all selections live in local state and aren't persisted. The
+// component renders inside the app content column (the sidebar + top bar are
+// owned by the shell), so it only paints the scrollable form body.
+
+type InfraChoice = "local" | "cloud";
+type Visibility = "private" | "team" | "public";
+type AssetTab = "designs" | "documents" | "repositories";
+
+const INFRA_OPTIONS: {
+  id: InfraChoice;
+  icon: string;
+  title: string;
+  body: string;
+}[] = [
+  {
+    id: "local",
+    icon: "computer",
+    title: "Local-First",
+    body: "Secure local storage & compute. Data never leaves your machine.",
+  },
+  {
+    id: "cloud",
+    icon: "cloud",
+    title: "Cloud-Native",
+    body: "High-performance archival & remote agent scaling.",
+  },
+];
+
+const ASSET_TABS: { id: AssetTab; icon: string; label: string }[] = [
+  { id: "designs", icon: "draw", label: "Designs" },
+  { id: "documents", icon: "description", label: "Documents" },
+  { id: "repositories", icon: "folder_managed", label: "Repositories" },
+];
+
+const STAGED_ASSETS: {
+  id: string;
+  icon: string;
+  name: string;
+  meta: string;
+}[] = [
+  {
+    id: "aether-flow",
+    icon: "draw",
+    name: "Aether_Main_App_Flow.fig",
+    meta: "Figma • 12.4 MB",
+  },
+  {
+    id: "conduit-core",
+    icon: "folder_managed",
+    name: "conduit-core-infra",
+    meta: "GitHub Repo • github.com/conduit-ai/core",
+  },
+];
+
+const AGENTS: { id: string; icon: string; title: string; body: string }[] = [
+  {
+    id: "code-auditor",
+    icon: "code",
+    title: "Code Auditor",
+    body: "Reviews PRs for security and style vulnerabilities.",
+  },
+  {
+    id: "content-strategist",
+    icon: "description",
+    title: "Content Strategist",
+    body: "Drafts and refines technical copy and documentation.",
+  },
+  {
+    id: "system-architect",
+    icon: "architecture",
+    title: "System Architect",
+    body: "Designs scalable infrastructure and API schemas.",
+  },
+  {
+    id: "product-manager",
+    icon: "assignment",
+    title: "Product Manager",
+    body: "Synthesizes market data and user feedback into actionable PRDs and roadmaps.",
+  },
+  {
+    id: "security-researcher",
+    icon: "security",
+    title: "Security Researcher",
+    body: "Performs deep audits of code and architecture for vulnerabilities and compliance.",
+  },
+  {
+    id: "ui-ux-critic",
+    icon: "brush",
+    title: "UI/UX Critic",
+    body: "Provides expert feedback on design flows, accessibility, and visual hierarchy.",
+  },
+];
+
+const VISIBILITY_OPTIONS: {
+  id: Visibility;
+  icon: string;
+  title: string;
+  body: string;
+}[] = [
+  {
+    id: "private",
+    icon: "lock",
+    title: "Private",
+    body: "Just you and invited guests",
+  },
+  {
+    id: "team",
+    icon: "group",
+    title: "Team",
+    body: "Visible to entire workspace",
+  },
+  {
+    id: "public",
+    icon: "public",
+    title: "Public",
+    body: "Published as Open Intelligence",
+  },
+];
+
+export type NewProjectDraft = {
+  name: string;
+  description: string;
+  infra: InfraChoice;
+  visibility: Visibility;
+};
+
+export function NewProject({
+  onCancel,
+  onCreate,
+}: {
+  onCancel: () => void;
+  onCreate: (draft: NewProjectDraft) => void;
+}): JSX.Element {
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [infra, setInfra] = useState<InfraChoice>("local");
+  const [assetTab, setAssetTab] = useState<AssetTab>("designs");
+  const [visibility, setVisibility] = useState<Visibility>("private");
+  const [selectedAgents, setSelectedAgents] = useState<Set<string>>(
+    new Set(["code-auditor"]),
+  );
+
+  const toggleAgent = (id: string): void => {
+    setSelectedAgents((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div className="np-root">
+      <div className="np-content">
+        {/* 1. Header */}
+        <header className="np-header">
+          <h1 className="np-title">Create New Project</h1>
+          <p className="np-subtitle">
+            Initialize a structured workspace for your next breakthrough.
+          </p>
+        </header>
+
+        {/* 2. Project Core */}
+        <section className="np-section">
+          <div className="np-section-label">Project Core</div>
+          <div className="np-card">
+            <div className="np-field">
+              <label className="np-field-label" htmlFor="np-name">
+                Project Name
+              </label>
+              <input
+                id="np-name"
+                className="np-input"
+                type="text"
+                placeholder="e.g. Project 'Aether' - Q4 Infrastructure"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+            </div>
+            <div className="np-field">
+              <label className="np-field-label" htmlFor="np-description">
+                Description
+              </label>
+              <textarea
+                id="np-description"
+                className="np-textarea"
+                rows={3}
+                placeholder="Define the objective and scope of this orchestration..."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+              />
+            </div>
+          </div>
+        </section>
+
+        {/* 3. Infrastructure & Compute */}
+        <section className="np-section">
+          <div className="np-section-label">Infrastructure & Compute</div>
+          <div className="np-infra-grid">
+            {INFRA_OPTIONS.map((option) => {
+              const active = infra === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => setInfra(option.id)}
+                >
+                  <span className="np-toggle-icon">
+                    <Icon name={option.icon} size={24} />
+                  </span>
+                  <span className="np-toggle-title">{option.title}</span>
+                  <span className="np-toggle-body">{option.body}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 4. Contextual Assets */}
+        <section className="np-section">
+          <div className="np-section-head">
+            <div className="np-section-label">Contextual Assets</div>
+            <span className="np-chip">Project Knowledge</span>
+          </div>
+          <div className="np-card">
+            <div className="np-tabs" role="group" aria-label="Asset type">
+              {ASSET_TABS.map((tab) => {
+                const active = assetTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    aria-pressed={active}
+                    className={`np-tab${active ? " np-tab-active" : ""}`}
+                    onClick={() => setAssetTab(tab.id)}
+                  >
+                    <Icon name={tab.icon} size={18} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="np-dropzone">
+              <Icon name="cloud_upload" size={32} />
+              <p className="np-dropzone-text">
+                Drag & drop files or{" "}
+                <button type="button" className="np-dropzone-browse">
+                  browse local files
+                </button>
+              </p>
+            </div>
+
+            <div className="np-url-row">
+              <div className="np-url-input">
+                <Icon name="link" size={18} />
+                <input
+                  className="np-url-field"
+                  type="text"
+                  aria-label="Asset URL"
+                  placeholder="Paste URL (Figma, GitHub, Docs)..."
+                />
+              </div>
+              <button
+                type="button"
+                className="np-btn-primary np-btn-add"
+                aria-label="Add asset URL"
+              >
+                Add
+              </button>
+            </div>
+
+            <div className="np-staged">
+              <div className="np-staged-head">
+                Staged Assets <span className="np-count-chip">2</span>
+              </div>
+              <ul className="np-staged-list">
+                {STAGED_ASSETS.map((asset) => (
+                  <li key={asset.id} className="np-staged-item">
+                    <span className="np-staged-tile">
+                      <Icon name={asset.icon} size={20} />
+                    </span>
+                    <span className="np-staged-meta">
+                      <span className="np-staged-name">{asset.name}</span>
+                      <span className="np-staged-sub">{asset.meta}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="np-icon-btn"
+                      aria-label={`Remove ${asset.name}`}
+                    >
+                      <Icon name="close" size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        {/* 5. Agent Sessions */}
+        <section className="np-section">
+          <div className="np-agents-head">
+            <div className="np-agents-title">
+              <Icon name="smart_toy" size={20} />
+              <span>Agent Sessions</span>
+            </div>
+            <div className="np-agents-actions">
+              <button type="button" className="np-btn-outline">
+                <Icon name="person_add" size={18} />
+                Custom Agent
+              </button>
+              <span className="np-chip">Automation</span>
+            </div>
+          </div>
+          <div className="np-agents-grid">
+            {AGENTS.map((agent) => {
+              const active = selectedAgents.has(agent.id);
+              return (
+                <button
+                  key={agent.id}
+                  type="button"
+                  className={`np-agent-card${active ? " np-agent-card-active" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => toggleAgent(agent.id)}
+                >
+                  <span
+                    className={`np-radio${active ? " np-radio-active" : ""}`}
+                    aria-hidden="true"
+                  >
+                    {active ? <Icon name="check" size={14} /> : null}
+                  </span>
+                  <span className="np-agent-icon">
+                    <Icon name={agent.icon} size={24} />
+                  </span>
+                  <span className="np-agent-name">{agent.title}</span>
+                  <span className="np-agent-body">{agent.body}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 6. Visibility & Governance */}
+        <section className="np-section">
+          <div className="np-section-label">Visibility & Governance</div>
+          <div className="np-visibility-grid">
+            {VISIBILITY_OPTIONS.map((option) => {
+              const active = visibility === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
+                  aria-pressed={active}
+                  onClick={() => setVisibility(option.id)}
+                >
+                  <span className="np-toggle-icon">
+                    <Icon name={option.icon} size={24} />
+                  </span>
+                  <span className="np-toggle-title">{option.title}</span>
+                  <span className="np-toggle-body">{option.body}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 7. Footer */}
+        <footer className="np-footer">
+          <p className="np-disclaimer">
+            By clicking "Create Project", you agree to Conduit's automated
+            archival policies and compute quotas.
+          </p>
+          <div className="np-footer-actions">
+            <button type="button" className="np-btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="np-btn-primary"
+              disabled={name.trim() === ""}
+              onClick={() =>
+                onCreate({
+                  name: name.trim(),
+                  description: description.trim(),
+                  infra,
+                  visibility,
+                })
+              }
+            >
+              Create Project
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,268 @@
+/* SettingsPage — preferences surface. Renders inside the app shell's content
+   column (sidebar + 48px top bar live outside), so this owns no chrome. All
+   classes prefixed `set-`; colors come from global design tokens. */
+
+.set-root {
+  height: 100%;
+  overflow-y: auto;
+  background: var(--color-surface-canvas);
+}
+
+.set-content {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* ---- Header ----------------------------------------------------------- */
+.set-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-title {
+  margin: 0;
+  font-family: var(--ref-type-family-display);
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+.set-subtitle {
+  margin: 0;
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+/* ---- Section + card --------------------------------------------------- */
+.set-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.set-section-label {
+  margin: 0;
+  font-family: var(--ref-type-family-mono);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.set-card {
+  background: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--ref-radius-lg);
+  padding: 24px;
+}
+
+/* ---- Appearance / theme ----------------------------------------------- */
+.set-field {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.set-field-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.set-field-title {
+  font-family: var(--ref-type-family-display);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-body);
+}
+
+.set-field-hint {
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  color: var(--color-text-subtle);
+}
+
+.set-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.set-theme-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 20px 12px;
+  background: var(--color-surface-container);
+  border: 2px solid transparent;
+  border-radius: var(--ref-radius-md);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+.set-theme-card:hover {
+  background: var(--color-surface-container-high);
+}
+
+.set-theme-card:active {
+  transform: scale(0.98);
+}
+
+.set-theme-card-active,
+.set-theme-card-active:hover {
+  background: var(--color-secondary-container);
+  border-color: var(--color-secondary-base);
+}
+
+.set-theme-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+.set-theme-card-active .set-theme-icon {
+  color: var(--color-secondary-on-container);
+}
+
+.set-theme-label {
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  color: var(--color-text-body);
+}
+
+.set-theme-card-active .set-theme-label {
+  color: var(--color-secondary-on-container);
+}
+
+.set-theme-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: inline-flex;
+  color: var(--color-secondary-on-container);
+}
+
+/* ---- About rows ------------------------------------------------------- */
+.set-notice {
+  margin: 0 0 16px;
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  color: var(--color-text-subtle);
+}
+
+.set-notice code {
+  font-family: var(--ref-type-family-mono);
+  color: var(--color-text-muted);
+  background: var(--color-surface-sunken);
+  border-radius: var(--ref-radius-sm);
+  padding: 1px 6px;
+}
+
+.set-rows {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+
+.set-row:first-child {
+  padding-top: 0;
+}
+
+.set-row:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.set-row-key {
+  margin: 0;
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  color: var(--color-text-muted);
+}
+
+.set-row-val {
+  margin: 0;
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: right;
+  color: var(--color-text-body);
+  word-break: break-word;
+}
+
+.set-row-mono {
+  font-family: var(--ref-type-family-mono);
+  font-size: 13px;
+}
+
+/* ---- Coming soon ------------------------------------------------------ */
+.set-card-muted {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  background: var(--color-surface-sunken);
+  border-style: dashed;
+}
+
+.set-soon-icon {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--ref-radius-md);
+  background: var(--color-surface-container);
+  color: var(--color-text-subtle);
+}
+
+.set-soon-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.set-soon-title {
+  margin: 0;
+  font-family: var(--ref-type-family-display);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.set-soon-desc {
+  margin: 0;
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--color-text-subtle);
+}
+
+@media (max-width: 560px) {
+  .set-theme-grid {
+    grid-template-columns: 1fr;
+  }
+}
