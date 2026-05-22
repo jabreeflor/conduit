@@ -212,38 +212,14 @@
   color: var(--color-text-muted);
 }
 
-/* ── Asset tabs ────────────────────────────────────────────── */
-.np-tabs {
+/* ── Assets hint ───────────────────────────────────────────── */
+.np-assets-hint {
   display: flex;
-  gap: 4px;
-  border-bottom: 1px solid var(--color-border-subtle);
-  margin: -4px 0 0;
-}
-
-.np-tab {
-  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  background: transparent;
-  border: none;
-  border-bottom: 2px solid transparent;
-  padding: 10px 12px;
-  margin-bottom: -1px;
-  font-family: var(--ref-type-family-sans);
-  font-size: 14px;
-  font-weight: 500;
+  gap: 4px;
+  margin: 0;
+  font-size: 12px;
   color: var(--color-text-subtle);
-  cursor: pointer;
-  transition: color 0.15s ease;
-}
-
-.np-tab:hover {
-  color: var(--color-text-muted);
-}
-
-.np-tab-active {
-  color: var(--color-secondary-base);
-  border-bottom-color: var(--color-secondary-base);
 }
 
 /* ── Dropzone ──────────────────────────────────────────────── */
