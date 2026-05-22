@@ -37,25 +37,7 @@ const ASSET_TABS: { id: AssetTab; icon: string; label: string }[] = [
   { id: "repositories", icon: "folder_managed", label: "Repositories" },
 ];
 
-const STAGED_ASSETS: {
-  id: string;
-  icon: string;
-  name: string;
-  meta: string;
-}[] = [
-  {
-    id: "aether-flow",
-    icon: "draw",
-    name: "Aether_Main_App_Flow.fig",
-    meta: "Figma • 12.4 MB",
-  },
-  {
-    id: "conduit-core",
-    icon: "folder_managed",
-    name: "conduit-core-infra",
-    meta: "GitHub Repo • github.com/conduit-ai/core",
-  },
-];
+type StagedAsset = { id: string; icon: string; name: string; meta: string };
 
 const AGENTS: { id: string; icon: string; title: string; body: string }[] = [
   {
@@ -144,6 +126,10 @@ export function NewProject({
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(
     new Set(["code-auditor"]),
   );
+  const [stagedAssets, setStagedAssets] = useState<StagedAsset[]>([]);
+
+  const removeAsset = (id: string): void =>
+    setStagedAssets((prev) => prev.filter((a) => a.id !== id));
 
   const toggleAgent = (id: string): void => {
     setSelectedAgents((prev) => {
@@ -280,31 +266,35 @@ export function NewProject({
               </button>
             </div>
 
-            <div className="np-staged">
-              <div className="np-staged-head">
-                Staged Assets <span className="np-count-chip">2</span>
+            {stagedAssets.length > 0 && (
+              <div className="np-staged">
+                <div className="np-staged-head">
+                  Staged Assets{" "}
+                  <span className="np-count-chip">{stagedAssets.length}</span>
+                </div>
+                <ul className="np-staged-list">
+                  {stagedAssets.map((asset) => (
+                    <li key={asset.id} className="np-staged-item">
+                      <span className="np-staged-tile">
+                        <Icon name={asset.icon} size={20} />
+                      </span>
+                      <span className="np-staged-meta">
+                        <span className="np-staged-name">{asset.name}</span>
+                        <span className="np-staged-sub">{asset.meta}</span>
+                      </span>
+                      <button
+                        type="button"
+                        className="np-icon-btn"
+                        aria-label={`Remove ${asset.name}`}
+                        onClick={() => removeAsset(asset.id)}
+                      >
+                        <Icon name="close" size={18} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="np-staged-list">
-                {STAGED_ASSETS.map((asset) => (
-                  <li key={asset.id} className="np-staged-item">
-                    <span className="np-staged-tile">
-                      <Icon name={asset.icon} size={20} />
-                    </span>
-                    <span className="np-staged-meta">
-                      <span className="np-staged-name">{asset.name}</span>
-                      <span className="np-staged-sub">{asset.meta}</span>
-                    </span>
-                    <button
-                      type="button"
-                      className="np-icon-btn"
-                      aria-label={`Remove ${asset.name}`}
-                    >
-                      <Icon name="close" size={18} />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            </div>
+            )}
           </div>
         </section>
 
