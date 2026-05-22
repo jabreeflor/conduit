@@ -9,7 +9,6 @@ import "./NewProject.css";
 
 type InfraChoice = "local" | "cloud";
 type Visibility = "private" | "team" | "public";
-type AssetTab = "designs" | "documents" | "repositories";
 
 const INFRA_OPTIONS: {
   id: InfraChoice;
@@ -29,12 +28,6 @@ const INFRA_OPTIONS: {
     title: "Cloud-Native",
     body: "High-performance archival & remote agent scaling.",
   },
-];
-
-const ASSET_TABS: { id: AssetTab; icon: string; label: string }[] = [
-  { id: "designs", icon: "draw", label: "Designs" },
-  { id: "documents", icon: "description", label: "Documents" },
-  { id: "repositories", icon: "folder_managed", label: "Repositories" },
 ];
 
 type StagedAsset = { id: string; icon: string; name: string; meta: string };
@@ -121,7 +114,6 @@ export function NewProject({
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [infra, setInfra] = useState<InfraChoice>("local");
-  const [assetTab, setAssetTab] = useState<AssetTab>("designs");
   const [visibility, setVisibility] = useState<Visibility>("private");
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(
     new Set(["code-auditor"]),
@@ -212,30 +204,21 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 4. Contextual Assets */}
+        {/* 4. Contextual Assets — single unified panel */}
         <section className="np-section">
           <div className="np-section-head">
             <div className="np-section-label">Contextual Assets</div>
             <span className="np-chip">Project Knowledge</span>
           </div>
           <div className="np-card">
-            <div className="np-tabs" role="group" aria-label="Asset type">
-              {ASSET_TABS.map((tab) => {
-                const active = assetTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    type="button"
-                    aria-pressed={active}
-                    className={`np-tab${active ? " np-tab-active" : ""}`}
-                    onClick={() => setAssetTab(tab.id)}
-                  >
-                    <Icon name={tab.icon} size={18} />
-                    {tab.label}
-                  </button>
-                );
-              })}
-            </div>
+            <p className="np-assets-hint">
+              <Icon name="draw" size={14} />
+              Designs&ensp;·&ensp;
+              <Icon name="description" size={14} />
+              Documents&ensp;·&ensp;
+              <Icon name="folder_managed" size={14} />
+              Repositories
+            </p>
 
             <div className="np-dropzone">
               <Icon name="cloud_upload" size={32} />
@@ -254,7 +237,7 @@ export function NewProject({
                   className="np-url-field"
                   type="text"
                   aria-label="Asset URL"
-                  placeholder="Paste URL (Figma, GitHub, Docs)..."
+                  placeholder="Paste a link — Figma, GitHub repo, Google Doc…"
                 />
               </div>
               <button
