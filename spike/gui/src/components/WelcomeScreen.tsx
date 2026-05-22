@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { getProjects, type Project } from "../api";
 import { Icon } from "./Icon";
 
 // WelcomeScreen is the empty-state body of the content column. Shown when no
@@ -11,7 +12,7 @@ export function WelcomeScreen({
   autoFocus,
 }: {
   branch: string;
-  onStartChat: (prompt: string) => void;
+  onStartChat: (prompt: string, projectPath?: string) => void;
   onBrowseProjects: () => void;
   autoFocus: boolean;
 }) {
@@ -22,6 +23,8 @@ export function WelcomeScreen({
   const [menu, setMenu] = useState<
     null | "sandbox" | "model" | "project" | "machine" | "branch"
   >(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   const MACHINE_OPTS = ["Work locally", "Remote (SSH)", "Docker container"];
@@ -38,10 +41,19 @@ export function WelcomeScreen({
     if (autoFocus) taRef.current?.focus();
   }, [autoFocus]);
 
+  useEffect(() => {
+    getProjects()
+      .then((res) => {
+        setProjects(res.projects);
+        if (res.projects.length > 0) setSelectedProject(res.projects[0]);
+      })
+      .catch(() => { /* offline — keep empty list */ });
+  }, []);
+
   function submit() {
     const text = draft.trim();
     if (!text) return;
-    onStartChat(text);
+    onStartChat(text, selectedProject?.absolutePath);
     setDraft("");
   }
 
@@ -184,20 +196,22 @@ export function WelcomeScreen({
                 }
               >
                 <Icon name="folder_open" size={14} />
-                conduit
+                {selectedProject?.name ?? "No project"}
                 <Icon name="expand_more" size={14} className="pill-chev" />
               </button>
               {menu === "project" && (
                 <ul className="composer-menu ctx-menu" role="listbox">
-                  <li role="option" aria-selected>
-                    <button
-                      type="button"
-                      className="composer-menu-item active"
-                      onClick={() => setMenu(null)}
-                    >
-                      conduit
-                    </button>
-                  </li>
+                  {projects.map((p) => (
+                    <li key={p.id} role="option" aria-selected={p.id === selectedProject?.id}>
+                      <button
+                        type="button"
+                        className={`composer-menu-item${p.id === selectedProject?.id ? " active" : ""}`}
+                        onClick={() => { setSelectedProject(p); setMenu(null); }}
+                      >
+                        {p.name}
+                      </button>
+                    </li>
+                  ))}
                   <li role="option" aria-selected={false}>
                     <button
                       type="button"
