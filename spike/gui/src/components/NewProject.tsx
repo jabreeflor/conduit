@@ -119,6 +119,7 @@ export function NewProject({
   onCreate: (draft: NewProjectDraft) => void;
 }): JSX.Element {
   const [name, setName] = useState("");
+  const [nameTouched, setNameTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [infra, setInfra] = useState<InfraChoice>("local");
   const [assetTab, setAssetTab] = useState<AssetTab>("designs");
@@ -127,6 +128,8 @@ export function NewProject({
     new Set(["code-auditor"]),
   );
   const [stagedAssets, setStagedAssets] = useState<StagedAsset[]>([]);
+
+  const nameError = nameTouched && name.trim() === "";
 
   const removeAsset = (id: string): void =>
     setStagedAssets((prev) => prev.filter((a) => a.id !== id));
@@ -161,19 +164,31 @@ export function NewProject({
             <div className="np-field">
               <label className="np-field-label" htmlFor="np-name">
                 Project Name
+                <span className="np-required" aria-hidden="true">*</span>
               </label>
               <input
                 id="np-name"
-                className="np-input"
+                className={`np-input${nameError ? " np-input-error" : ""}`}
                 type="text"
                 placeholder="e.g. Project 'Aether' - Q4 Infrastructure"
                 value={name}
+                required
+                aria-required="true"
+                aria-invalid={nameError}
+                aria-describedby={nameError ? "np-name-error" : undefined}
                 onChange={(e) => setName(e.target.value)}
+                onBlur={() => setNameTouched(true)}
               />
+              {nameError && (
+                <span id="np-name-error" className="np-field-error" role="alert">
+                  Project name is required.
+                </span>
+              )}
             </div>
             <div className="np-field">
               <label className="np-field-label" htmlFor="np-description">
                 Description
+                <span className="np-optional">Optional</span>
               </label>
               <textarea
                 id="np-description"
@@ -379,15 +394,18 @@ export function NewProject({
             <button
               type="button"
               className="np-btn-primary"
-              disabled={name.trim() === ""}
-              onClick={() =>
+              onClick={() => {
+                if (name.trim() === "") {
+                  setNameTouched(true);
+                  return;
+                }
                 onCreate({
                   name: name.trim(),
                   description: description.trim(),
                   infra,
                   visibility,
-                })
-              }
+                });
+              }}
             >
               Create Project
             </button>
