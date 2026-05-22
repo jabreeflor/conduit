@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jabreeflor/conduit/internal/provider/router"
+	"github.com/jabreeflor/conduit/internal/router"
 )
 
 func TestParseAndLoadImageDirective(t *testing.T) {

@@ -7,25 +7,25 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jabreeflor/conduit/internal/billing/usage"
+	"github.com/jabreeflor/conduit/internal/coding"
 	"github.com/jabreeflor/conduit/internal/computeruse"
+	"github.com/jabreeflor/conduit/internal/config"
 	"github.com/jabreeflor/conduit/internal/contracts"
+	"github.com/jabreeflor/conduit/internal/endpoint"
+	evalpkg "github.com/jabreeflor/conduit/internal/eval"
+	"github.com/jabreeflor/conduit/internal/localmodel"
 	"github.com/jabreeflor/conduit/internal/mcp"
-	"github.com/jabreeflor/conduit/internal/platform/config"
-	"github.com/jabreeflor/conduit/internal/plugin/skills"
 	"github.com/jabreeflor/conduit/internal/provider/anthropic"
 	"github.com/jabreeflor/conduit/internal/provider/codex"
-	"github.com/jabreeflor/conduit/internal/provider/endpoint"
-	"github.com/jabreeflor/conduit/internal/provider/local"
-	"github.com/jabreeflor/conduit/internal/provider/router"
+	"github.com/jabreeflor/conduit/internal/router"
 	"github.com/jabreeflor/conduit/internal/sandbox"
+	"github.com/jabreeflor/conduit/internal/server"
 	"github.com/jabreeflor/conduit/internal/sessions"
-	"github.com/jabreeflor/conduit/internal/surface/coding"
-	"github.com/jabreeflor/conduit/internal/surface/server"
-	"github.com/jabreeflor/conduit/internal/surface/tui"
+	"github.com/jabreeflor/conduit/internal/skills"
 	"github.com/jabreeflor/conduit/internal/tools"
 	"github.com/jabreeflor/conduit/internal/tools/websearch"
-	evalpkg "github.com/jabreeflor/conduit/internal/workflow/eval"
+	"github.com/jabreeflor/conduit/internal/tui"
+	"github.com/jabreeflor/conduit/internal/usage"
 )
 
 var version = "dev"
@@ -61,7 +61,7 @@ func main() {
 			}
 			return
 		case "models":
-			if err := local.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
+			if err := localmodel.RunCLI(context.Background(), os.Args[2:], os.Stdout, os.Stderr); err != nil {
 				fmt.Fprintf(os.Stderr, "conduit models: %v\n", err)
 				os.Exit(1)
 			}
@@ -357,14 +357,21 @@ func runServeCLI(ctx context.Context, args []string, stdout, stderr *os.File) er
 	// from the cmd layer; the server wraps them with tool-event hooks.
 	_, providerName, modelName := selectCodingStreamer(*provider, *model, codingTools, stderr)
 
+	// rtCfg is the shared mutable bag of provider+model. The factory reads
+	// from it on every new WebSocket connection, so PATCH /api/settings takes
+	// effect without a server restart.
+	rtCfg := &server.RuntimeConfig{Provider: providerName, Model: modelName}
+
 	srv := server.New(server.Config{
 		Factory: func(wrapped []tools.Tool) (coding.Streamer, string, string) {
-			return selectCodingStreamer(*provider, *model, wrapped, stderr)
+			p, m := rtCfg.Get()
+			return selectCodingStreamer(p, m, wrapped, stderr)
 		},
-		BaseTools: codingTools,
-		Provider:  providerName,
-		Model:     modelName,
-		Version:   version,
+		BaseTools:     codingTools,
+		RuntimeConfig: rtCfg,
+		Provider:      providerName,
+		Model:         modelName,
+		Version:       version,
 	})
 
 	fmt.Fprintf(stdout, "conduit serve: listening on %s (provider=%s model=%s allow-write=%t allow-shell=%t)\n",

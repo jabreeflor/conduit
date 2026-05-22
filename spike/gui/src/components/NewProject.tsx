@@ -9,13 +9,13 @@ import "./NewProject.css";
 
 type InfraChoice = "local" | "cloud";
 type Visibility = "private" | "team" | "public";
+type AssetTab = "designs" | "documents" | "repositories";
 
 const INFRA_OPTIONS: {
   id: InfraChoice;
   icon: string;
   title: string;
   body: string;
-  disabled?: boolean;
 }[] = [
   {
     id: "local",
@@ -28,11 +28,34 @@ const INFRA_OPTIONS: {
     icon: "cloud",
     title: "Cloud-Native",
     body: "High-performance archival & remote agent scaling.",
-    disabled: true,
   },
 ];
 
-type StagedAsset = { id: string; icon: string; name: string; meta: string };
+const ASSET_TABS: { id: AssetTab; icon: string; label: string }[] = [
+  { id: "designs", icon: "draw", label: "Designs" },
+  { id: "documents", icon: "description", label: "Documents" },
+  { id: "repositories", icon: "folder_managed", label: "Repositories" },
+];
+
+const STAGED_ASSETS: {
+  id: string;
+  icon: string;
+  name: string;
+  meta: string;
+}[] = [
+  {
+    id: "aether-flow",
+    icon: "draw",
+    name: "Aether_Main_App_Flow.fig",
+    meta: "Figma • 12.4 MB",
+  },
+  {
+    id: "conduit-core",
+    icon: "folder_managed",
+    name: "conduit-core-infra",
+    meta: "GitHub Repo • github.com/conduit-ai/core",
+  },
+];
 
 const AGENTS: { id: string; icon: string; title: string; body: string }[] = [
   {
@@ -114,19 +137,13 @@ export function NewProject({
   onCreate: (draft: NewProjectDraft) => void;
 }): JSX.Element {
   const [name, setName] = useState("");
-  const [nameTouched, setNameTouched] = useState(false);
   const [description, setDescription] = useState("");
   const [infra, setInfra] = useState<InfraChoice>("local");
+  const [assetTab, setAssetTab] = useState<AssetTab>("designs");
   const [visibility, setVisibility] = useState<Visibility>("private");
   const [selectedAgents, setSelectedAgents] = useState<Set<string>>(
     new Set(["code-auditor"]),
   );
-  const [stagedAssets, setStagedAssets] = useState<StagedAsset[]>([]);
-
-  const nameError = nameTouched && name.trim() === "";
-
-  const removeAsset = (id: string): void =>
-    setStagedAssets((prev) => prev.filter((a) => a.id !== id));
 
   const toggleAgent = (id: string): void => {
     setSelectedAgents((prev) => {
@@ -158,31 +175,19 @@ export function NewProject({
             <div className="np-field">
               <label className="np-field-label" htmlFor="np-name">
                 Project Name
-                <span className="np-required" aria-hidden="true">*</span>
               </label>
               <input
                 id="np-name"
-                className={`np-input${nameError ? " np-input-error" : ""}`}
+                className="np-input"
                 type="text"
                 placeholder="e.g. Project 'Aether' - Q4 Infrastructure"
                 value={name}
-                required
-                aria-required="true"
-                aria-invalid={nameError}
-                aria-describedby={nameError ? "np-name-error" : undefined}
                 onChange={(e) => setName(e.target.value)}
-                onBlur={() => setNameTouched(true)}
               />
-              {nameError && (
-                <span id="np-name-error" className="np-field-error" role="alert">
-                  Project name is required.
-                </span>
-              )}
             </div>
             <div className="np-field">
               <label className="np-field-label" htmlFor="np-description">
                 Description
-                <span className="np-optional">Optional</span>
               </label>
               <textarea
                 id="np-description"
@@ -196,9 +201,9 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 3. Infrastructure */}
+        {/* 3. Infrastructure & Compute */}
         <section className="np-section">
-          <div className="np-section-label">Infrastructure</div>
+          <div className="np-section-label">Infrastructure & Compute</div>
           <div className="np-infra-grid">
             {INFRA_OPTIONS.map((option) => {
               const active = infra === option.id;
@@ -206,10 +211,9 @@ export function NewProject({
                 <button
                   key={option.id}
                   type="button"
-                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}${option.disabled ? " np-toggle-card-disabled" : ""}`}
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
                   aria-pressed={active}
-                  disabled={option.disabled}
-                  onClick={() => !option.disabled && setInfra(option.id)}
+                  onClick={() => setInfra(option.id)}
                 >
                   <span className="np-toggle-icon">
                     <Icon name={option.icon} size={24} />
@@ -222,21 +226,30 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 4. Contextual Assets — single unified panel */}
+        {/* 4. Contextual Assets */}
         <section className="np-section">
           <div className="np-section-head">
             <div className="np-section-label">Contextual Assets</div>
             <span className="np-chip">Project Knowledge</span>
           </div>
           <div className="np-card">
-            <p className="np-assets-hint">
-              <Icon name="draw" size={14} />
-              Designs&ensp;·&ensp;
-              <Icon name="description" size={14} />
-              Documents&ensp;·&ensp;
-              <Icon name="folder_managed" size={14} />
-              Repositories
-            </p>
+            <div className="np-tabs" role="group" aria-label="Asset type">
+              {ASSET_TABS.map((tab) => {
+                const active = assetTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    aria-pressed={active}
+                    className={`np-tab${active ? " np-tab-active" : ""}`}
+                    onClick={() => setAssetTab(tab.id)}
+                  >
+                    <Icon name={tab.icon} size={18} />
+                    {tab.label}
+                  </button>
+                );
+              })}
+            </div>
 
             <div className="np-dropzone">
               <Icon name="cloud_upload" size={32} />
@@ -255,7 +268,7 @@ export function NewProject({
                   className="np-url-field"
                   type="text"
                   aria-label="Asset URL"
-                  placeholder="Paste a link — Figma, GitHub repo, Google Doc…"
+                  placeholder="Paste URL (Figma, GitHub, Docs)..."
                 />
               </div>
               <button
@@ -267,35 +280,31 @@ export function NewProject({
               </button>
             </div>
 
-            {stagedAssets.length > 0 && (
-              <div className="np-staged">
-                <div className="np-staged-head">
-                  Staged Assets{" "}
-                  <span className="np-count-chip">{stagedAssets.length}</span>
-                </div>
-                <ul className="np-staged-list">
-                  {stagedAssets.map((asset) => (
-                    <li key={asset.id} className="np-staged-item">
-                      <span className="np-staged-tile">
-                        <Icon name={asset.icon} size={20} />
-                      </span>
-                      <span className="np-staged-meta">
-                        <span className="np-staged-name">{asset.name}</span>
-                        <span className="np-staged-sub">{asset.meta}</span>
-                      </span>
-                      <button
-                        type="button"
-                        className="np-icon-btn"
-                        aria-label={`Remove ${asset.name}`}
-                        onClick={() => removeAsset(asset.id)}
-                      >
-                        <Icon name="close" size={18} />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+            <div className="np-staged">
+              <div className="np-staged-head">
+                Staged Assets <span className="np-count-chip">2</span>
               </div>
-            )}
+              <ul className="np-staged-list">
+                {STAGED_ASSETS.map((asset) => (
+                  <li key={asset.id} className="np-staged-item">
+                    <span className="np-staged-tile">
+                      <Icon name={asset.icon} size={20} />
+                    </span>
+                    <span className="np-staged-meta">
+                      <span className="np-staged-name">{asset.name}</span>
+                      <span className="np-staged-sub">{asset.meta}</span>
+                    </span>
+                    <button
+                      type="button"
+                      className="np-icon-btn"
+                      aria-label={`Remove ${asset.name}`}
+                    >
+                      <Icon name="close" size={18} />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
 
@@ -342,21 +351,19 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 6. Visibility */}
+        {/* 6. Visibility & Governance */}
         <section className="np-section">
-          <div className="np-section-label">Visibility</div>
+          <div className="np-section-label">Visibility & Governance</div>
           <div className="np-visibility-grid">
             {VISIBILITY_OPTIONS.map((option) => {
               const active = visibility === option.id;
-              const disabled = option.id === "public";
               return (
                 <button
                   key={option.id}
                   type="button"
-                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}${disabled ? " np-toggle-card-disabled" : ""}`}
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
                   aria-pressed={active}
-                  aria-disabled={disabled}
-                  onClick={() => !disabled && setVisibility(option.id)}
+                  onClick={() => setVisibility(option.id)}
                 >
                   <span className="np-toggle-icon">
                     <Icon name={option.icon} size={24} />
@@ -382,18 +389,15 @@ export function NewProject({
             <button
               type="button"
               className="np-btn-primary"
-              onClick={() => {
-                if (name.trim() === "") {
-                  setNameTouched(true);
-                  return;
-                }
+              disabled={name.trim() === ""}
+              onClick={() =>
                 onCreate({
                   name: name.trim(),
                   description: description.trim(),
                   infra,
                   visibility,
-                });
-              }}
+                })
+              }
             >
               Create Project
             </button>

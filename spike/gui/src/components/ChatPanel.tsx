@@ -67,11 +67,9 @@ const DEMO_TURNS: Turn[] = [
 
 export function ChatPanel({
   initialPrompt = null,
-  templateId = null,
   demo = false,
 }: {
   initialPrompt?: string | null;
-  templateId?: string | null;
   demo?: boolean;
 }) {
   const [info, setInfo] = useState<Info | null>(null);
@@ -95,13 +93,13 @@ export function ChatPanel({
 
   useEffect(() => {
     if (demo) return;
-    const client = connectAgent(
-      { onState: setState, onMessage: (msg) => applyMessage(msg, setTurns, setInfo) },
-      { templateId: templateId ?? undefined },
-    );
+    const client = connectAgent({
+      onState: setState,
+      onMessage: (msg) => applyMessage(msg, setTurns, setInfo),
+    });
     clientRef.current = client;
     return () => client.close();
-  }, [demo, templateId]);
+  }, [demo]);
 
   // Auto-send the welcome-screen prompt once the WS is connected.
   useEffect(() => {

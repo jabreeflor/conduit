@@ -66,23 +66,6 @@ export type ProjectsResponse = {
   orphans: ChatSummary[];
 };
 
-// Agent templates — wire shape from GET /api/agents.
-// The server never exposes the raw system prompt; clients reference templates
-// by ID when connecting to /api/agent?template=<id>.
-export type AgentTemplate = {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  isBuiltIn: boolean;
-};
-
-export type CreateAgentBody = {
-  name: string;
-  description: string;
-  systemPrompt: string;
-};
-
 // ── REST helpers ─────────────────────────────────────────────────────────
 
 async function getJSON<T>(path: string): Promise<T> {
@@ -92,6 +75,20 @@ async function getJSON<T>(path: string): Promise<T> {
 }
 
 export const getInfo = (): Promise<Info> => getJSON<Info>("/api/info");
+
+export async function patchSettings(provider: string, model: string): Promise<Info> {
+  const r = await fetch(`${BASE}/api/settings`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ provider, model }),
+  });
+  if (!r.ok) {
+    const err = (await r.json().catch(() => ({}))) as { error?: string };
+    throw new Error(err.error ?? `HTTP ${r.status}`);
+  }
+  return (await r.json()) as Info;
+}
+
 export const getSessions = (): Promise<SessionMeta[]> =>
   getJSON<SessionMeta[]>("/api/sessions");
 export const getMemory = (): Promise<Memory> => getJSON<Memory>("/api/memory");
@@ -111,19 +108,6 @@ export async function saveMemory(mem: Memory): Promise<Memory> {
 export const getProjects = (): Promise<ProjectsResponse> =>
   getJSON<ProjectsResponse>("/api/projects");
 
-export const getAgents = (): Promise<AgentTemplate[]> =>
-  getJSON<AgentTemplate[]>("/api/agents");
-
-export async function createAgent(body: CreateAgentBody): Promise<AgentTemplate> {
-  const r = await fetch(`${BASE}/api/agents`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!r.ok) throw new Error(`/api/agents: HTTP ${r.status}`);
-  return (await r.json()) as AgentTemplate;
-}
-
 export function baseUrl(): string {
   return BASE;
 }
@@ -142,15 +126,7 @@ export type AgentClientHandlers = {
   onState: (state: ConnectionState) => void;
 };
 
-export type AgentClientOptions = {
-  /** When set, the server will prime the session with the named template's system prompt. */
-  templateId?: string;
-};
-
-export function connectAgent(
-  handlers: AgentClientHandlers,
-  options: AgentClientOptions = {},
-): AgentClient {
+export function connectAgent(handlers: AgentClientHandlers): AgentClient {
   let ws: WebSocket | null = null;
   let closed = false;
   let retry = 0;
@@ -158,10 +134,7 @@ export function connectAgent(
 
   function open() {
     handlers.onState("connecting");
-    const url = options.templateId
-      ? `${wsBase()}/api/agent?template=${encodeURIComponent(options.templateId)}`
-      : `${wsBase()}/api/agent`;
-    ws = new WebSocket(url);
+    ws = new WebSocket(`${wsBase()}/api/agent`);
 
     ws.addEventListener("open", () => {
       retry = 0;
