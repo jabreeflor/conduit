@@ -1,11 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import { getProjects, type Project } from "../api";
 import { Icon } from "./Icon";
-import {
-  GitHubMark,
-  IntegrationCard,
-  LinearMark,
-  SlackMark,
-} from "./IntegrationCard";
 
 // WelcomeScreen is the empty-state body of the content column. Shown when no
 // chat is selected. The composer's submit fires onStartChat, which the parent
@@ -13,16 +8,23 @@ import {
 export function WelcomeScreen({
   branch,
   onStartChat,
+  onBrowseProjects,
   autoFocus,
 }: {
   branch: string;
-  onStartChat: (prompt: string) => void;
+  onStartChat: (prompt: string, projectPath?: string) => void;
+  onBrowseProjects: () => void;
   autoFocus: boolean;
 }) {
   const [draft, setDraft] = useState("");
   const [sandbox, setSandbox] = useState("Sandboxed");
   const [model, setModel] = useState("gpt-5.5 Medium");
-  const [menu, setMenu] = useState<null | "sandbox" | "model">(null);
+  const [machine, setMachine] = useState("Work locally");
+  const [menu, setMenu] = useState<
+    null | "sandbox" | "model" | "project" | "machine" | "branch"
+  >(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
   const SANDBOX_OPTS = ["Sandboxed", "Unrestricted"];
@@ -37,10 +39,19 @@ export function WelcomeScreen({
     if (autoFocus) taRef.current?.focus();
   }, [autoFocus]);
 
+  useEffect(() => {
+    getProjects()
+      .then((res) => {
+        setProjects(res.projects);
+        if (res.projects.length > 0) setSelectedProject(res.projects[0]);
+      })
+      .catch(() => { /* offline — keep empty list */ });
+  }, []);
+
   function submit() {
     const text = draft.trim();
     if (!text) return;
-    onStartChat(text);
+    onStartChat(text, selectedProject?.absolutePath);
     setDraft("");
   }
 
@@ -172,10 +183,44 @@ export function WelcomeScreen({
           </div>
 
           <div className="context-row">
-            <span className="ctx-pill">
-              <Icon name="folder_open" size={14} />
-              conduit
-              <Icon name="expand_more" size={14} className="pill-chev" />
+            <span className="pill-wrap">
+              <button
+                type="button"
+                className="ctx-pill"
+                aria-haspopup="listbox"
+                aria-expanded={menu === "project"}
+                onClick={() =>
+                  setMenu((m) => (m === "project" ? null : "project"))
+                }
+              >
+                <Icon name="folder_open" size={14} />
+                {selectedProject?.name ?? "No project"}
+                <Icon name="expand_more" size={14} className="pill-chev" />
+              </button>
+              {menu === "project" && (
+                <ul className="composer-menu ctx-menu" role="listbox">
+                  {projects.map((p) => (
+                    <li key={p.id} role="option" aria-selected={p.id === selectedProject?.id}>
+                      <button
+                        type="button"
+                        className={`composer-menu-item${p.id === selectedProject?.id ? " active" : ""}`}
+                        onClick={() => { setSelectedProject(p); setMenu(null); }}
+                      >
+                        {p.name}
+                      </button>
+                    </li>
+                  ))}
+                  <li role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="composer-menu-item"
+                      onClick={() => { setMenu(null); onBrowseProjects(); }}
+                    >
+                      Browse projects…
+                    </button>
+                  </li>
+                </ul>
+              )}
             </span>
             <span className="ctx-pill">
               <Icon name="computer" size={14} />
@@ -191,29 +236,6 @@ export function WelcomeScreen({
         </div>
       </div>
 
-      <div className="integration-cards">
-        <IntegrationCard
-          icon={<GitHubMark />}
-          title="Connect GitHub"
-          body="Pull issues, branches, and PR context directly into chat."
-        />
-        <IntegrationCard
-          icon={<LinearMark />}
-          title="Connect Linear"
-          body="Plan from your team's backlog and update statuses."
-        />
-        <IntegrationCard
-          tile
-          icon={<Icon name="hub" size={24} fill />}
-          title="Connect MCP"
-          body="Plug in external tools and data via Protocol."
-        />
-        <IntegrationCard
-          icon={<SlackMark />}
-          title="Connect Slack"
-          body="Pull context from team threads and share updates."
-        />
-      </div>
     </div>
   );
 }
