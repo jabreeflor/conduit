@@ -11,7 +11,6 @@ export type NavView =
   | "projects"
   | "newProject"
   | "workspace"
-  | "agents"
   | "soul"
   | "settings"
   | "plugins"

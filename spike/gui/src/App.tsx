@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
 import { Spotlight } from "./Spotlight";
-import { AgentSessionsPage } from "./components/AgentSessionsPage";
-import "./components/AgentSessionsPage.css";
 import { ChatPanel } from "./components/ChatPanel";
 import { NewProject, type NewProjectDraft } from "./components/NewProject";
 import { ProjectDashboard } from "./components/ProjectDashboard";
@@ -45,8 +43,6 @@ function initialView(): View {
       return "plugins";
     case "automations":
       return "automations";
-    case "agents":
-      return "agents";
     default:
       return "welcome";
   }
@@ -58,7 +54,6 @@ const TOPBAR_LABEL: Record<View, string> = {
   projects: "Projects",
   newProject: "New Project",
   workspace: "Workspace",
-  agents: "Agent Sessions",
   soul: "Soul",
   settings: "Settings",
   plugins: "Plugins",
@@ -120,15 +115,6 @@ export function App() {
   function handleStartChat(prompt: string, projectPath?: string) {
     setPendingPrompt(prompt);
     setPendingProjectPath(projectPath ?? null);
-    setActiveChatId("active");
-    navigate("chat");
-  }
-
-  // Called from AgentSessionsPage when the user picks a template and clicks
-  // "Start Session". templateId null means a bare chat with no persona.
-  function handleStartAgentSession(templateId: string | null) {
-    setPendingTemplateId(templateId);
-    setPendingPrompt(null);
     setActiveChatId("active");
     navigate("chat");
   }
@@ -245,12 +231,6 @@ export function App() {
               projectName={activeProject?.title}
               onStartSession={() => go("welcome")}
               onBack={() => navigate("projects")}
-            />
-          )}
-          {view === "agents" && (
-            <AgentSessionsPage
-              onStartSession={handleStartAgentSession}
-              onOpenAutomations={() => navigate("automations")}
             />
           )}
           {view === "soul" && <SoulPage />}

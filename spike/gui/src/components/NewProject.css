@@ -82,34 +82,9 @@
 }
 
 .np-field-label {
-  display: flex;
-  align-items: center;
-  gap: 6px;
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-body);
-}
-
-.np-required {
-  color: var(--color-error, #d32f2f);
-  font-size: 14px;
-  line-height: 1;
-}
-
-.np-optional {
-  font-size: 12px;
-  font-weight: 400;
-  font-family: var(--ref-type-family-mono);
-  color: var(--color-text-subtle);
-  letter-spacing: 0.02em;
-}
-
-.np-field-error {
-  font-size: 12px;
-  color: var(--color-error, #d32f2f);
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .np-input,
@@ -141,14 +116,6 @@
 .np-textarea:focus {
   outline: none;
   border-color: var(--color-secondary-base);
-}
-
-.np-input-error {
-  border-color: var(--color-error, #d32f2f);
-}
-
-.np-input-error:focus {
-  border-color: var(--color-error, #d32f2f);
 }
 
 /* ── Chips ─────────────────────────────────────────────────── */
@@ -218,12 +185,6 @@
   padding: 19px;
 }
 
-.np-toggle-card-disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-  pointer-events: none;
-}
-
 .np-toggle-icon {
   display: inline-flex;
   color: var(--color-text-subtle);
@@ -245,14 +206,38 @@
   color: var(--color-text-muted);
 }
 
-/* ── Assets hint ───────────────────────────────────────────── */
-.np-assets-hint {
+/* ── Asset tabs ────────────────────────────────────────────── */
+.np-tabs {
   display: flex;
-  align-items: center;
   gap: 4px;
-  margin: 0;
-  font-size: 12px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  margin: -4px 0 0;
+}
+
+.np-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 10px 12px;
+  margin-bottom: -1px;
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  font-weight: 500;
   color: var(--color-text-subtle);
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+
+.np-tab:hover {
+  color: var(--color-text-muted);
+}
+
+.np-tab-active {
+  color: var(--color-secondary-base);
+  border-bottom-color: var(--color-secondary-base);
 }
 
 /* ── Dropzone ──────────────────────────────────────────────── */

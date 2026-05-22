@@ -261,8 +261,123 @@
   color: var(--color-text-subtle);
 }
 
+/* ---- Model provider selects ------------------------------------------- */
+.set-model-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.set-select-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.set-select-label {
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.set-select-wrap {
+  position: relative;
+}
+
+.set-select {
+  width: 100%;
+  appearance: none;
+  padding: 9px 36px 9px 12px;
+  background: var(--color-surface-container);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--ref-radius-md);
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  color: var(--color-text-body);
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.set-select:focus {
+  outline: none;
+  border-color: var(--color-secondary-base);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-secondary-base) 20%, transparent);
+}
+
+.set-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.set-select-arrow {
+  pointer-events: none;
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  color: var(--color-text-subtle);
+}
+
+/* ---- Save row --------------------------------------------------------- */
+.set-model-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-border-subtle);
+}
+
+.set-save-error {
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  color: var(--color-error-base, #d32f2f);
+  flex: 1;
+}
+
+.set-save-ok {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--ref-type-family-sans);
+  font-size: 13px;
+  color: var(--color-success-base, #2e7d32);
+  flex: 1;
+}
+
+.set-save-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--ref-radius-md);
+  background: var(--color-primary-base);
+  color: var(--color-primary-on-base);
+  font-family: var(--ref-type-family-sans);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+
+.set-save-btn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.set-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.set-save-btn-done {
+  background: var(--color-success-base, #2e7d32);
+  color: #fff;
+}
+
 @media (max-width: 560px) {
-  .set-theme-grid {
+  .set-theme-grid,
+  .set-model-grid {
     grid-template-columns: 1fr;
   }
 }

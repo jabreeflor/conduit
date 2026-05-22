@@ -9,15 +9,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jabreeflor/conduit/internal/billing/budget"
+	"github.com/jabreeflor/conduit/internal/budget"
 	cupermissions "github.com/jabreeflor/conduit/internal/computeruse/permissions"
-	"github.com/jabreeflor/conduit/internal/platform/config"
-	"github.com/jabreeflor/conduit/internal/agent/assembler"
+	"github.com/jabreeflor/conduit/internal/config"
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 	"github.com/jabreeflor/conduit/internal/contracts"
-	"github.com/jabreeflor/conduit/internal/platform/hooks"
+	"github.com/jabreeflor/conduit/internal/hooks"
 	"github.com/jabreeflor/conduit/internal/memory"
 	"github.com/jabreeflor/conduit/internal/security"
-	"github.com/jabreeflor/conduit/internal/billing/usage"
+	"github.com/jabreeflor/conduit/internal/usage"
 )
 
 // Engine owns the long-lived runtime state for Conduit.
@@ -272,7 +272,7 @@ func (e *Engine) ModelStatus() contracts.ModelRouteDecision {
 // RecordContextOptimization emits context assembler transparency in the
 // session log. It satisfies router.OptimizationSink without coupling core to
 // router internals.
-func (e *Engine) RecordContextOptimization(_ context.Context, summary assembler.Summary) error {
+func (e *Engine) RecordContextOptimization(_ context.Context, summary contextassembler.Summary) error {
 	e.sessionLog = append(e.sessionLog, contracts.SessionLogEntry{
 		At: time.Now().UTC(),
 		Message: fmt.Sprintf(
