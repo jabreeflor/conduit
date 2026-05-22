@@ -1,11 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "./Icon";
-import {
-  GitHubMark,
-  IntegrationCard,
-  LinearMark,
-  SlackMark,
-} from "./IntegrationCard";
 
 // WelcomeScreen is the empty-state body of the content column. Shown when no
 // chat is selected. The composer's submit fires onStartChat, which the parent
@@ -13,10 +7,12 @@ import {
 export function WelcomeScreen({
   branch,
   onStartChat,
+  onBrowseProjects,
   autoFocus,
 }: {
   branch: string;
   onStartChat: (prompt: string) => void;
+  onBrowseProjects: () => void;
   autoFocus: boolean;
 }) {
   const [draft, setDraft] = useState("");
@@ -206,7 +202,7 @@ export function WelcomeScreen({
                     <button
                       type="button"
                       className="composer-menu-item"
-                      onClick={() => setMenu(null)}
+                      onClick={() => { setMenu(null); onBrowseProjects(); }}
                     >
                       Browse projects…
                     </button>
@@ -299,29 +295,6 @@ export function WelcomeScreen({
         </div>
       </div>
 
-      <div className="integration-cards">
-        <IntegrationCard
-          icon={<GitHubMark />}
-          title="Connect GitHub"
-          body="Pull issues, branches, and PR context directly into chat."
-        />
-        <IntegrationCard
-          icon={<LinearMark />}
-          title="Connect Linear"
-          body="Plan from your team's backlog and update statuses."
-        />
-        <IntegrationCard
-          tile
-          icon={<Icon name="hub" size={24} fill />}
-          title="Connect MCP"
-          body="Plug in external tools and data via Protocol."
-        />
-        <IntegrationCard
-          icon={<SlackMark />}
-          title="Connect Slack"
-          body="Pull context from team threads and share updates."
-        />
-      </div>
     </div>
   );
 }

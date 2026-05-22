@@ -209,6 +209,7 @@ export function App() {
             <WelcomeScreen
               branch="feat/projects-shell"
               onStartChat={handleStartChat}
+              onBrowseProjects={() => navigate("projects")}
               autoFocus={activeChatId === "new"}
             />
           )}
