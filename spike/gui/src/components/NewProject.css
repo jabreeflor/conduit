@@ -185,6 +185,12 @@
   padding: 19px;
 }
 
+.np-toggle-card-disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
 .np-toggle-icon {
   display: inline-flex;
   color: var(--color-text-subtle);
