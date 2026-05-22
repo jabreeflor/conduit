@@ -1,8 +1,7 @@
 import { Icon } from "./Icon";
 
 // TopBar is the 48px chrome above the content column: history nav, a global
-// search field, an optional context label, and window split/dock controls.
-// Search + controls are presentational for now (wiring tracked separately).
+// search field, and an optional context label.
 export function TopBar({
   label,
   searchPlaceholder = "Search conversations…",
@@ -59,15 +58,6 @@ export function TopBar({
       </div>
       <div className="topbar-spacer" />
       {label && <span className="topbar-label">{label}</span>}
-      <div className="topbar-spacer" />
-      <div className="topbar-actions">
-        <span className="topbar-icon" aria-hidden title="Split view">
-          <Icon name="splitscreen" size={20} />
-        </span>
-        <span className="topbar-icon" aria-hidden title="Dock">
-          <Icon name="dock" size={20} />
-        </span>
-      </div>
     </header>
   );
 }
