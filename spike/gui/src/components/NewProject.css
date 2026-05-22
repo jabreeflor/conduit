@@ -82,9 +82,34 @@
 }
 
 .np-field-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 14px;
   font-weight: 600;
   color: var(--color-text-body);
+}
+
+.np-required {
+  color: var(--color-error, #d32f2f);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.np-optional {
+  font-size: 12px;
+  font-weight: 400;
+  font-family: var(--ref-type-family-mono);
+  color: var(--color-text-subtle);
+  letter-spacing: 0.02em;
+}
+
+.np-field-error {
+  font-size: 12px;
+  color: var(--color-error, #d32f2f);
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .np-input,
@@ -116,6 +141,14 @@
 .np-textarea:focus {
   outline: none;
   border-color: var(--color-secondary-base);
+}
+
+.np-input-error {
+  border-color: var(--color-error, #d32f2f);
+}
+
+.np-input-error:focus {
+  border-color: var(--color-error, #d32f2f);
 }
 
 /* ── Chips ─────────────────────────────────────────────────── */
