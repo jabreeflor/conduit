@@ -341,19 +341,21 @@ export function NewProject({
           </div>
         </section>
 
-        {/* 6. Visibility & Governance */}
+        {/* 6. Visibility */}
         <section className="np-section">
-          <div className="np-section-label">Visibility & Governance</div>
+          <div className="np-section-label">Visibility</div>
           <div className="np-visibility-grid">
             {VISIBILITY_OPTIONS.map((option) => {
               const active = visibility === option.id;
+              const disabled = option.id === "public";
               return (
                 <button
                   key={option.id}
                   type="button"
-                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}`}
+                  className={`np-toggle-card${active ? " np-toggle-card-active" : ""}${disabled ? " np-toggle-card-disabled" : ""}`}
                   aria-pressed={active}
-                  onClick={() => setVisibility(option.id)}
+                  aria-disabled={disabled}
+                  onClick={() => !disabled && setVisibility(option.id)}
                 >
                   <span className="np-toggle-icon">
                     <Icon name={option.icon} size={24} />
