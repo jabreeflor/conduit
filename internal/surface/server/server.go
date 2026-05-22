@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/jabreeflor/conduit/internal/agent/templates"
 	"github.com/jabreeflor/conduit/internal/surface/coding"
 	"github.com/jabreeflor/conduit/internal/tools"
 )
@@ -39,6 +40,8 @@ type Server struct {
 	version     string
 	homeDir     string
 	sessionsDir string
+	// builtinTemplates is pre-loaded once at construction so lookups are O(1).
+	builtinTemplates map[string]templates.Template
 }
 
 // Config bundles the values the server needs to render /api/info and
@@ -65,15 +68,30 @@ func New(cfg Config) *Server {
 	if sessions == "" && home != "" {
 		sessions = filepath.Join(home, ".conduit", "coding-sessions")
 	}
-	return &Server{
-		factory:     cfg.Factory,
-		baseTools:   cfg.BaseTools,
-		provider:    cfg.Provider,
-		model:       cfg.Model,
-		version:     cfg.Version,
-		homeDir:     home,
-		sessionsDir: sessions,
+	builtins := make(map[string]templates.Template, len(templates.Builtin()))
+	for _, t := range templates.Builtin() {
+		builtins[t.ID] = t
 	}
+	return &Server{
+		factory:          cfg.Factory,
+		baseTools:        cfg.BaseTools,
+		provider:         cfg.Provider,
+		model:            cfg.Model,
+		version:          cfg.Version,
+		homeDir:          home,
+		sessionsDir:      sessions,
+		builtinTemplates: builtins,
+	}
+}
+
+// lookupTemplate resolves a template ID from built-ins. Returns the zero value
+// and false when the ID is not found.
+func (s *Server) lookupTemplate(id string) (templates.Template, bool) {
+	if id == "" {
+		return templates.Template{}, false
+	}
+	t, ok := s.builtinTemplates[id]
+	return t, ok
 }
 
 // Handler returns the HTTP mux with all routes wired up. Exposed
@@ -81,6 +99,7 @@ func New(cfg Config) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/agent", s.handleAgent)
+	mux.HandleFunc("/api/agents", s.handleAgents)
 	mux.HandleFunc("/api/info", s.handleInfo)
 	mux.HandleFunc("/api/sessions", s.handleSessions)
 	mux.HandleFunc("/api/projects", s.handleProjects)
