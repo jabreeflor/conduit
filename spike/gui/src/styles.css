@@ -978,6 +978,11 @@ button {
   background: var(--color-surface-container);
 }
 
+.ctx-menu {
+  bottom: auto;
+  top: calc(100% + 6px);
+}
+
 /* ── integration bento cards ────────────────────────────────────────── */
 .integration-cards {
   width: 100%;

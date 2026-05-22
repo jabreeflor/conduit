@@ -22,8 +22,13 @@ export function WelcomeScreen({
   const [draft, setDraft] = useState("");
   const [sandbox, setSandbox] = useState("Sandboxed");
   const [model, setModel] = useState("gpt-5.5 Medium");
-  const [menu, setMenu] = useState<null | "sandbox" | "model">(null);
+  const [machine, setMachine] = useState("Work locally");
+  const [menu, setMenu] = useState<
+    null | "sandbox" | "model" | "project" | "machine" | "branch"
+  >(null);
   const taRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const MACHINE_OPTS = ["Work locally", "Remote (SSH)", "Docker container"];
 
   const SANDBOX_OPTS = ["Sandboxed", "Unrestricted"];
   const MODEL_OPTS = [
@@ -172,20 +177,123 @@ export function WelcomeScreen({
           </div>
 
           <div className="context-row">
-            <span className="ctx-pill">
-              <Icon name="folder_open" size={14} />
-              conduit
-              <Icon name="expand_more" size={14} className="pill-chev" />
+            <span className="pill-wrap">
+              <button
+                type="button"
+                className="ctx-pill"
+                aria-haspopup="listbox"
+                aria-expanded={menu === "project"}
+                onClick={() =>
+                  setMenu((m) => (m === "project" ? null : "project"))
+                }
+              >
+                <Icon name="folder_open" size={14} />
+                conduit
+                <Icon name="expand_more" size={14} className="pill-chev" />
+              </button>
+              {menu === "project" && (
+                <ul className="composer-menu ctx-menu" role="listbox">
+                  <li role="option" aria-selected>
+                    <button
+                      type="button"
+                      className="composer-menu-item active"
+                      onClick={() => setMenu(null)}
+                    >
+                      conduit
+                    </button>
+                  </li>
+                  <li role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="composer-menu-item"
+                      onClick={() => setMenu(null)}
+                    >
+                      Browse projects…
+                    </button>
+                  </li>
+                </ul>
+              )}
             </span>
-            <span className="ctx-pill">
-              <Icon name="computer" size={14} />
-              Work locally
-              <Icon name="expand_more" size={14} className="pill-chev" />
+
+            <span className="pill-wrap">
+              <button
+                type="button"
+                className="ctx-pill"
+                aria-haspopup="listbox"
+                aria-expanded={menu === "machine"}
+                onClick={() =>
+                  setMenu((m) => (m === "machine" ? null : "machine"))
+                }
+              >
+                <Icon name="computer" size={14} />
+                {machine}
+                <Icon name="expand_more" size={14} className="pill-chev" />
+              </button>
+              {menu === "machine" && (
+                <ul className="composer-menu ctx-menu" role="listbox">
+                  {MACHINE_OPTS.map((opt) => (
+                    <li key={opt} role="option" aria-selected={opt === machine}>
+                      <button
+                        type="button"
+                        className={`composer-menu-item${opt === machine ? " active" : ""}`}
+                        onClick={() => {
+                          setMachine(opt);
+                          setMenu(null);
+                        }}
+                      >
+                        {opt}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </span>
-            <span className="ctx-pill">
-              <Icon name="account_tree" size={14} />
-              {branch || "main"}
-              <Icon name="expand_more" size={14} className="pill-chev" />
+
+            <span className="pill-wrap">
+              <button
+                type="button"
+                className="ctx-pill"
+                aria-haspopup="listbox"
+                aria-expanded={menu === "branch"}
+                onClick={() =>
+                  setMenu((m) => (m === "branch" ? null : "branch"))
+                }
+              >
+                <Icon name="account_tree" size={14} />
+                {branch || "main"}
+                <Icon name="expand_more" size={14} className="pill-chev" />
+              </button>
+              {menu === "branch" && (
+                <ul className="composer-menu ctx-menu" role="listbox">
+                  <li role="option" aria-selected>
+                    <button
+                      type="button"
+                      className="composer-menu-item active"
+                      onClick={() => setMenu(null)}
+                    >
+                      {branch || "main"}
+                    </button>
+                  </li>
+                  <li role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="composer-menu-item"
+                      onClick={() => setMenu(null)}
+                    >
+                      main
+                    </button>
+                  </li>
+                  <li role="option" aria-selected={false}>
+                    <button
+                      type="button"
+                      className="composer-menu-item"
+                      onClick={() => setMenu(null)}
+                    >
+                      Browse branches…
+                    </button>
+                  </li>
+                </ul>
+              )}
             </span>
           </div>
         </div>
