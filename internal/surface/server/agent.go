@@ -40,10 +40,25 @@ type promptMsg struct {
 // package README. One streamer + one wrapped tool slice are bound per
 // connection so concurrent sessions don't share conversation history
 // or tool-event channels.
+//
+// An optional ?template=<id> query parameter selects a built-in agent
+// template. When set, the template's system prompt is prepended to the
+// first user message of the session so the model receives the persona
+// context before any user content.
 func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	if s.factory == nil {
 		http.Error(w, "agent: no streamer factory configured", http.StatusServiceUnavailable)
 		return
+	}
+
+	// Resolve the optional template system prompt before upgrading so we
+	// can emit a "template" field on the session frame.
+	templateID := r.URL.Query().Get("template")
+	var systemPrompt string
+	var templateName string
+	if t, ok := s.lookupTemplate(templateID); ok {
+		systemPrompt = t.SystemPrompt
+		templateName = t.Name
 	}
 
 	c, err := websocket.Accept(w, r, &websocket.AcceptOptions{
@@ -68,15 +83,20 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 	streamer, providerName, modelName := s.factory(wrappedTools)
 	sessionID := fmt.Sprintf("code-%d", time.Now().UTC().Unix())
 
-	if err := emitter.send(agentEvent{
+	sessionEv := agentEvent{
 		Type:     "session",
 		ID:       sessionID,
 		Provider: providerName,
 		Model:    modelName,
-	}); err != nil {
+	}
+	if templateName != "" {
+		sessionEv.Name = templateName
+	}
+	if err := emitter.send(sessionEv); err != nil {
 		return
 	}
 
+	firstTurn := true
 	for {
 		_, data, err := c.Read(ctx)
 		if err != nil {
@@ -87,7 +107,17 @@ func (s *Server) handleAgent(w http.ResponseWriter, r *http.Request) {
 			_ = emitter.send(agentEvent{Type: "error", Message: "expected {type:\"prompt\", text:string}"})
 			continue
 		}
-		runTurn(ctx, streamer, msg.Text, emitter)
+		prompt := msg.Text
+		// Prepend the template system prompt to the first user turn so the
+		// model receives it as a grounding context block. Subsequent turns
+		// are sent verbatim — the streamer's own history carries context forward.
+		if firstTurn && systemPrompt != "" {
+			prompt = systemPrompt + "\n\n" + prompt
+			firstTurn = false
+		} else {
+			firstTurn = false
+		}
+		runTurn(ctx, streamer, prompt, emitter)
 	}
 }
 

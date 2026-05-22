@@ -8,6 +8,9 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/jabreeflor/conduit/internal/agent/templates"
+	"github.com/jabreeflor/conduit/internal/surface/coding"
 )
 
 // ── /api/info ────────────────────────────────────────────────────────
@@ -210,4 +213,103 @@ func readFileOrEmpty(path string) string {
 		return ""
 	}
 	return string(b)
+}
+
+// ── /api/agents ──────────────────────────────────────────────────────
+
+// agentTemplateResponse is the wire shape for one agent template. The system
+// prompt is intentionally omitted — clients reference templates by ID when
+// connecting to /api/agent?template=<id>; the server resolves the prompt.
+type agentTemplateResponse struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	IsBuiltIn   bool   `json:"isBuiltIn"`
+}
+
+// handleAgents serves GET /api/agents (list) and POST /api/agents (create custom).
+//
+// GET returns built-in templates merged with user-defined profiles from
+// ~/.conduit/agents/. Built-ins appear first; user profiles are appended in
+// alphabetical order and carry isBuiltIn=false.
+//
+// POST creates a new user-defined agent profile from a JSON body:
+//
+//	{ "name": "...", "description": "...", "systemPrompt": "..." }
+//
+// The profile is written to ~/.conduit/agents/ and the saved record is echoed.
+func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		s.listAgents(w, r)
+	case http.MethodPost:
+		s.createAgent(w, r)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeJSON(w, http.StatusMethodNotAllowed, map[string]string{"error": "method not allowed"})
+	}
+}
+
+func (s *Server) listAgents(w http.ResponseWriter, _ *http.Request) {
+	out := make([]agentTemplateResponse, 0)
+	for _, t := range templates.Builtin() {
+		out = append(out, agentTemplateResponse{
+			ID:          t.ID,
+			Name:        t.Name,
+			Description: t.Description,
+			Icon:        t.Icon,
+			IsBuiltIn:   true,
+		})
+	}
+	if s.homeDir != "" {
+		userDir, _ := coding.DefaultAgentProfileDirs(s.homeDir, "")
+		profiles, _ := coding.LoadProfiles(userDir, "")
+		for _, p := range profiles {
+			out = append(out, agentTemplateResponse{
+				ID:          p.Name,
+				Name:        p.Name,
+				Description: p.Description,
+				Icon:        "person",
+				IsBuiltIn:   false,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// createAgentBody is the expected POST body for custom agent creation.
+type createAgentBody struct {
+	Name         string `json:"name"`
+	Description  string `json:"description"`
+	SystemPrompt string `json:"systemPrompt"`
+}
+
+func (s *Server) createAgent(w http.ResponseWriter, r *http.Request) {
+	if s.homeDir == "" {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "no home directory configured"})
+		return
+	}
+	var body createAgentBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || strings.TrimSpace(body.Name) == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "name is required"})
+		return
+	}
+	userDir, _ := coding.DefaultAgentProfileDirs(s.homeDir, "")
+	profile := coding.AgentProfile{
+		Name:          strings.TrimSpace(body.Name),
+		Description:   strings.TrimSpace(body.Description),
+		InitialPrompt: strings.TrimSpace(body.SystemPrompt),
+	}
+	if err := coding.WriteProfile(userDir, profile); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusCreated, agentTemplateResponse{
+		ID:          profile.Name,
+		Name:        profile.Name,
+		Description: profile.Description,
+		Icon:        "person",
+		IsBuiltIn:   false,
+	})
 }
