@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jabreeflor/conduit/internal/agent/assembler"
+	"github.com/jabreeflor/conduit/internal/contextassembler"
 	"github.com/jabreeflor/conduit/internal/contracts"
 )
 
@@ -49,7 +49,7 @@ func TestRouteModelEscalatesOnConfiguredTriggers(t *testing.T) {
 
 func TestRecordContextOptimizationLogsSummary(t *testing.T) {
 	engine := New("test")
-	err := engine.RecordContextOptimization(nil, assembler.Summary{
+	err := engine.RecordContextOptimization(nil, contextassembler.Summary{
 		OriginalTokens:  1_000,
 		FinalTokens:     400,
 		DroppedItems:    2,

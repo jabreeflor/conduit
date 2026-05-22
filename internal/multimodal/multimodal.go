@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jabreeflor/conduit/internal/provider/router"
+	"github.com/jabreeflor/conduit/internal/router"
 )
 
 // supportedImageExts is the set of image extensions accepted by @image.
